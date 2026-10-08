@@ -45,7 +45,6 @@ def main():
     ap.add_argument('--social', action='store_true', help='Generate Shorts/Reels from explicitly authorized social source clips')
     ap.add_argument('--social-upload', action='store_true', help='Upload ready social clips to YouTube Shorts')
     ap.add_argument('--facebook-social-reels', action='store_true', help='Publish ready social clips as Facebook Page Reels')
-    ap.add_argument('--social-upload', action='store_true', help='Upload one ready authorized social Short to YouTube')
     args = ap.parse_args()
 
     if args.check:
