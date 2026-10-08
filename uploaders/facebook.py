@@ -182,3 +182,27 @@ def publish_daily_reels(limit=2):
             break
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
     print(f'Facebook reels: {done}/{limit}')
+
+
+def publish_social_reels(limit=2):
+    """Publish today's authorized short-form clips as Facebook Page Reels."""
+    state_path = ROOT / 'state' / 'state.json'
+    state = json.loads(state_path.read_text(encoding='utf-8'))
+    today = time.strftime('%Y-%m-%d')
+    done = 0
+    for item in state.get('social', []):
+        if item.get('date') != today or item.get('status') != 'ready':
+            continue
+        reel = item.setdefault('facebook_reel', {})
+        if reel.get('status') == 'uploaded':
+            continue
+        video = ROOT / item.get('video', '')
+        if not video.exists():
+            continue
+        reel_id = publish_reel(video, item.get('description', ''))
+        reel.update({'status': 'uploaded', 'video_id': reel_id, 'updated_at': int(time.time())})
+        done += 1
+        if done >= limit:
+            break
+    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
+    print(f'Social Facebook Reels: {done}/{limit}')
