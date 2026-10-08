@@ -66,8 +66,11 @@ def publish_video(video_path, title='', description=''):
 def publish_daily_images(limit=2):
     state_path = ROOT / 'state' / 'state.json'
     state = json.loads(state_path.read_text(encoding='utf-8'))
+    today = time.strftime('%Y-%m-%d')
     done = 0
     for item in state.get('image_posts', []):
+        if item.get('date') != today:
+            continue
         if item.get('status') != 'ready' or item.get('facebook', {}).get('status') == 'uploaded':
             continue
         image = ROOT / item['image']
