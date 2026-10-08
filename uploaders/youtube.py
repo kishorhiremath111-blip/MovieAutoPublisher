@@ -236,9 +236,20 @@ def publish_social(limit=1):
         video = ROOT / item['video']
         if not video.exists():
             continue
-        title = item.get('title', 'Short')[:88].rstrip() + ' #Shorts'
+        pack = item.get('viral_pack') or {}
+        title = (pack.get('title') or item.get('title', 'Short'))[:88].rstrip()
+        if '#Shorts' not in title:
+            title += ' #Shorts'
         tags = item.get('tags', [])[:500]
-        vid = upload_video(video, title, item.get('description', ''), tags, 'public')
+        vid = upload_video(
+            video,
+            title,
+            item.get('description', ''),
+            tags,
+            'public',
+            item.get('thumbnail')
+        )
+        record_tracker(vid, item, 'social-short')
         yt.update({'status': 'uploaded', 'video_id': vid, 'updated_at': int(time.time())})
         daily['short'].append(item.get('id'))
         done += 1
