@@ -65,12 +65,12 @@ def main():
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-news-video')
 
-    # Facebook Reels are intentionally NOT required every day. They remain
-    # available through the manual --facebook-reels command when needed.
-    
-    # Separate daily image posts are intentionally not automatic.
-    # News images are already assembled as 1-6 slides inside the single roundup.
-    # The manual --daily-images command remains available when specifically needed.
+    # DAILY PHOTOS: generate and publish one batch of authorized image posts.
+    # The image generator itself enforces the configured daily image limit.
+    run('upload_queue', '--daily-images')
+    if (CREDS / 'facebook_page.json').exists():
+        run('upload_queue', '--facebook-images')
+
 
 
     # Process any licensed content already supplied to the cloud workspace.
