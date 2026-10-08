@@ -166,23 +166,8 @@ def publish_news(limit=1):
         item['youtube']['updated_at'] = int(time.time())
         daily['long'].append(item.get('id'))
 
-        # Daily Short is uploaded when the generator produced one. This is a
-        # YouTube Short, separate from the optional Facebook Reel.
-        short_path = ROOT / item.get('short', '')
-        if short_path.exists() and item.get('youtube', {}).get('short_status') != 'uploaded':
-            short_title = item['title'][:88].rstrip() + ' #Shorts'
-            short_id = upload_video(
-                short_path,
-                short_title,
-                description,
-                tags,
-                'public',
-                item.get('thumbnail')
-            )
-            item['youtube']['short_status'] = 'uploaded'
-            item['youtube']['short_video_id'] = short_id
-            item['youtube']['short_updated_at'] = int(time.time())
-            daily['short'].append(item.get('id'))
+        # The daily Short is handled by the dedicated social pipeline.
+        # This keeps the daily output at exactly one Short.
 
         done += 1
         if done >= limit:
@@ -196,7 +181,7 @@ if __name__ == '__main__':
     publish_daily()
 
 
-def publish_social(limit=2):
+def publish_social(limit=1):
     """Upload today's authorized short-form social clips to YouTube."""
     state_path = ROOT / 'state' / 'state.json'
     state = load_json(state_path, {'social': [], 'daily': {}})
