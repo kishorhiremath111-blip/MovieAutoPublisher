@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / 'config' / 'config.json'
 STATE = ROOT / 'state' / 'state.json'
 OUT = ROOT / 'output' / 'news'
+BRAND_DIR = ROOT / 'input' / 'brand_assets'
+MUSIC_DIR = ROOT / 'input' / 'music'
 
 DEFAULT_FEEDS = {
     'world': 'https://news.google.com/rss/search?q=' + urllib.parse.quote('world when:1d') + '&hl=en-IN&gl=IN&ceid=IN:en',
@@ -133,6 +135,12 @@ def commentary(category, title):
     return None
 
 
+def brand_logo():
+    if not BRAND_DIR.exists(): return None
+    imgs=[p for p in BRAND_DIR.iterdir() if p.is_file() and p.suffix.lower() in {'.png','.jpg','.jpeg','.webp'}]
+    return sorted(imgs,key=lambda p:p.stat().st_size,reverse=True)[0] if imgs else None
+
+
 def make_card(item, out, real_image=None):
     W,H=1080,1350
     if real_image and real_image.exists():
@@ -168,14 +176,34 @@ def make_card(item, out, real_image=None):
     for line in wrap(d,take,font(27,False),920)[:3]:
         d.text((55,yy),line,font=font(27),fill=(235,235,235)); yy+=38
     d.text((55,1260),'Source: Google News RSS • Verify with the original report',font=font(22),fill=(160,160,160))
+    logo=brand_logo()
+    if logo:
+        try:
+            lg=Image.open(logo).convert('RGBA'); lg.thumbnail((170,170))
+            im.paste(lg,(W-lg.width-45,H-lg.height-35),lg)
+        except Exception: pass
     out.parent.mkdir(parents=True,exist_ok=True); im.save(out,quality=94,optimize=True)
+
+
+def pick_music(item):
+    if not MUSIC_DIR.exists(): return None
+    tracks=[p for p in MUSIC_DIR.iterdir() if p.is_file() and p.suffix.lower() in {'.mp3','.m4a','.wav','.aac'}]
+    if not tracks: return None
+    key=(item.get('category','')+'|'+item.get('title','')).encode()
+    return sorted(tracks)[int(hashlib.sha256(key).hexdigest(),16)%len(tracks)]
 
 
 def make_video(card, out, item):
     # Original motion card; no third-party footage is downloaded.
     textfile = out.parent / (out.stem + '.txt')
     textfile.write_text(item['title'],encoding='utf-8')
-    subprocess.run(['ffmpeg','-y','-loop','1','-i',str(card),'-t','30','-vf','zoompan=z=1.02:d=750:s=1080x1920:fps=25,format=yuv420p','-an','-c:v','libx264','-preset','veryfast','-b:v','2500k','-movflags','+faststart',str(out)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    music=pick_music(item)
+    cmd=['ffmpeg','-y','-loop','1','-i',str(card)]
+    if music:
+        cmd += ['-stream_loop','-1','-i',str(music),'-t','30','-vf','zoompan=z=1.02:d=750:s=1080x1920:fps=25,format=yuv420p','-map','0:v:0','-map','1:a:0','-c:v','libx264','-preset','veryfast','-b:v','2500k','-c:a','aac','-b:a','128k','-shortest','-movflags','+faststart',str(out)]
+    else:
+        cmd += ['-t','30','-vf','zoompan=z=1.02:d=750:s=1080x1920:fps=25,format=yuv420p','-an','-c:v','libx264','-preset','veryfast','-b:v','2500k','-movflags','+faststart',str(out)]
+    subprocess.run(cmd,check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
 
 def generate(limit=2):
@@ -191,7 +219,16 @@ def generate(limit=2):
         fp=hashlib.sha256((x['title']+'|'+x['link']).encode()).hexdigest()
         if fp in seen: continue
         x['fingerprint']=fp; fresh.append(x)
-    if not fresh: raise SystemExit('No fresh RSS items found.')
+    # Instagram trend metadata is used only as a topic signal. Third-party media is not reposted.
+    try:
+        ig=load(ROOT/'state'/'instagram_trends.json',{'items':[]})
+        for row in ig.get('items',[])[:20]:
+            cap=clean(row.get('caption',''))
+            if cap:
+                fresh.append({'category':'instagram-trend','title':cap.split('\\n')[0][:180],'description':cap[:700],'link':row.get('permalink',''),'published':row.get('timestamp',''),'fingerprint':hashlib.sha256((row.get('id','')+'|'+cap).encode()).hexdigest(),'instagram_trend':True})
+    except Exception:
+        pass
+    if not fresh: raise SystemExit('No fresh RSS/Instagram items found.')
     today=time.strftime('%Y-%m-%d'); work=OUT/today
     made=0
     for item in fresh:
@@ -200,7 +237,7 @@ def generate(limit=2):
         base=work/f'{slug}_{made+1}'
         card=base.with_suffix('.jpg'); video=base.with_suffix('.mp4')
         source_image=work/f'{slug}_{made+1}_source.jpg'
-        media=commons_image(item,source_image)
+        media=commons_image(item,source_image) if not item.get('instagram_trend') else None
         make_card(item,card,media['path'] if media else None)
         make_video(card,video,item)
         if media:
