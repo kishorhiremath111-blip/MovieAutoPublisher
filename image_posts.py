@@ -234,7 +234,7 @@ def generate_daily_images():
                     'date': today,
                     'category': 'news',
                     'image': str(out.relative_to(ROOT)),
-                    'caption': f'{title}\\n\\nFresh update • Read the full story',
+                    'caption': f'{title}\n\nFresh update • Read the full story',
                     'source_item': news.get('id'),
                     'viral_parent_id': news.get('id'),
                     'status': 'ready',
