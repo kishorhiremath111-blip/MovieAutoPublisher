@@ -509,6 +509,9 @@ def main():
 
     if mode == "gate":
         threshold = float(cfg.get("viral_pre_publish_min_score", 75))
+
+        # Score news first; image posts can inherit the exact score of the
+        # fresh news story they visually represent.
         for collection_name in ("social", "news"):
             for item in state.get(collection_name, []):
                 if item.get("status") != "ready":
@@ -520,6 +523,23 @@ def main():
                 if score < threshold:
                     item["status"] = "hold"
                     item["hold_reason"] = f"viral_score {score} < {threshold}"
+
+        news_by_id = {
+            str(x.get("id")): x
+            for x in state.get("news", [])
+            if x.get("id")
+        }
+        for item in state.get("image_posts", []):
+            if item.get("status") != "ready":
+                continue
+            parent = news_by_id.get(str(item.get("viral_parent_id")))
+            if parent and parent.get("viral_score") is not None:
+                item["viral_score"] = parent.get("viral_score")
+                item["viral_breakdown"] = parent.get("viral_breakdown", {})
+                if item["viral_score"] < threshold:
+                    item["status"] = "hold"
+                    item["hold_reason"] = f"viral_score {item['viral_score']} < {threshold}"
+
         save(STATE, state)
         print(f"Viral gate applied at {threshold}.")
         return
