@@ -202,12 +202,15 @@ def analyze_highlights(video, duration, cfg):
     return ranked
 
 
-def extract_clip(video, start, end, out, width, height, item, style='clean'):
+def extract_clip(video, start, end, out, width, height, item, style='clean', overlay_text=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     duration = max(0.1, end - start)
     vf = [f'scale={width}:{height}:force_original_aspect_ratio=increase', f'crop={width}:{height}']
     vf.extend(style_filters(style))
     apply_manual_censors(vf, item)
+    if overlay_text:
+        vf.append('drawbox=x=30:y=35:w=iw-60:h=86:color=black@0.58:t=fill')
+        vf.append(f"drawtext=text='{escape_drawtext(overlay_text)}':x=55:y=58:fontsize=34:fontcolor=white")
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{duration:.3f}',
         '-vf',','.join(vf),'-c:v','libx264','-preset','veryfast','-b:v',item['_cfg']['video_bitrate'],
@@ -267,7 +270,15 @@ def make_highlight_compilation(video, item, part, out_dir, cfg):
     work = out_dir / 'clips'
     work.mkdir(parents=True, exist_ok=True)
     clips = []
-    for idx, (start, end, score) in enumerate(selected, 1):
+    ordered = sorted(selected, key=lambda x: x[2], reverse=True)
+    if bool(cfg.get('hook_enabled', True)) and ordered:
+        hs, he, _ = ordered[0]
+        hook_seconds = max(1.0, min(6.0, float(cfg.get('hook_seconds', 5))))
+        hook_end = min(he, hs + hook_seconds)
+        hook = work / 'hook_01.mp4'
+        extract_clip(video, hs, hook_end, hook, int(cfg['output_width']), int(cfg['output_height']), item, item.get('edit_style','clean'), overlay_text=item.get('hook_text') or 'WATCH THIS MOMENT')
+        clips.append(hook)
+    for idx, (start, end, score) in enumerate(ordered, 1):
         clip = work / f'clip_{idx:02d}.mp4'
         extract_clip(video, start, end, clip, int(cfg['output_width']), int(cfg['output_height']), item, item.get('edit_style','clean'))
         clips.append(clip)
@@ -307,6 +318,9 @@ def make_short(video, item, part, out_dir, cfg):
     if overlay:
         vf.append('drawbox=x=25:y=25:w=430:h=68:color=black@0.55:t=fill')
         vf.append(f"drawtext=text='{escape_drawtext(overlay)}':x=42:y=44:fontsize=30:fontcolor=white")
+    hook_text = item.get('hook_text') or 'WATCH THIS'
+    vf.append('drawbox=x=28:y=125:w=1024:h=72:color=black@0.45:t=fill')
+    vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=52:y=145:fontsize=30:fontcolor=white")
     apply_manual_censors(vf, item)
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{target_len:.3f}',
