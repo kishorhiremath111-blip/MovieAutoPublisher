@@ -20,7 +20,9 @@ jobs:
       - name: Restore persistent state cache
         uses: actions/cache/restore@v4
         with:
-          path: state/state.json
+          path: |
+            state/state.json
+            state/viral_tracker.json
           key: movieautopublisher-state-${{ github.run_id }}
           restore-keys: movieautopublisher-state-
 
