@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / 'state' / 'state.json'
@@ -135,9 +136,11 @@ def choose_source(state):
     return None, None, None
 
 
-def generate_two():
+def generate_daily_images():
     state = load(STATE, {'processed': {}, 'queue': [], 'image_posts': []})
     today = time.strftime('%Y-%m-%d')
+    target_count = int(load(CONFIG, {}).get('daily_image_posts', 9))
+    target_count = max(1, min(9, target_count))
     if any(x.get('date') == today for x in state.get('image_posts', [])):
         print(f'Images already generated for {today}')
         return
@@ -147,46 +150,71 @@ def generate_two():
         raise SystemExit('No licensed input video found. Put an authorized video in input/videos/ first.')
 
     dur = duration(video)
-    # Two different moments so the daily pair does not look duplicated.
-    points = [dur * 0.32, dur * 0.68] if dur > 20 else [dur * 0.35, dur * 0.65]
     work = OUT / today
+    cfg = load(CONFIG, {})
+    scenes = detect_scene_times(video, float(cfg.get('scene_threshold', 0.35)))
+    silence = detect_silence_ranges(video, float(cfg.get('silence_db', -34)))
+    ranked = rank_highlight_windows(
+        dur, scenes, count=max(12, target_count * 2),
+        clip_seconds=float(cfg.get('highlight_clip_seconds', 42)),
+        silence_ranges=silence,
+        min_gap_seconds=float(cfg.get('min_highlight_gap_seconds', 12)),
+    )
+    ranked = sorted(ranked, key=lambda x: x[2], reverse=True)
+    points = []
+    for s0, e0, score in ranked:
+        point = min(dur - 0.2, max(0.2, (s0 + e0) / 2.0))
+        if all(abs(point - old) >= 8 for old in points):
+            points.append(point)
+        if len(points) >= target_count:
+            break
+    if not points:
+        points = [dur * (i + 1) / (target_count + 1) for i in range(target_count)]
+
     frames = []
     for i, point in enumerate(points, 1):
-        frame = work / f'frame_{i}.jpg'
+        frame = work / f'frame_{i:02d}.jpg'
         extract_frame(video, point, frame)
         frames.append(frame)
 
     title = info.get('detected_title') or info.get('title') or item_id
-    typ = str(info.get('type', '')).lower()
-    if not typ:
-        typ = 'content'
-
-    captions = [
-        (f'{title} • BEST MOMENT', 'The kind of scene you replay twice.', 'MOMENT'),
-        (f'{title} • MOOD CHECK', 'When the scene says everything without saying much.', 'MOOD'),
-    ]
-    # Category-aware copy without pretending the system knows a scene is truly viral.
-    if typ == 'anime':
-        captions = [
-            (f'{title} • ANIME MOMENT', 'That frame hits different. ⚡', 'ANIME'),
-            (f'{title} • MOOD', 'Peak anime energy. 🔥', 'ANIME'),
+    typ = str(info.get('type', '')).lower() or 'movie'
+    adult = bool(info.get('adult', False))
+    caption_sets = {
+        'anime': [
+            ('POWER FRAME', 'Peak anime energy.'), ('BATTLE MOOD', 'This frame goes hard.'),
+            ('CHARACTER MOMENT', 'One frame, full aura.'), ('WAIT FOR IT', 'The setup is everything.'),
+            ('PEAK MOMENT', 'That timing though.'), ('DARK MOOD', 'The mood just changed.'),
+            ('FAN FAVOURITE', 'Instant replay material.'), ('STORY DROP', 'There is more behind this scene.'),
+            ('FINAL LOOK', 'Worth the pause.')
+        ],
+        'series': [
+            ('SCENE OF THE DAY', 'One scene. Full mood.'), ('PLOT MOOD', 'When the episode takes a turn.'),
+            ('BEST FRAME', 'The frame says enough.'), ('WAIT FOR IT', 'The setup matters.'),
+            ('DARK MOOD', 'The atmosphere is different here.'), ('CHARACTER MOMENT', 'A small moment, big impact.'),
+            ('THAT LOOK', 'You know the scene.'), ('EPISODE ENERGY', 'This is the vibe.'),
+            ('REPLAY THIS', 'Worth another look.')
+        ],
+        'movie': [
+            ('BEST FRAME', 'Cinema in one frame.'), ('SCENE MOOD', 'The atmosphere says it all.'),
+            ('WAIT FOR IT', 'The setup is everything.'), ('ICONIC MOMENT', 'A frame worth stopping for.'),
+            ('DARK MOOD', 'When the tone shifts.'), ('CHARACTER MOMENT', 'The look says enough.'),
+            ('CINEMATIC', 'Shot. Mood. Moment.'), ('STORY BEAT', 'A small detail can change everything.'),
+            ('REPLAY THIS', 'One more look.')
         ]
-    elif typ == 'series':
-        captions = [
-            (f'{title} • SCENE OF THE DAY', 'One scene. Full mood.', 'SERIES'),
-            (f'{title} • DARK MOOD', 'When the episode takes a turn.', 'DARK'),
-        ]
-
+    }
+    captions = caption_sets.get(typ, caption_sets['movie'])
     posts = []
-    for idx, (cap, sub, badge) in enumerate(captions, 1):
-        out = work / f'{safe_name(item_id)}_{idx}.jpg'
-        card(frames[idx - 1], cap, sub, out, badge=badge, dark=(badge == 'DARK'))
+    for idx, frame in enumerate(frames, 1):
+        cap, sub = captions[(idx - 1) % len(captions)]
+        out = work / f'{safe_name(item_id)}_{idx:02d}.jpg'
+        card(frame, f'{title} • {cap}', sub, out, badge=('18+' if adult else None), dark=(cap == 'DARK MOOD'))
         posts.append({
             'id': f'{today}-{item_id}-{idx}',
             'date': today,
-            'category': badge.lower(),
+            'category': cap.lower(),
             'image': str(out.relative_to(ROOT)),
-            'caption': cap + '\n\n' + sub,
+            'caption': f'{title} • {cap}\n\n{sub}',
             'source_item': item_id,
             'status': 'ready',
             'created_at': int(time.time()),
@@ -204,10 +232,10 @@ def generate_two():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--daily', action='store_true', help='Generate exactly two daily image cards')
+    ap.add_argument('--daily', action='store_true', help='Generate up to 9 professional daily image cards')
     args = ap.parse_args()
     if args.daily:
-        generate_two()
+        generate_daily_images()
     else:
         ap.print_help()
 
