@@ -359,13 +359,16 @@ def score_candidate(item, trend_rows, tracker):
 def make_pack(item, trend_rows, score):
     title = str(item.get("title") or "").strip()
     if item.get("stories"):
-        ranked = sorted(
-            item.get("stories") or [],
-            key=lambda s: parse_ts(s.get("published")) or 0,
-            reverse=True
-        )
-        top = ranked[0] if ranked else {}
-        top_title = re.sub(r"\s+", " ", str(top.get("title") or "")).strip()
+        breakdown = item.get("viral_breakdown") or {}
+        top_title = re.sub(r"\s+", " ", str(breakdown.get("top_story") or "")).strip()
+        if not top_title:
+            ranked = sorted(
+                item.get("stories") or [],
+                key=lambda s: parse_ts(s.get("published")) or 0,
+                reverse=True
+            )
+            top = ranked[0] if ranked else {}
+            top_title = re.sub(r"\s+", " ", str(top.get("title") or "")).strip()
         if top_title:
             title = f"Today's Big Update: {top_title}"
     if not title:
