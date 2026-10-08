@@ -9,6 +9,7 @@ import json
 import math
 import os
 import re
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -309,7 +310,7 @@ def main():
     })
     state = load(STATE, {"social": [], "news": []})
     trends = trend_index()
-    mode = os.getenv("VIRAL_TRACKER_MODE", "").strip() or "update"
+    mode = (sys.argv[1] if len(sys.argv) > 1 else os.getenv("VIRAL_TRACKER_MODE", "").strip() or "update").lstrip("-")
     
     if mode == "update":
         update_youtube_performance(tracker)
