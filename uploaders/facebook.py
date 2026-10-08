@@ -163,12 +163,17 @@ def publish_reel(video_path, description=''):
     return video_id
 
 
-def publish_daily_reels(limit=2):
+def publish_daily_reels(limit=1):
     state_path = ROOT / 'state' / 'state.json'
     state = json.loads(state_path.read_text(encoding='utf-8'))
+    today = time.strftime('%Y-%m-%d')
+    daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': []})
+    if daily.get('reel'):
+        print('Facebook reels: 1/1 (already published today)')
+        return
     done = 0
     for item in state.get('news', []):
-        if item.get('status') != 'ready' or item.get('facebook_reel', {}).get('status') == 'uploaded':
+        if item.get('date') != today or item.get('status') != 'ready' or item.get('facebook_reel', {}).get('status') == 'uploaded':
             continue
         video = ROOT / item['short'] if item.get('short') else ROOT / item['video']
         if not video.exists():
@@ -177,6 +182,7 @@ def publish_daily_reels(limit=2):
         item.setdefault('facebook_reel', {})['status'] = 'uploaded'
         item['facebook_reel']['video_id'] = reel_id
         item['facebook_reel']['updated_at'] = int(time.time())
+        daily.setdefault('reel', []).append(item.get('id'))
         done += 1
         if done >= limit:
             break
@@ -184,11 +190,15 @@ def publish_daily_reels(limit=2):
     print(f'Facebook reels: {done}/{limit}')
 
 
-def publish_social_reels(limit=2):
+def publish_social_reels(limit=1):
     """Publish today's authorized short-form clips as Facebook Page Reels."""
     state_path = ROOT / 'state' / 'state.json'
     state = json.loads(state_path.read_text(encoding='utf-8'))
     today = time.strftime('%Y-%m-%d')
+    daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': []})
+    if daily.get('reel'):
+        print('Social Facebook Reels: 1/1 (already published today)')
+        return
     done = 0
     for item in state.get('social', []):
         if item.get('date') != today or item.get('status') != 'ready':
@@ -201,6 +211,7 @@ def publish_social_reels(limit=2):
             continue
         reel_id = publish_reel(video, item.get('description', ''))
         reel.update({'status': 'uploaded', 'video_id': reel_id, 'updated_at': int(time.time())})
+        daily.setdefault('reel', []).append(item.get('id'))
         done += 1
         if done >= limit:
             break
