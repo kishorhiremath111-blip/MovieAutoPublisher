@@ -67,7 +67,7 @@ def main():
         return
     if args.facebook_images:
         from uploaders.facebook import publish_daily_images
-        publish_daily_images(9)
+        publish_daily_images(1)
         return
     if args.news:
         from news_engine import generate
