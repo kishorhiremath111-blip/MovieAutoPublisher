@@ -81,6 +81,26 @@ NOISE_TERMS = {
     'forecast for next week', 'predictions'
 }
 
+
+CATEGORY_WEIGHTS = {
+    'world': 1.0,
+    'india': 1.8,
+    'sports': 1.15,
+    'business': 1.0,
+    'health': 1.1,
+    'technology': 1.15,
+    'electronics': 1.05,
+    'science': 1.0,
+    'space': 1.05,
+    'environment': 0.95,
+    'cars': 1.15,
+    'bikes': 1.15,
+    'crime': 1.05,
+    'gaming': 1.0,
+    'entertainment': 1.05,
+    'anime': 1.15,
+}
+
 SLIDE_LABELS = [
     'WHAT HAPPENED', 'KEY DETAIL', 'THE SCENE',
     'WHY IT MATTERS', 'WHAT CHANGES', 'YOUR TAKE?'
@@ -265,15 +285,29 @@ def score_item(item, trend_terms=None):
         score += 2.4
     if item.get('category') in {'crime', 'health'}:
         score += 0.3
+    score *= CATEGORY_WEIGHTS.get(item.get('category'), 1.0)
+    if item.get('category') == 'india':
+        score += 1.5
     return score
 
 
 def trend_terms():
     terms = set()
-    path = ROOT / 'state' / 'instagram_trends.json'
-    data = load(path, {'items': []})
-    for row in data.get('items', [])[:60]:
+
+    instagram_path = ROOT / 'state' / 'instagram_trends.json'
+    instagram = load(instagram_path, {'items': []})
+    for row in instagram.get('items', [])[:60]:
         terms.update(token_set(row.get('caption', '')))
+
+    youtube_path = ROOT / 'state' / 'youtube_trends.json'
+    youtube = load(youtube_path, {'popular': [], 'music': []})
+    for row in youtube.get('popular', [])[:80]:
+        terms.update(token_set(row.get('title', '')))
+        terms.update(token_set(row.get('channel_title', '')))
+    for row in youtube.get('music', [])[:40]:
+        terms.update(token_set(row.get('title', '')))
+        terms.update(token_set(row.get('channel_title', '')))
+
     return terms
 
 
