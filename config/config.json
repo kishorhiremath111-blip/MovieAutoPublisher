@@ -96,5 +96,12 @@
   "social_sources_mode": "authorized_or_rights_cleared_only",
   "social_third_party_download": false,
   "social_text_overlays": false,
-  "social_natural_editing": true
+  "social_natural_editing": true,
+  "viral_tracker_enabled": true,
+  "viral_pre_publish_min_score": 75,
+  "viral_push_top_n": 3,
+  "viral_fresh_hours": 36,
+  "viral_no_repeat_days": 30,
+  "viral_performance_tracking": true,
+  "viral_winner_boost": 1.15
 }
