@@ -194,3 +194,33 @@ def publish_news(limit=1):
 
 if __name__ == '__main__':
     publish_daily()
+
+
+def publish_social(limit=2):
+    """Upload today's authorized short-form social clips to YouTube."""
+    state_path = ROOT / 'state' / 'state.json'
+    state = load_json(state_path, {'social': [], 'daily': {}})
+    day = time.strftime('%Y-%m-%d')
+    done = 0
+    daily = state.setdefault('daily', {}).setdefault(day, {'long': [], 'short': []})
+
+    for item in state.get('social', []):
+        if item.get('date') != day or item.get('status') != 'ready':
+            continue
+        yt = item.setdefault('youtube', {})
+        if yt.get('status') == 'uploaded':
+            continue
+        video = ROOT / item['video']
+        if not video.exists():
+            continue
+        title = item.get('title', 'Short')[:88].rstrip() + ' #Shorts'
+        tags = item.get('tags', [])[:500]
+        vid = upload_video(video, title, item.get('description', ''), tags, 'public')
+        yt.update({'status': 'uploaded', 'video_id': vid, 'updated_at': int(time.time())})
+        daily['short'].append(item.get('id'))
+        done += 1
+        if done >= limit:
+            break
+
+    save_json(state_path, state)
+    print(f'Social YouTube: {done}/{limit}')
