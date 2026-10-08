@@ -34,5 +34,18 @@
     "health",
     "entertainment",
     "anime"
-  ]
+  ],
+  "instagram_trends": true,
+  "instagram_hashtags": [
+    "worldnews",
+    "breakingnews",
+    "technology",
+    "ai",
+    "science",
+    "india",
+    "entertainment",
+    "anime"
+  ],
+  "taskearn_branding": true,
+  "music_mode": "licensed_local_library"
 }
