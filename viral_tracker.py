@@ -128,7 +128,156 @@ def learned_profile(tracker):
     return result
 
 
+def _news_story_scores(item, trend_rows):
+    """Score individual news stories so a generic roundup title cannot hide strong trends."""
+    stories = item.get("stories") or []
+    results = []
+    now = now_ts()
+
+    for story in stories:
+        title = str(story.get("title", ""))
+        category = str(story.get("category", "")).lower()
+        text = " ".join([title, category, str(story.get("source", ""))])
+        story_tokens = tokens(text)
+
+        trend_points = []
+        for row in trend_rows:
+            overlap = len(story_tokens & row["tokens"])
+            if overlap <= 0:
+                continue
+            age_h = max(0.0, (now - row["published"]) / 3600.0) if row.get("published") else 24.0
+            recency = max(0.15, 1.0 - min(age_h, 48.0) / 60.0)
+            popularity = 1.0 + min(1.5, math.log10(max(10, row["views"] + 1)) / 8.0)
+            trend_points.append(min(5.0, overlap * recency * popularity))
+
+        external_trend = min(30.0, sum(sorted(trend_points, reverse=True)[:6]) * 3.0)
+
+        title_lower = title.lower()
+        trigger_words = {
+            "breaking", "latest", "update", "announced", "launch", "launched",
+            "record", "wins", "won", "deal", "warning", "alert", "discovery",
+            "breakthrough", "decision", "ruling", "ban", "banned", "crash",
+            "earthquake", "storm", "wildfire", "hack", "arrested", "missing",
+            "rescue", "election", "release", "reveals", "teased"
+        }
+        trigger_hits = sum(1 for x in trigger_words if x in title_lower)
+        urgency = min(7.0, trigger_hits * 1.5)
+
+        high_interest_categories = {
+            "india": 4.0, "sports": 3.5, "technology": 3.5, "electronics": 3.0,
+            "space": 3.0, "cars": 3.0, "bikes": 3.0, "gaming": 3.0,
+            "entertainment": 3.0, "anime": 3.0, "world": 2.5, "crime": 3.5,
+            "environment": 3.0, "science": 2.5, "business": 2.5, "health": 2.5
+        }
+        category_signal = high_interest_categories.get(category, 2.0)
+
+        curiosity = 0.0
+        if any(x in title_lower for x in (
+            "why", "how", "could", "will", "what", "major", "new", "first",
+            "record", "surprise", "shakes", "teased", "named", "boost"
+        )):
+            curiosity += 3.0
+        if 6 <= len(title.split()) <= 18:
+            curiosity += 2.0
+
+        published = parse_ts(story.get("published"))
+        freshness = 0.0
+        if published:
+            age_h = max(0.0, (now - published) / 3600.0)
+            freshness = max(0.0, 5.0 - min(age_h, 30.0) * 0.16)
+        else:
+            freshness = 2.0
+
+        source_bonus = 2.0 if story.get("source") and story.get("source") != "News source" else 0.0
+        score = min(100.0, external_trend + urgency + category_signal + curiosity + freshness + source_bonus)
+        results.append({
+            "title": title,
+            "category": category,
+            "score": round(score, 2),
+            "external_trend": round(external_trend, 2),
+            "urgency": round(urgency, 2),
+            "category_signal": round(category_signal, 2),
+            "curiosity": round(curiosity, 2),
+            "freshness": round(freshness, 2),
+        })
+
+    return sorted(results, key=lambda x: x["score"], reverse=True)
+
+
 def score_candidate(item, trend_rows, tracker):
+    # News roundups are scored from their strongest individual stories, not
+    # from the generic phrase "World News Roundup".
+    if item.get("stories"):
+        story_scores = _news_story_scores(item, trend_rows)
+        top = story_scores[:3]
+        if top:
+            top_external = max(x["external_trend"] for x in top)
+            top_story = top[0]
+            avg_top = sum(x["score"] for x in top) / len(top)
+
+            source_ts = parse_ts(
+                item.get("published_at")
+                or item.get("created_at")
+                or next((s.get("published") for s in item.get("stories", []) if s.get("published")), None)
+            )
+            now = now_ts()
+            if source_ts:
+                age_h = max(0.0, (now - source_ts) / 3600.0)
+                fresh = max(0.0, 15.0 - min(age_h, 72.0) * 0.21)
+            else:
+                fresh = 10.0
+
+            fingerprint = str(item.get("fingerprint") or item.get("id") or "")
+            recent_ids = {
+                str(x.get("fingerprint") or x.get("id") or "")
+                for x in tracker.get("used", [])[-500:]
+            }
+            novelty = 15.0 if fingerprint and fingerprint not in recent_ids else 0.0
+
+            story_count = len(item.get("stories") or [])
+            media_count = sum(len(s.get("media") or []) for s in item.get("stories") or [])
+            quality = 6.0 + min(5.0, story_count / 3.0) + min(3.0, media_count / 6.0)
+
+            category = str(top_story.get("category", item.get("category", "news"))).lower()
+            learned = learned_profile(tracker)
+            learned_bonus = min(
+                8.0,
+                max(0.0, learned.get(f"{category}|news", 3.0) - 3.0) * 2.2
+            )
+
+            packaging = 4.0
+            if 5 <= len(str(top_story.get("title", "")).split()) <= 16:
+                packaging += 3.0
+            if any(x in str(top_story.get("title", "")).lower() for x in (
+                "why", "how", "will", "could", "breaking", "latest", "record",
+                "launch", "warning", "earthquake", "hack", "teased"
+            )):
+                packaging += 3.0
+
+            # Blend the strongest story's trend signal with the average of the
+            # top three. This rewards a real trend without requiring every story
+            # in a broad roundup to be trending.
+            trend = min(35.0, top_external + max(0.0, (avg_top - top_external) * 0.35))
+
+            total = min(
+                100.0,
+                trend + fresh + novelty + quality + learned_bonus + packaging
+            )
+            breakdown = {
+                "trend": round(trend, 2),
+                "freshness": round(fresh, 2),
+                "novelty": round(novelty, 2),
+                "quality": round(quality, 2),
+                "creator_bonus": 0.0,
+                "learned_bonus": round(learned_bonus, 2),
+                "packaging": round(packaging, 2),
+                "top_story": top_story["title"],
+                "top_story_score": top_story["score"],
+                "top_story_category": top_story["category"],
+                "story_scores": story_scores[:5],
+            }
+            return round(total, 2), breakdown
+
     text = " ".join([
         str(item.get("title", "")),
         str(item.get("description", "")),
@@ -138,7 +287,6 @@ def score_candidate(item, trend_rows, tracker):
     ])
     t = tokens(text)
 
-    # Trend relevance: current terms/phrases, weighted by recency.
     trend_points = []
     now = now_ts()
     for row in trend_rows:
@@ -151,7 +299,6 @@ def score_candidate(item, trend_rows, tracker):
         trend_points.append(min(4.0, overlap * recency * popularity))
     trend = min(30.0, sum(sorted(trend_points, reverse=True)[:8]) * 3.0)
 
-    # Freshness from an explicit source timestamp when supplied.
     source_ts = parse_ts(item.get("published_at") or item.get("created_at"))
     if source_ts:
         age_h = max(0.0, (now - source_ts) / 3600.0)
@@ -161,13 +308,10 @@ def score_candidate(item, trend_rows, tracker):
 
     category = str(item.get("category", "viral")).lower()
     style = str(item.get("edit_style", "clean")).lower()
-
-    # Novelty: no previous source/content fingerprint means full points.
     fingerprint = str(item.get("fingerprint") or item.get("id") or "")
     recent_ids = {str(x.get("fingerprint") or x.get("id") or "") for x in tracker.get("used", [])[-500:]}
     novelty = 15.0 if fingerprint and fingerprint not in recent_ids else 0.0
 
-    # Stronger hook/edit metadata gets a modest boost.
     quality = 6.0
     if item.get("selected_highlight"):
         h = item["selected_highlight"]
@@ -189,7 +333,6 @@ def score_candidate(item, trend_rows, tracker):
     if profile_key in learned:
         learned_bonus = min(8.0, max(0.0, learned[profile_key] - 3.0) * 2.2)
 
-    # Packaging potential: short, clear title with a curiosity-bearing phrase.
     title = str(item.get("title", "")).strip()
     word_count = len(title.split())
     packaging = 0.0
