@@ -270,9 +270,7 @@ def generate_daily_images():
             'date': today,
             'category': cap.lower(),
             'image': str(out.relative_to(ROOT)),
-            'caption': f'{title} • {cap}
-
-{sub}',
+            'caption': f'{title} • {cap}\n\n{sub}',
             'source_item': item_id,
             'status': 'ready',
             'created_at': int(time.time()),
