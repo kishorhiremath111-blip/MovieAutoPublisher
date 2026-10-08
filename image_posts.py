@@ -161,18 +161,27 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
     return out
 
 
-def choose_source(state):
-    # Prefer the first processed item with a source path in metadata.
+def choose_source(state, recent_days=30):
+    cutoff = time.time() - (recent_days * 86400)
+    recent_source_ids = {
+        str(x.get('source_item'))
+        for x in state.get('image_posts', [])
+        if float(x.get('created_at', 0) or 0) >= cutoff
+    }
+    # Prefer processed authorized items that have not been used recently.
     for item_id, info in state.get('processed', {}).items():
+        if str(item_id) in recent_source_ids:
+            continue
         outputs = info.get('outputs', [])
         if outputs:
-            # Recover original source through state metadata when available.
             source = info.get('source')
             if source and (ROOT / source).exists():
                 return item_id, ROOT / source, info
-    # Backward-compatible fallback: inspect metadata.json.
+    # Backward-compatible fallback to metadata.json, still respecting no-repeat.
     meta = load(ROOT / 'metadata.json', {'items': []})
     for item in meta.get('items', []):
+        if str(item.get('id')) in recent_source_ids:
+            continue
         if item.get('licensed') and (ROOT / item.get('source', '')).exists():
             return item['id'], ROOT / item['source'], item
     return None, None, None
@@ -187,9 +196,13 @@ def generate_daily_images():
         print(f'Images already generated for {today}')
         return
 
-    item_id, video, info = choose_source(state)
+    item_id, video, info = choose_source(
+        state,
+        recent_days=int(load(CONFIG, {}).get('viral_no_repeat_days', 30))
+    )
     if not video:
-        raise SystemExit('No licensed input video found. Put an authorized video in input/videos/ first.')
+        print('Daily images: no fresh unused authorized source; skipping.')
+        return
 
     dur = duration(video)
     work = OUT / today
@@ -250,13 +263,16 @@ def generate_daily_images():
     for idx, frame in enumerate(frames, 1):
         cap, sub = captions[(idx - 1) % len(captions)]
         out = work / f'{safe_name(item_id)}_{idx:02d}.jpg'
-        q = 'Would you share this with a friend?' if cap != 'DARK MOOD' else 'Too dark, or exactly your kind of humour?'\n        card(frame, f'{title} • {cap}', sub, out, badge=('18+' if adult else None), dark=(cap == 'DARK MOOD'), question=q, source='Authorized source video')
+        q = 'Would you share this with a friend?' if cap != 'DARK MOOD' else 'Too dark, or exactly your kind of humour?'
+        card(frame, f'{title} • {cap}', sub, out, badge=('18+' if adult else None), dark=(cap == 'DARK MOOD'), question=q, source='Authorized source video')
         posts.append({
             'id': f'{today}-{item_id}-{idx}',
             'date': today,
             'category': cap.lower(),
             'image': str(out.relative_to(ROOT)),
-            'caption': f'{title} • {cap}\n\n{sub}',
+            'caption': f'{title} • {cap}
+
+{sub}',
             'source_item': item_id,
             'status': 'ready',
             'created_at': int(time.time()),
