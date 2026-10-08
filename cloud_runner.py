@@ -71,11 +71,14 @@ def main():
     # 5) Publish the daily quotas.
     run('upload_queue', '--social-upload')
     if (CREDS / 'facebook_page.json').exists():
+        # Prefer an authorized social Reel; if none exists, the news Short
+        # becomes the single daily Reel fallback.
         run('upload_queue', '--facebook-social-reels')
 
     run('upload_queue', '--news-upload')
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-news-video')
+        run('upload_queue', '--facebook-reels')
 
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-images')
