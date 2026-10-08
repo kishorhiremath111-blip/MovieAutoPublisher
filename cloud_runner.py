@@ -38,6 +38,16 @@ def main():
     restore_secret('YOUTUBE_CLIENT_SECRET_B64', CREDS / 'client_secret.json')
     restore_secret('YOUTUBE_TOKEN_B64', CREDS / 'token.json')
     restore_secret('FACEBOOK_PAGE_B64', CREDS / 'facebook_page.json')
+    restore_secret('INSTAGRAM_ACCESS_TOKEN_B64', CREDS / 'instagram_access_token.txt')
+
+    # Optional Instagram trend signal via the official Meta API.
+    if (CREDS / 'instagram_access_token.txt').exists() and os.getenv('INSTAGRAM_USER_ID','').strip():
+        os.environ['INSTAGRAM_ACCESS_TOKEN'] = (CREDS / 'instagram_access_token.txt').read_text(encoding='utf-8').strip()
+        run('instagram_trends')
+
+    # Prepare authorized TaskEarn brand assets from input/taskearn.apk or supplied images.
+    if (ROOT / 'input' / 'taskearn.apk').exists() or (ROOT / 'input' / 'brand_assets').exists():
+        run('brand_assets')
 
     # Fresh original news cards/videos: exactly two per scheduled run.
     run('upload_queue', '--news')
