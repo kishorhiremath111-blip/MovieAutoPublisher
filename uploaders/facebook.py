@@ -57,3 +57,67 @@ def publish_daily_images(limit=2):
 
 if __name__ == '__main__':
     publish_daily_images()
+
+
+def publish_reel(video_path, description=''):
+    """Publish a short vertical MP4 as a Facebook Page Reel via the Graph API."""
+    cfg = load_creds()
+    page_id = cfg['page_id']
+    token = cfg['page_access_token']
+    version = cfg.get('graph_api_version', 'v24.0')
+    base = f'https://graph.facebook.com/{version}/{page_id}/video_reels'
+    start = requests.post(base, params={
+        'access_token': token,
+        'upload_phase': 'start',
+    }, timeout=120)
+    start.raise_for_status()
+    data = start.json()
+    video_id = data.get('video_id')
+    upload_url = data.get('upload_url')
+    if not video_id or not upload_url:
+        raise RuntimeError(f'Facebook Reel start failed: {data}')
+
+    size = Path(video_path).stat().st_size
+    with Path(video_path).open('rb') as fh:
+        upload = requests.post(
+            upload_url,
+            headers={
+                'Authorization': f'OAuth {token}',
+                'offset': '0',
+                'file_size': str(size),
+            },
+            data=fh,
+            timeout=300,
+        )
+    upload.raise_for_status()
+
+    finish = requests.post(base, params={
+        'access_token': token,
+        'upload_phase': 'finish',
+        'video_id': video_id,
+        'video_state': 'PUBLISHED',
+        'description': description[:5000],
+    }, timeout=120)
+    finish.raise_for_status()
+    return video_id
+
+
+def publish_daily_reels(limit=2):
+    state_path = ROOT / 'state' / 'state.json'
+    state = json.loads(state_path.read_text(encoding='utf-8'))
+    done = 0
+    for item in state.get('news', []):
+        if item.get('status') != 'ready' or item.get('facebook_reel', {}).get('status') == 'uploaded':
+            continue
+        video = ROOT / item['video']
+        if not video.exists():
+            continue
+        reel_id = publish_reel(video, item.get('caption', ''))
+        item.setdefault('facebook_reel', {})['status'] = 'uploaded'
+        item['facebook_reel']['video_id'] = reel_id
+        item['facebook_reel']['updated_at'] = int(time.time())
+        done += 1
+        if done >= limit:
+            break
+    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
+    print(f'Facebook reels: {done}/{limit}')
