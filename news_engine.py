@@ -93,9 +93,61 @@ def commentary(category, title):
     return 'Channel take: Story develop ho rahi ho sakti hai—confirmed facts aur official updates ko priority dena sabse important hai.'
 
 
-def make_card(item, out):
+\ndef commons_image(item, out):
+    """Find a rights-cleared real-world image on Wikimedia Commons.
+    Only files whose machine-readable license is CC BY/CC BY-SA/CC0/Public Domain
+    are accepted; otherwise the generator falls back to an original graphic.
+    """
+    query = item.get('title','')
+    api = ('https://commons.wikimedia.org/w/api.php?action=query&generator=search'
+           '&gsrsearch=' + urllib.parse.quote(query[:180]) +
+           '&gsrnamespace=6&gsrlimit=5&prop=imageinfo'
+           '&iiprop=url|extmetadata&iiurlwidth=1400&format=json')
+    try:
+        data=json.loads(fetch(api, timeout=20).decode('utf-8'))
+    except Exception:
+        return None
+    pages=data.get('query',{}).get('pages',{})
+    allowed=('cc by','cc by-sa','cc0','public domain','pd-')
+    for page in pages.values():
+        info=(page.get('imageinfo') or [{}])[0]
+        meta=info.get('extmetadata') or {}
+        lic=clean(meta.get('LicenseShortName',{}).get('value','')).lower()
+        if not any(x in lic for x in allowed):
+            continue
+        url=info.get('thumburl') or info.get('url')
+        if not url:
+            continue
+        try:
+            req=urllib.request.Request(url,headers={'User-Agent':'MovieAutoPublisher/Pro-News/1.0'})
+            with urllib.request.urlopen(req,timeout=30) as r:
+                raw=r.read()
+            out.parent.mkdir(parents=True,exist_ok=True)
+            out.write_bytes(raw)
+            artist=clean(meta.get('Artist',{}).get('value','')) or 'Unknown author'
+            license_name=clean(meta.get('LicenseShortName',{}).get('value','')) or lic
+            desc_url='https://commons.wikimedia.org/wiki/File:' + urllib.parse.quote(page.get('title','').replace('File:','').replace(' ','_'))
+            return {'path':out,'artist':artist,'license':license_name,'page':desc_url}
+        except Exception:
+            continue
+    return None
+
+
+def make_card(item, out, real_image=None):
     W,H=1080,1350
-    im=Image.new('RGB',(W,H),(10,10,12)); d=ImageDraw.Draw(im)
+    if real_image and real_image.exists():
+        try:
+            src=Image.open(real_image).convert('RGB')
+            src.thumbnail((W,H))
+            im=Image.new('RGB',(W,H),(10,10,12))
+            im.paste(src,((W-src.width)//2,(H-src.height)//2))
+            im=ImageEnhance.Contrast(im).enhance(1.05)
+            im=ImageEnhance.Brightness(im).enhance(0.82)
+        except Exception:
+            im=Image.new('RGB',(W,H),(10,10,12))
+    else:
+        im=Image.new('RGB',(W,H),(10,10,12))
+    d=ImageDraw.Draw(im)
     # Original abstract visual; no third-party image scraping.
     for y in range(520,H):
         shade=int(18 + 45*(y-520)/(H-520)); d.line((0,y,W,y),fill=(shade,shade,shade+4))
@@ -147,10 +199,21 @@ def generate(limit=2):
         slug=re.sub(r'[^A-Za-z0-9]+','_',item['title'])[:50].strip('_') or 'news'
         base=work/f'{slug}_{made+1}'
         card=base.with_suffix('.jpg'); video=base.with_suffix('.mp4')
-        make_card(item,card); make_video(card,video,item)
-        record={**item,'date':today,'image':str(card.relative_to(ROOT)),'video':str(video.relative_to(ROOT)),'caption':item['title']+'\n\n'+commentary(item['category'],item['title'])+'\n\nSource: '+item['link'],'status':'ready','created_at':int(time.time())}
+        source_image=work/f'{slug}_{made+1}_source.jpg'
+        media=commons_image(item,source_image)
+        make_card(item,card,media['path'] if media else None)
+        make_video(card,video,item)
+        if media:
+            item['media_license']=media['license']
+            item['media_artist']=media['artist']
+            item['media_source']=media['page']
+        record={**item,'date':today,'image':str(card.relative_to(ROOT)),'video':str(video.relative_to(ROOT)),'caption':item['title']+'\n\n'+commentary(item['category'],item['title'])+'\n\nSource: '+item['link']+
+            (('\n\nImage credit: '+item.get('media_artist','')+' — '+item.get('media_license','')+
+              '\nImage source: '+item.get('media_source','')) if item.get('media_source') else
+             '\n\nVisual: original generated card (no reusable news photo found).'),'status':'ready','created_at':int(time.time())}
         state.setdefault('news',[]).append(record); made+=1
         print('NEWS READY:',record['video'])
+        if media: print('NEWS IMAGE:', media['page'], media['license'])
     save(STATE,state); print(f'News generated: {made}/{limit}')
 
 
