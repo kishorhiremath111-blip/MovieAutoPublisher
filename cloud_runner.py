@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Cloud entry point for scheduled MovieAutoPublisher jobs.
-
-Designed for GitHub Actions/Cloud Run style runners. Credentials are injected
-through environment variables or mounted files; secrets are never committed.
-"""
+"""Cloud entry point for scheduled MovieAutoPublisher jobs."""
 import base64
 import os
 import subprocess
@@ -42,49 +38,49 @@ def main():
     restore_secret('FACEBOOK_PAGE_B64', CREDS / 'facebook_page.json')
     restore_secret('INSTAGRAM_ACCESS_TOKEN_B64', CREDS / 'instagram_access_token.txt')
 
-    # Official YouTube trend metadata for India: current popular videos + music.
-    # Metadata only; third-party video/audio is never downloaded.
+    # 1) Collect fresh trend signals and learn from previous uploads.
     if os.getenv('YOUTUBE_API_KEY', '').strip():
         run('trend_engine')
 
-    # Optional Instagram trend signal via the official Meta API.
-    # Only metadata is stored; third-party Instagram media is not reposted.
     if (CREDS / 'instagram_access_token.txt').exists() and os.getenv('INSTAGRAM_USER_ID', '').strip():
-        os.environ['INSTAGRAM_ACCESS_TOKEN'] = (CREDS / 'instagram_access_token.txt').read_text(encoding='utf-8').strip()
+        os.environ['INSTAGRAM_ACCESS_TOKEN'] = (
+            CREDS / 'instagram_access_token.txt'
+        ).read_text(encoding='utf-8').strip()
         run('instagram_trends')
 
-    # Prepare authorized TaskEarn brand assets from input/taskearn.apk or supplied images.
+    if os.getenv('VIRAL_TRACKER_DISABLED', '').strip().lower() != 'true':
+        run('viral_tracker', '--update')
+        run('viral_tracker', '--plan')
+
+    # 2) Prepare authorized TaskEarn brand assets.
     if (ROOT / 'input' / 'taskearn.apk').exists() or (ROOT / 'input' / 'brand_assets').exists():
         run('brand_assets')
 
-    # SHORTS/REELS: process only explicitly authorized/licensed source clips.
-    # Trend metadata is used as a signal; third-party social videos are never downloaded.
+    # 3) Generate content first. Nothing is published until the viral gate passes.
     run('upload_queue', '--social')
+    run('upload_queue', '--news')
+    run('upload_queue', '--daily-images')
+
+    if (ROOT / 'metadata.json').exists():
+        run('process')
+
+    # 4) Strict pre-publish gate: fresh, non-repeated and trend-aligned content only.
+    if os.getenv('VIRAL_TRACKER_DISABLED', '').strip().lower() != 'true':
+        run('viral_tracker', '--gate')
+
+    # 5) Publish the daily quotas.
     run('upload_queue', '--social-upload')
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-social-reels')
 
-    # DAILY NEWS: one worldwide roundup, not nine separate news posts.
-    # Each story can show 1-6 real, rights-cleared images as slides with
-    # a story-specific take/question. Freshness + duplicate checks happen in news_engine.
-    run('upload_queue', '--news')
     run('upload_queue', '--news-upload')
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-news-video')
 
-    # DAILY PHOTOS: generate and publish one batch of authorized image posts.
-    # The image generator itself enforces the configured daily image limit.
-    run('upload_queue', '--daily-images')
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-images')
 
-
-
-    # Process any licensed content already supplied to the cloud workspace.
-    # Metadata controls which items are eligible; no source is fetched from
-    # third-party movie/anime streaming sites.
     if (ROOT / 'metadata.json').exists():
-        run('process')
         run('upload_queue', '--daily')
 
 
