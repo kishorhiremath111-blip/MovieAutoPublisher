@@ -88,5 +88,13 @@
   "trending_music_mode": "platform_library_or_licensed_local_only",
   "reels_preference": true,
   "india_content_priority": true,
-  "dark_humor_priority": true
+  "dark_humor_priority": true,
+  "daily_social_clips": 2,
+  "social_clip_seconds": 45,
+  "social_candidate_count": 10,
+  "social_min_gap_seconds": 8,
+  "social_sources_mode": "authorized_or_rights_cleared_only",
+  "social_third_party_download": false,
+  "social_text_overlays": false,
+  "social_natural_editing": true
 }
