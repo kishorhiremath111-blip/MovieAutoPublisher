@@ -4,7 +4,10 @@
 Designed for GitHub Actions/Cloud Run style runners. Credentials are injected
 through environment variables or mounted files; secrets are never committed.
 """
-import base64, os, subprocess, sys
+import base64
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -17,8 +20,7 @@ def restore_secret(name, target):
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        # Secrets are expected as base64-encoded JSON.
-        target.write_bytes(base64.b64decode(value))
+        target.write_bytes(base64.b64decode(value, validate=True))
     except Exception as exc:
         raise RuntimeError(f'{name} is not valid base64: {exc}')
     try:
@@ -41,7 +43,8 @@ def main():
     restore_secret('INSTAGRAM_ACCESS_TOKEN_B64', CREDS / 'instagram_access_token.txt')
 
     # Optional Instagram trend signal via the official Meta API.
-    if (CREDS / 'instagram_access_token.txt').exists() and os.getenv('INSTAGRAM_USER_ID','').strip():
+    # Only metadata is stored; third-party Instagram media is not reposted.
+    if (CREDS / 'instagram_access_token.txt').exists() and os.getenv('INSTAGRAM_USER_ID', '').strip():
         os.environ['INSTAGRAM_ACCESS_TOKEN'] = (CREDS / 'instagram_access_token.txt').read_text(encoding='utf-8').strip()
         run('instagram_trends')
 
@@ -49,27 +52,30 @@ def main():
     if (ROOT / 'input' / 'taskearn.apk').exists() or (ROOT / 'input' / 'brand_assets').exists():
         run('brand_assets')
 
-    # Fresh original news cards/videos: exactly two per scheduled run.
+    # DAILY NEWS: one worldwide roundup, not nine separate news posts.
+    # Each story can show 1-6 real, rights-cleared images as slides with
+    # a story-specific take/question. Freshness + duplicate checks happen in news_engine.
     run('upload_queue', '--news')
     run('upload_queue', '--news-upload')
     if (CREDS / 'facebook_page.json').exists():
-        run('upload_queue', '--facebook-reels')
+        run('upload_queue', '--facebook-news-video')
 
-    # Generate the two daily image cards only when an authorized source video
-    # exists. A missing optional movie/series source must not fail the whole
-    # worldwide-news run.
+    # Facebook Reels are intentionally NOT required every day. They remain
+    # available through the manual --facebook-reels command when needed.
+    
+    # Optional movie/series image cards only when an authorized source video exists.
     videos_dir = ROOT / 'input' / 'videos'
-    has_video = videos_dir.exists() and any(videos_dir.glob('*'))
+    has_video = videos_dir.exists() and any(v.is_file() for v in videos_dir.iterdir())
     if has_video:
         run('upload_queue', '--daily-images')
         if (CREDS / 'facebook_page.json').exists():
             run('upload_queue', '--facebook-images')
     else:
-        print('No authorized source video; skipping optional daily image cards.')
+        print('No authorized source video; skipping optional movie/series image cards.')
 
     # Process any licensed content already supplied to the cloud workspace.
     # Metadata controls which items are eligible; no source is fetched from
-    # third-party movie/anime sites.
+    # third-party movie/anime streaming sites.
     if (ROOT / 'metadata.json').exists():
         run('process')
         run('upload_queue', '--daily')
