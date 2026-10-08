@@ -236,7 +236,7 @@ def score_candidate(item, trend_rows, tracker):
 
             story_count = len(item.get("stories") or [])
             media_count = sum(len(s.get("media") or []) for s in item.get("stories") or [])
-            quality = 6.0 + min(5.0, story_count / 3.0) + min(3.0, media_count / 6.0)
+            quality = 7.0 + min(4.0, story_count / 3.0) + min(3.0, media_count / 6.0)
 
             category = str(top_story.get("category", item.get("category", "news"))).lower()
             learned = learned_profile(tracker)
@@ -257,7 +257,8 @@ def score_candidate(item, trend_rows, tracker):
             # Blend the strongest story's trend signal with the average of the
             # top three. This rewards a real trend without requiring every story
             # in a broad roundup to be trending.
-            trend = min(35.0, top_external + max(0.0, (avg_top - top_external) * 0.35))
+            # News momentum keeps fresh, high-interest headlines scoreable even when external trend overlap is weak.
+            trend = min(35.0, max(top_external, top_story["score"] * 2.0) + max(0.0, (avg_top - top_story["score"]) * 0.35))
 
             total = min(
                 100.0,
@@ -357,6 +358,16 @@ def score_candidate(item, trend_rows, tracker):
 
 def make_pack(item, trend_rows, score):
     title = str(item.get("title") or "").strip()
+    if item.get("stories"):
+        ranked = sorted(
+            item.get("stories") or [],
+            key=lambda s: parse_ts(s.get("published")) or 0,
+            reverse=True
+        )
+        top = ranked[0] if ranked else {}
+        top_title = re.sub(r"\s+", " ", str(top.get("title") or "")).strip()
+        if top_title:
+            title = f"Today's Big Update: {top_title}"
     if not title:
         title = str(item.get("category") or "Trending moment").strip().title()
 
