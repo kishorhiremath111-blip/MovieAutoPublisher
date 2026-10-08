@@ -42,6 +42,8 @@ def main():
     # Fresh original news cards/videos: exactly two per scheduled run.
     run('upload_queue', '--news')
     run('upload_queue', '--news-upload')
+    if (CREDS / 'facebook_page.json').exists():
+        run('upload_queue', '--facebook-reels')
 
     # Generate the two daily image cards only when an authorized source video
     # exists. A missing optional movie/series source must not fail the whole
