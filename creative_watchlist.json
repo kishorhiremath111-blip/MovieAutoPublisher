@@ -1,0 +1,37 @@
+{
+  "purpose": "Creative-editing watchlist. This stores platform rules and trend inputs; it never downloads or republishes third-party media.",
+  "platforms": {
+    "youtube": {
+      "live_signal_file": "state/youtube_trends.json",
+      "focus": ["appeal", "engagement", "satisfaction", "retention", "title_thumbnail", "shorts_trends"]
+    },
+    "instagram": {
+      "live_signal_file": "state/instagram_trends.json",
+      "focus": ["reels", "hashtags", "topic_velocity", "originality", "shareability"]
+    },
+    "facebook": {
+      "live_signal_file": null,
+      "focus": ["reels", "video_retention", "original_content", "shareability"]
+    },
+    "tiktok": {
+      "live_signal_file": null,
+      "focus": ["hook_0_6s", "sound", "trend_format", "full_screen_9_16", "creative_diversity"]
+    }
+  },
+  "editor_rules": {
+    "universal": [
+      "content-first",
+      "no_effect_stacking",
+      "no_fake_viral_claims",
+      "preserve_original_audio_when_it_is_part_of_the_content",
+      "normalize_audio_before_publish",
+      "cut dead air when clearly unnecessary",
+      "front-load the strongest moment when the source supports it"
+    ],
+    "funny_roast": ["timing", "reaction_beats", "subtle_punch_zoom_only_when_useful", "clean_audio"],
+    "dark": ["controlled_contrast", "restrained_saturation", "no_crushed_blacks"],
+    "cinematic_nature": ["smooth_pacing", "restrained_grade", "natural_sound", "no_meme_overlays"],
+    "sports_action_anime": ["strong_moments_early", "faster_pacing_only_when_scene_energy_supports_it", "impact_audio_if_licensed"],
+    "news_editorial": ["clear_hierarchy", "readability", "source_credit", "fact_first", "minimal_effects"]
+  }
+}
