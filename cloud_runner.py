@@ -42,6 +42,11 @@ def main():
     restore_secret('FACEBOOK_PAGE_B64', CREDS / 'facebook_page.json')
     restore_secret('INSTAGRAM_ACCESS_TOKEN_B64', CREDS / 'instagram_access_token.txt')
 
+    # Official YouTube trend metadata for India: current popular videos + music.
+    # Metadata only; third-party video/audio is never downloaded.
+    if os.getenv('YOUTUBE_API_KEY', '').strip():
+        run('trend_engine')
+
     # Optional Instagram trend signal via the official Meta API.
     # Only metadata is stored; third-party Instagram media is not reposted.
     if (CREDS / 'instagram_access_token.txt').exists() and os.getenv('INSTAGRAM_USER_ID', '').strip():
