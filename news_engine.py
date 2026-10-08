@@ -673,12 +673,20 @@ def render_image_clip(image, out, duration, size='1920x1080'):
     ])
     return out
 
-def concat_videos(clips, out):
+def _concat_list(clips, out):
     list_file = out.with_suffix('.concat.txt')
     list_file.write_text(
-        ''.join("file '" + str(Path(c).resolve()).replace("'", "'\\''") + "'\n" for c in clips),
+        ''.join(
+            "file '" + str(Path(c).resolve()).replace("'", "'\\''") + "'\n"
+            for c in clips
+        ),
         encoding='utf-8'
     )
+    return list_file
+
+
+def concat_videos(clips, out):
+    list_file = _concat_list(clips, out)
     run([
         'ffmpeg', '-y',
         '-f', 'concat', '-safe', '0', '-i', str(list_file),
@@ -690,17 +698,43 @@ def concat_videos(clips, out):
     return out
 
 
+def concat_av_videos(clips, out):
+    """Concatenate clips that all contain matching video + stereo AAC audio."""
+    list_file = _concat_list(clips, out)
+    run([
+        'ffmpeg', '-y',
+        '-f', 'concat', '-safe', '0', '-i', str(list_file),
+        '-c:v', 'libx264', '-preset', 'veryfast',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-b:a', '128k',
+        '-ar', '44100', '-ac', '2',
+        '-movflags', '+faststart',
+        str(out)
+    ])
+    return out
+
+
 def add_music(video, out, music):
-    if not music:
-        run(['ffmpeg', '-y', '-i', str(video), '-c', 'copy', '-movflags', '+faststart', str(out)])
-        return out
+    """Add a related licensed track, or a silent stereo track when unavailable."""
+    if music:
+        input_args = ['-stream_loop', '-1', '-i', str(music)]
+        audio_map = ['1:a:0']
+    else:
+        input_args = [
+            '-f', 'lavfi', '-t', '999999',
+            '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'
+        ]
+        audio_map = ['1:a:0']
+
     run([
         'ffmpeg', '-y',
         '-i', str(video),
-        '-stream_loop', '-1', '-i', str(music),
-        '-map', '0:v:0', '-map', '1:a:0',
+        *input_args,
+        '-map', '0:v:0',
+        '-map', *audio_map,
         '-c:v', 'copy',
         '-c:a', 'aac', '-b:a', '128k',
+        '-ar', '44100', '-ac', '2',
         '-shortest',
         '-movflags', '+faststart',
         str(out)
@@ -845,6 +879,7 @@ def generate_roundup():
     # Build the visual slides. Every story gets 1-6 slides, depending on available
     # relevant rights-cleared photos.
     story_clips = []
+    story_music = []
     for idx, story in enumerate(stories, 1):
         media = story.get('media', [])
         total = max(1, min(max_slides, len(media)))
@@ -865,26 +900,33 @@ def generate_roundup():
             clip = story_dir / f'slide_{j:02d}.mp4'
             render_image_clip(slide, clip, slide_seconds)
             clips.append(clip)
-        story_clip = story_dir / 'story.mp4'
-        concat_videos(clips, story_clip)
-        story_clips.append(story_clip)
+
+        story_silent = story_dir / 'story_silent.mp4'
+        concat_videos(clips, story_silent)
+
+        # Each story gets its own related local licensed track when one exists.
+        # Example: a Naruto story prefers a Naruto/anime/action-named track.
+        music = pick_music([story])
+        story['music'] = str(music.relative_to(ROOT)) if music and music.exists() else None
+        story_music.append(story.get('music'))
+        story_audio = story_dir / 'story_with_audio.mp4'
+        add_music(story_silent, story_audio, music)
+        story_clips.append(story_audio)
 
     hook = make_hook(stories, work)
-    hook_video = work / 'hook.mp4'
+    hook_video_silent = work / 'hook_silent.mp4'
     hook_seconds = max(4.0, min(6.0, float(cfg.get('news_hook_seconds', 5.0))))
-    render_image_clip(hook, hook_video, hook_seconds)
+    render_image_clip(hook, hook_video_silent, hook_seconds)
+    hook_audio = work / 'hook_with_audio.mp4'
+    add_music(hook_video_silent, hook_audio, pick_music(stories[:1]))
 
-    full_without_music = work / 'roundup_without_music.mp4'
-    concat_videos([hook_video] + story_clips, full_without_music)
-
-    music = pick_music(stories)
     final_video = work / 'daily_world_roundup.mp4'
-    add_music(full_without_music, final_video, music)
+    concat_av_videos([hook_audio] + story_clips, final_video)
 
     # A compact vertical Short: first 3 strongest stories, one real-photo/original
-    # slide each, with the same story-specific take/question.
+    # slide each. Each Short segment keeps the matching story music.
     short_count = max(1, min(6, int(cfg.get('news_short_story_count', 3))))
-    short_slides = []
+    short_clips = []
     for idx, story in enumerate(stories[:short_count], 1):
         story_dir = work / f'short_{idx:02d}'
         story_dir.mkdir(parents=True, exist_ok=True)
@@ -898,17 +940,19 @@ def generate_roundup():
             1,
             bool(src)
         )
-        short_slides.append(vslide)
+        silent = story_dir / 'silent.mp4'
+        render_image_clip(vslide, silent, 7.0, size='1080x1920')
+        with_audio = story_dir / 'with_audio.mp4'
+        music_ref = None
+        if story.get('music'):
+            music_ref = ROOT / story['music']
+        else:
+            music_ref = pick_music([story])
+        add_music(silent, with_audio, music_ref)
+        short_clips.append(with_audio)
 
-    short_clips = []
-    for idx, slide in enumerate(short_slides, 1):
-        clip = work / f'short_{idx:02d}.mp4'
-        render_image_clip(slide, clip, 7.0, size='1080x1920')
-        short_clips.append(clip)
-    short_video_raw = work / 'daily_world_short_without_music.mp4'
-    concat_videos(short_clips, short_video_raw)
     short_video = work / 'daily_world_short.mp4'
-    add_music(short_video_raw, short_video, music)
+    concat_av_videos(short_clips, short_video)
 
     title = f'🌍 World News Roundup • {time.strftime("%d %b %Y")}'
     record = {
@@ -946,7 +990,7 @@ def generate_roundup():
         'fresh_hours_window': fresh_hours,
         'status': 'ready',
         'created_at': int(time.time()),
-        'music': str(music.relative_to(ROOT)) if music and music.exists() else None
+        'music_tracks': [s.get('music') for s in stories]
     }
     state.setdefault('news', []).append(record)
     save(STATE, state)
