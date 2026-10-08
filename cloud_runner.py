@@ -43,11 +43,17 @@ def main():
     run('upload_queue', '--news')
     run('upload_queue', '--news-upload')
 
-    # Generate the two daily image cards. Facebook publishing is attempted only
-    # when a valid Page credential file has been supplied.
-    run('upload_queue', '--daily-images')
-    if (CREDS / 'facebook_page.json').exists():
-        run('upload_queue', '--facebook-images')
+    # Generate the two daily image cards only when an authorized source video
+    # exists. A missing optional movie/series source must not fail the whole
+    # worldwide-news run.
+    videos_dir = ROOT / 'input' / 'videos'
+    has_video = videos_dir.exists() and any(videos_dir.glob('*'))
+    if has_video:
+        run('upload_queue', '--daily-images')
+        if (CREDS / 'facebook_page.json').exists():
+            run('upload_queue', '--facebook-images')
+    else:
+        print('No authorized source video; skipping optional daily image cards.')
 
     # Process any licensed content already supplied to the cloud workspace.
     # Metadata controls which items are eligible; no source is fetched from
