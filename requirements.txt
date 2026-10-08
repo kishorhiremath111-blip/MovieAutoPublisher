@@ -1,0 +1,7 @@
+# Video processing
+# FFmpeg/ffprobe must be installed separately in Termux.
+
+# Official YouTube OAuth + Data API
+google-api-python-client>=2.150.0
+google-auth-oauthlib>=1.2.1
+google-auth-httplib2>=0.2.0

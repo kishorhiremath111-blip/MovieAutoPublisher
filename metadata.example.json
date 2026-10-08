@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "id": "my-movie-001",
+      "source": "input/videos/my-movie.mp4",
+      "thumbnail": "input/thumbnails/my-movie.jpg",
+      "type": "movie",
+      "title": "My Movie",
+      "licensed": true,
+      "adult": false,
+      "edit_style": "clean",
+      "description": "Official description for this licensed video.",
+      "tags": ["movie", "official"],
+      "privacy_status": "private"
+    },
+    {
+      "id": "my-series-s01e01",
+      "source": "input/videos/series-s01e01.mp4",
+      "thumbnail": "input/thumbnails/series.jpg",
+      "type": "series",
+      "title": "My Series",
+      "season": 1,
+      "episode": 1,
+      "licensed": true,
+      "adult": false,
+      "edit_style": "funny",
+      "description": "Official description for this licensed episode.",
+      "tags": ["series", "episode"],
+      "privacy_status": "private"
+    }
+  ]
+}

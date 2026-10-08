@@ -1,0 +1,18 @@
+{
+  "max_single_video_hours": 2,
+  "split_parts": 2,
+  "daily_long_videos": 1,
+  "daily_short_videos": 1,
+  "short_duration_seconds": 60,
+  "video_bitrate": "2500k",
+  "audio_bitrate": "128k",
+  "output_width": 1920,
+  "output_height": 1080,
+  "vertical_width": 1080,
+  "vertical_height": 1920,
+  "adult_badge_text": "18+",
+  "add_part_overlay": true,
+  "add_episode_overlay": true,
+  "auto_highlight": true,
+  "scene_threshold": 0.4
+}
