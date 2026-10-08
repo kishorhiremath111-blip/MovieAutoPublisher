@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
+from pro_editor import choose_profile, filters as pro_filters, audio_filters as pro_audio_filters
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / 'config' / 'config.json'
@@ -205,8 +206,15 @@ def analyze_highlights(video, duration, cfg):
 def extract_clip(video, start, end, out, width, height, item, style='clean', overlay_text=None):
     out.parent.mkdir(parents=True, exist_ok=True)
     duration = max(0.1, end - start)
-    vf = [f'scale={width}:{height}:force_original_aspect_ratio=increase', f'crop={width}:{height}']
-    vf.extend(style_filters(style))
+    cfg = item.get('_cfg', {})
+    if cfg.get('pro_edit_enabled', True):
+        profile = choose_profile(item, duration=duration, short=False)
+        vf = pro_filters(profile, width, height)
+        af = pro_audio_filters(profile)
+    else:
+        vf = [f'scale={width}:{height}:force_original_aspect_ratio=increase', f'crop={width}:{height}']
+        vf.extend(style_filters(style))
+        af = None
     apply_manual_censors(vf, item)
     if overlay_text:
         vf.append('drawbox=x=30:y=35:w=iw-60:h=86:color=black@0.58:t=fill')
@@ -214,6 +222,7 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{duration:.3f}',
         '-vf',','.join(vf),'-c:v','libx264','-preset','veryfast','-b:v',item['_cfg']['video_bitrate'],
+        '-af',af if af else 'loudnorm=I=-14:TP=-1.5:LRA=11',
         '-c:a','aac','-b:a',item['_cfg']['audio_bitrate'],'-movflags','+faststart',str(out)
     ])
     return out
@@ -309,11 +318,17 @@ def make_short(video, item, part, out_dir, cfg):
         end = min(duration, start + target_len)
     else:
         target_len = end - start
-    vf = [
-        'scale=1080:1920:force_original_aspect_ratio=increase',
-        'crop=1080:1920',
-    ]
-    vf.extend(style_filters(item.get('edit_style','clean')))
+    if cfg.get('pro_edit_enabled', True):
+        profile = choose_profile(item, duration=target_len, short=True)
+        vf = pro_filters(profile, 1080, 1920)
+        af = pro_audio_filters(profile)
+    else:
+        vf = [
+            'scale=1080:1920:force_original_aspect_ratio=increase',
+            'crop=1080:1920',
+        ]
+        vf.extend(style_filters(item.get('edit_style','clean')))
+        af = 'loudnorm=I=-14:TP=-1.5:LRA=11'
     overlay = make_overlay_text(item, part if part > 1 else None)
     if overlay:
         vf.append('drawbox=x=25:y=25:w=430:h=68:color=black@0.55:t=fill')
@@ -324,7 +339,7 @@ def make_short(video, item, part, out_dir, cfg):
     apply_manual_censors(vf, item)
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{target_len:.3f}',
-        '-vf',','.join(vf),'-c:v','libx264','-preset','veryfast','-b:v',cfg['video_bitrate'],
+        '-vf',','.join(vf),'-af',af,'-c:v','libx264','-preset','veryfast','-b:v',cfg['video_bitrate'],
         '-c:a','aac','-b:a',cfg['audio_bitrate'],'-movflags','+faststart',str(out)
     ])
     return out, {'start': start, 'end': end, 'score': score}
