@@ -114,5 +114,27 @@ def publish_daily(limit_long=1, limit_short=1):
     print(f'Daily result: long={long_done}/{limit_long}, short={short_done}/{limit_short}')
 
 
+def publish_news(limit=2):
+    state_path = ROOT / 'state' / 'state.json'
+    state = load_json(state_path, {'news': [], 'daily': {}})
+    day = time.strftime('%Y-%m-%d')
+    done = 0
+    for item in state.get('news', []):
+        if item.get('status') != 'ready' or item.get('youtube', {}).get('status') == 'uploaded':
+            continue
+        video = ROOT / item['video']
+        title = item['title'][:100]
+        description = item.get('caption','')[:5000]
+        vid = upload_video(video, title, description, ['News', item.get('category','news'), 'Updates'], 'public', None)
+        item.setdefault('youtube', {})['status'] = 'uploaded'
+        item['youtube']['video_id'] = vid
+        item['youtube']['updated_at'] = int(time.time())
+        done += 1
+        if done >= limit:
+            break
+    save_json(state_path, state)
+    print(f'News YouTube: {done}/{limit}')
+
+
 if __name__ == '__main__':
     publish_daily()

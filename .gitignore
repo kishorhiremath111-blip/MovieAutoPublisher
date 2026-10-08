@@ -1,12 +1,12 @@
 credentials/client_secret.json
 credentials/token.json
-credentials/facebook_page.json
+credentials/*.json
+!credentials/*.example.json
 __pycache__/
-*/__pycache__/
 *.pyc
+output/
+state/state.json
 input/videos/*
 input/thumbnails/*
-output/*
-state/*.json
-.env
+input/music/*
 .firebase/

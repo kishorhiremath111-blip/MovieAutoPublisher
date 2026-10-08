@@ -1,0 +1,63 @@
+name: MovieAutoPublisher Daily
+
+on:
+  schedule:
+    # 7:00 PM IST = 13:30 UTC. GitHub Actions can start a little late.
+    - cron: '30 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore persistent state cache
+        uses: actions/cache/restore@v4
+        with:
+          path: state/state.json
+          key: movieautopublisher-state-${{ github.run_id }}
+          restore-keys: movieautopublisher-state-
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily publisher
+        env:
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+          FACEBOOK_PAGE_B64: ${{ secrets.FACEBOOK_PAGE_B64 }}
+        run: python cloud_runner.py
+
+      - name: Save persistent state cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state/state.json
+          key: movieautopublisher-state-${{ github.run_id }}
+
+      - name: Save logs and generated cards
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-output-${{ github.run_number }}
+          path: |
+            output/news/**
+            output/images/**
+            state/state.json
+          if-no-files-found: ignore
+          retention-days: 7

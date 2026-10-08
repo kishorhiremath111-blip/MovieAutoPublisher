@@ -5,28 +5,46 @@
       "source": "input/videos/my-movie.mp4",
       "thumbnail": "input/thumbnails/my-movie.jpg",
       "type": "movie",
-      "title": "My Movie",
+      "title": "AUTO",
       "licensed": true,
       "adult": false,
       "edit_style": "clean",
       "description": "Official description for this licensed video.",
-      "tags": ["movie", "official"],
-      "privacy_status": "private"
+      "tags": ["movie", "highlights", "official"],
+      "privacy_status": "private",
+      "background_music": "input/music/background.mp3"
     },
     {
       "id": "my-series-s01e01",
       "source": "input/videos/series-s01e01.mp4",
       "thumbnail": "input/thumbnails/series.jpg",
       "type": "series",
-      "title": "My Series",
+      "title": "AUTO",
       "season": 1,
       "episode": 1,
       "licensed": true,
       "adult": false,
       "edit_style": "funny",
       "description": "Official description for this licensed episode.",
-      "tags": ["series", "episode"],
-      "privacy_status": "private"
+      "tags": ["series", "episode", "highlights"],
+      "privacy_status": "private",
+      "background_music": "input/music/background.mp3"
+    },
+    {
+      "id": "my-anime-s01e01",
+      "source": "input/videos/anime-s01e01.mp4",
+      "thumbnail": "input/thumbnails/anime.jpg",
+      "type": "anime",
+      "title": "AUTO",
+      "season": 1,
+      "episode": 1,
+      "licensed": true,
+      "adult": false,
+      "edit_style": "dark",
+      "description": "Official description for this licensed anime episode.",
+      "tags": ["anime", "episode", "highlights"],
+      "privacy_status": "private",
+      "background_music": "input/music/background.mp3"
     }
   ]
 }

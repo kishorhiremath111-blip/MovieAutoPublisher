@@ -1,99 +1,82 @@
-# MovieAutoPublisher — Termux Processor
+# MovieAutoPublisher Pro
 
-This project processes **licensed/owned/reusable** video files locally on Android/Termux. It does not download or bypass protected streams and does not promise copyright avoidance.
+Automation toolkit for **licensed/owned/authorized** video content.
 
-## Current features
+## Daily content pipeline
 
-- Movie / series / anime metadata
-- Uses the supplied/original thumbnail file as the thumbnail base; no external thumbnail fetching
-- Movie title + PART number overlay
-- Series/anime Sxx Exx overlay
-- `18+` overlay only when `adult: true` is explicitly set in metadata
-- Video duration rule: <= 2 hours stays one video; > 2 hours becomes exactly 2 parts
-- Creates one vertical Short from each processed part
-- Optional automatic scene-change highlight selection for Shorts
-- `edit_style`: `clean`, `funny`, or `dark` cosmetic presentation presets
-- Optional manual censor boxes from metadata for supplied/licensed content
-- Duplicate processing protection through `state/state.json`
-- FFmpeg-based processing, Android/Termux friendly
+1. Process an authorized source video.
+2. Detect duration and split videos longer than 2 hours into exactly 2 parts.
+3. Rank scene/highlight candidates using visual scene changes and audio activity.
+4. Build a professional highlight compilation and one vertical Short.
+5. Create exactly **2 original daily image cards** from source frames using `image_posts.py`.
+6. Queue YouTube long/Short uploads.
+7. Optionally publish the 2 image cards to a configured Facebook Page.
 
-### Important about scene selection
+The image generator does **not** scrape random web images. It uses frames from the supplied authorized video and adds original text/layout treatment.
 
-The highlight selector detects **visual scene changes**. It does not claim to understand whether a scene is funny, sexual, dramatic, or otherwise appropriate. For reliable semantic selection, use your own licensed metadata/timestamps. The `funny` and `dark` options are presentation styles, not content classifiers.
+## Daily image commands
 
-## Folder structure
-
-- `input/videos/` — put licensed/owned MP4/MKV files here
-- `input/thumbnails/` — put the exact thumbnail supplied with the content here
-- `metadata.example.json` — example metadata
-- `metadata.json` — your working metadata
-- `output/` — generated videos/thumbnails
-- `state/state.json` — processing history and queue
-
-## Termux
+Generate two cards:
 
 ```bash
-pkg update -y
-pkg install -y python ffmpeg git
-cd ~/MovieAutoPublisher
-python process.py --metadata metadata.json
+python upload_queue.py --daily-images
 ```
 
-Process one item:
+Publish up to two ready cards to a Facebook Page:
 
 ```bash
-python process.py --metadata metadata.json --id my-movie-001
+python upload_queue.py --facebook-images
 ```
 
-## Editing styles
+Facebook credentials stay local in `credentials/facebook_page.json`.
 
-Use one of:
+## Content styles
 
-```json
-"edit_style": "clean"
-```
+The image generator adapts copy to movie, series, and anime content. It can produce moment, mood, anime, series and dark-comedy style cards. It does not claim that a scene is objectively viral; it ranks/frames content from the supplied source.
 
-```json
-"edit_style": "funny"
-```
+For health/wellness posts, use separately authored, factual copy. Do not automatically invent medical claims or diagnoses.
 
-```json
-"edit_style": "dark"
-```
+## YouTube image posts
 
-These only change presentation. They are not copyright-evasion transformations.
+The current YouTube Data API supports video uploads and video thumbnails, but it does not provide a general public API method for publishing a standalone Community image post. Therefore this project generates the image assets and can publish them to a configured Facebook Page; YouTube image/community publishing remains a manual/platform-supported step unless Google exposes an applicable API for the channel.
 
-## Manual censoring
+## Credentials
 
-If a licensed video needs a known sensitive area blurred, add `censor_boxes` to its metadata. Coordinates are percentages of the frame:
-
-```json
-"censor_boxes": [
-  {"start": 12.5, "end": 18.0, "x": 30, "y": 25, "w": 40, "h": 45}
-]
-```
-
-This is intentionally manual/metadata-driven; the processor does not pretend to automatically identify sexual content.
-
-## Upload integration
-
-The processor creates a clean queue for a future official API uploader. YouTube uploads can be connected through the official YouTube Data API using OAuth, and Facebook publishing requires the appropriate Meta Page permissions/access token. Credentials are not embedded in this project.
-
-The project is designed for licensed/reusable content only. Editing cannot guarantee or manufacture copyright clearance.
+Never commit `credentials/client_secret.json`, `credentials/token.json`, or `credentials/facebook_page.json`.
 
 
-## Daily uploader queue
+## News engine
 
-Check credential configuration:
+`news_engine.py` fetches fresh public RSS headlines and creates original vertical news cards/videos with a black headline panel, category label, channel-take text, and source link. It does **not** download or repost third-party news footage. For news footage, only use media you own or have explicit reuse rights for.
+
+Generate two fresh news videos/cards:
 
 ```bash
-python upload_queue.py --check
+python upload_queue.py --news
 ```
 
-Preview the daily queue:
+Upload up to two generated news videos to YouTube:
 
 ```bash
-python upload_queue.py --queue
+python upload_queue.py --news-upload
 ```
 
-The uploader is intentionally credential-free until you authorize the YouTube channel and Facebook Page. Real tokens must never be placed in the repository or uploaded to GitHub.
+News is generated from configurable RSS feeds and deduplicated in `state/state.json`. “Breaking”/“viral” status is not guaranteed; feeds can lag and stories can change, so the source link is included for verification. Health posts use cautious wording and are not medical advice.
+
+## 24/7 cloud mode
+
+`cloud_runner.py` is a cloud-safe entry point. `.github/workflows/daily-publisher.yml`
+runs once per day and can be started manually from GitHub Actions. It generates two
+original news cards/videos, publishes eligible news videos, generates the daily image
+cards, and processes only licensed content already present in the workspace.
+
+### Important storage note
+GitHub Actions runners are temporary. Large movie/video source files should **not** be
+stored in the Git repository. For production, place licensed source media in a private
+object-storage bucket and add a small download/sync step before `cloud_runner.py`.
+The current workflow deliberately does not scrape or download movies/anime from
+third-party sites.
+
+### Secrets
+Use the names in `cloud-secrets.example`. Keep OAuth client secrets and tokens in
+GitHub Actions Secrets, never in Git. The workflow does not print secret values.
