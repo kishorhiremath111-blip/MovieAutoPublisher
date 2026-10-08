@@ -22,7 +22,7 @@
   "scene_threshold": 0.35,
   "silence_db": -34,
   "background_music_file": "input/music/background.mp3",
-  "daily_image_posts": 2,
+  "daily_image_posts": 9,
   "daily_news_videos": 2,
   "news_poll_minutes": 60,
   "news_categories": [
@@ -47,5 +47,10 @@
     "anime"
   ],
   "taskearn_branding": true,
-  "music_mode": "licensed_local_library"
+  "music_mode": "licensed_local_library",
+  "hook_enabled": true,
+  "hook_seconds": 5,
+  "hook_max_seconds": 6,
+  "professional_image_count": 9,
+  "first_seconds_hook": "1-6"
 }
