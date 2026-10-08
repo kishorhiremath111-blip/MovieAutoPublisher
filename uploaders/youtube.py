@@ -187,15 +187,25 @@ def publish_news(limit=1):
         ]
         vid = upload_video(video, title, description, tags, 'public', item.get('thumbnail'))
         record_tracker(vid, item, 'news')
-        record_tracker(vid, item, 'news')
 
         item.setdefault('youtube', {})['status'] = 'uploaded'
         item['youtube']['video_id'] = vid
         item['youtube']['updated_at'] = int(time.time())
         daily['long'].append(item.get('id'))
 
-        # The daily Short is handled by the dedicated social pipeline.
-        # This keeps the daily output at exactly one Short.
+        # If no authorized social Short was uploaded today, use the fresh
+        # rights-cleared news Short as the daily fallback. This guarantees the
+        # daily Short quota without creating a second Short when social content
+        # is available.
+        if not daily.get('short') and item.get('short'):
+            short = ROOT / item['short']
+            if short.exists():
+                short_title = (pack.get('title') or item['title'])[:88].rstrip() + ' #Shorts'
+                short_vid = upload_video(short, short_title, description, tags, 'public', item.get('thumbnail'))
+                record_tracker(short_vid, item, 'news-short')
+                daily['short'].append(item.get('id'))
+                item.setdefault('youtube', {})['short_status'] = 'uploaded'
+                item['youtube']['short_video_id'] = short_vid
 
         done += 1
         if done >= limit:
