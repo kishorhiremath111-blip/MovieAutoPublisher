@@ -41,7 +41,10 @@ def main():
     ap.add_argument('--news', action='store_true', help='Build one worldwide daily news roundup with fresh stories and 1-6 real-photo slides per story')
     ap.add_argument('--news-upload', action='store_true', help='Upload the ready daily news roundup to YouTube (long + Short)')
     ap.add_argument('--facebook-news-video', action='store_true', help='Publish the ready daily news roundup as a Facebook Page video')
-    ap.add_argument('--facebook-reels', action='store_true', help='Manually publish a ready news video as a Facebook Reel; not part of the daily run')\n    ap.add_argument('--social', action='store_true', help='Generate Shorts/Reels from explicitly authorized social source clips')\n    ap.add_argument('--social-upload', action='store_true', help='Upload ready social clips to YouTube Shorts')\n    ap.add_argument('--facebook-social-reels', action='store_true', help='Publish ready social clips as Facebook Page Reels')
+    ap.add_argument('--facebook-reels', action='store_true', help='Manually publish a ready news video as a Facebook Reel; not part of the daily run')
+    ap.add_argument('--social', action='store_true', help='Generate Shorts/Reels from explicitly authorized social source clips')
+    ap.add_argument('--social-upload', action='store_true', help='Upload ready social clips to YouTube Shorts')
+    ap.add_argument('--facebook-social-reels', action='store_true', help='Publish ready social clips as Facebook Page Reels')
     args = ap.parse_args()
 
     if args.check:
