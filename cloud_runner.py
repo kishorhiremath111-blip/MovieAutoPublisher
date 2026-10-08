@@ -57,7 +57,7 @@ def main():
     if (ROOT / 'input' / 'taskearn.apk').exists() or (ROOT / 'input' / 'brand_assets').exists():
         run('brand_assets')
 
-    # DAILY NEWS: one worldwide roundup, not nine separate news posts.
+    # SHORTS/REELS: process only explicitly authorized/licensed source clips.\n    # Trend metadata is used as a signal; third-party social videos are never downloaded.\n    run('upload_queue', '--social')\n    run('upload_queue', '--social-upload')\n    if (CREDS / 'facebook_page.json').exists():\n        run('upload_queue', '--facebook-social-reels')\n\n    # DAILY NEWS: one worldwide roundup, not nine separate news posts.
     # Each story can show 1-6 real, rights-cleared images as slides with
     # a story-specific take/question. Freshness + duplicate checks happen in news_engine.
     run('upload_queue', '--news')
