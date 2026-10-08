@@ -85,12 +85,13 @@ def publish_daily_images(limit=2):
 
 
 def publish_news_video(limit=1):
-    """Publish ready daily news roundup(s) as normal Facebook Page videos."""
+    """Publish only today's ready news roundups as normal Page videos."""
     state_path = ROOT / 'state' / 'state.json'
     state = json.loads(state_path.read_text(encoding='utf-8'))
+    today = time.strftime('%Y-%m-%d')
     done = 0
     for item in state.get('news', []):
-        if item.get('status') != 'ready':
+        if item.get('date') != today or item.get('status') != 'ready':
             continue
         if item.get('facebook_video', {}).get('status') == 'uploaded':
             continue
@@ -110,7 +111,6 @@ def publish_news_video(limit=1):
             break
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
     print(f'Facebook news videos: {done}/{limit}')
-
 
 def publish_reel(video_path, description=''):
     """Publish a short vertical MP4 as a Facebook Page Reel via the Graph API."""
