@@ -201,6 +201,49 @@ def generate_daily_images():
         recent_days=int(load(CONFIG, {}).get('viral_no_repeat_days', 30))
     )
     if not video:
+        # Daily news is the guaranteed fresh, rights-cleared visual fallback.
+        # Use the first generated news slide when no authorized movie/source
+        # video is available.
+        news_items = [
+            x for x in state.get('news', [])
+            if x.get('date') == today and x.get('status') == 'ready'
+        ]
+        if news_items:
+            news = news_items[-1]
+            news_root = ROOT / 'output' / 'news' / today
+            slides = sorted(news_root.glob('story_*/*slide_01.jpg'))
+            if slides:
+                work = OUT / today
+                work.mkdir(parents=True, exist_ok=True)
+                out = work / 'daily_news_card.jpg'
+                story = (news.get('stories') or [{}])[0]
+                title = story.get('title') or news.get('title') or 'Today\'s Big Update'
+                q = 'Would you share this update with a friend?'
+                card(
+                    slides[0],
+                    title,
+                    'Fresh update • Read the full story',
+                    out,
+                    badge=None,
+                    dark=True,
+                    question=q,
+                    source=story.get('source') or 'Rights-cleared news source'
+                )
+                post = {
+                    'id': f'{today}-news-image-01',
+                    'date': today,
+                    'category': 'news',
+                    'image': str(out.relative_to(ROOT)),
+                    'caption': f'{title}\\n\\nFresh update • Read the full story',
+                    'source_item': news.get('id'),
+                    'viral_parent_id': news.get('id'),
+                    'status': 'ready',
+                    'created_at': int(time.time()),
+                }
+                state.setdefault('image_posts', []).append(post)
+                save(STATE, state)
+                print(f'Generated 1 daily news image: {out}')
+                return
         print('Daily images: no fresh unused authorized source; skipping.')
         return
 
