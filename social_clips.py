@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
 from viral_tracker import trend_index, score_candidate, make_pack
+from pro_editor import choose_profile, filters as pro_filters, audio_filters as pro_audio_filters
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / "config" / "config.json"
@@ -80,23 +81,15 @@ def best_window(path, cfg):
 
 def render(src, out, start, end, cfg, style):
     width, height = 1080, 1920
-    vf = [
-        f"scale={width}:{height}:force_original_aspect_ratio=increase",
-        f"crop={width}:{height}",
-    ]
-    if style == "dark":
-        vf.append("eq=brightness=-0.03:contrast=1.08:saturation=0.88")
-        vf.append("vignette=PI/6")
-    elif style in {"funny", "roast"}:
-        vf.append("eq=contrast=1.04:saturation=1.06")
-        vf.append("unsharp=5:5:0.22:5:5:0.0")
-
-    vf.append("format=yuv420p")
+    item = {"edit_style": style, "category": style}
+    profile = choose_profile(item, duration=max(0.5, end-start), short=True)
+    vf = pro_filters(profile, width, height)
+    af = pro_audio_filters(profile)
     run([
         "ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", str(src),
         "-t", f"{max(0.5, end-start):.3f}",
         "-vf", ",".join(vf),
-        "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
+        "-af", af,
         "-c:v", "libx264", "-preset", "veryfast",
         "-b:v", cfg.get("video_bitrate", "3500k"),
         "-c:a", "aac", "-b:a", cfg.get("audio_bitrate", "160k"),
