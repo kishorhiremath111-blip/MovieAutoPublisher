@@ -83,6 +83,25 @@ def upload_video(video_path, title, description='', tags=None, privacy='private'
     return video_id
 
 
+
+def record_tracker(video_id, item, kind):
+    tracker_path = ROOT / 'state' / 'viral_tracker.json'
+    tracker = load_json(tracker_path, {'published_youtube': [], 'performance': [], 'used': []})
+    rows = tracker.setdefault('published_youtube', [])
+    if any(str(x.get('video_id')) == str(video_id) for x in rows):
+        return
+    rows.append({
+        'video_id': video_id,
+        'published_at': int(time.time()),
+        'category': item.get('category', kind),
+        'edit_style': item.get('edit_style', kind),
+        'viral_score': item.get('viral_score', 0),
+        'kind': kind,
+        'title': item.get('title', ''),
+    })
+    save_json(tracker_path, tracker)
+
+
 def publish_daily(limit_long=1, limit_short=1):
     state_path = ROOT / 'state' / 'state.json'
     state = load_json(state_path, {'processed': {}, 'queue': [], 'daily': {}})
@@ -106,7 +125,7 @@ def publish_daily(limit_long=1, limit_short=1):
         if long_done < limit_long and yt.get('long_status') != 'uploaded':
             if video.exists():
                 print(f'Uploading long: {video}')
-                vid = upload_video(video, item['title'], description, tags, privacy, thumb)
+                pack = item.get('viral_pack') or {}\n                upload_title = pack.get('title') or item['title']\n                vid = upload_video(video, upload_title, description, tags, privacy, thumb)\n                record_tracker(vid, item, 'long')
                 yt['long_status'] = 'uploaded'
                 yt['long_video_id'] = vid
                 yt['updated_at'] = int(time.time())
@@ -119,7 +138,7 @@ def publish_daily(limit_long=1, limit_short=1):
                 if '#Shorts' not in short_title:
                     short_title = short_title[:88].rstrip() + ' #Shorts'
                 print(f'Uploading short: {short}')
-                vid = upload_video(short, short_title, description, tags, privacy, thumb)
+                pack = item.get('viral_pack') or {}\n                upload_title = pack.get('title') or short_title\n                vid = upload_video(short, upload_title, description, tags, privacy, thumb)\n                record_tracker(vid, item, 'short')
                 yt['short_status'] = 'uploaded'
                 yt['short_video_id'] = vid
                 yt['updated_at'] = int(time.time())
@@ -152,14 +171,14 @@ def publish_news(limit=1):
             print(f'News video missing: {video}')
             continue
 
-        title = item['title'][:100]
+        pack = item.get('viral_pack') or {}\n        title = (pack.get('title') or item['title'])[:100]
         description = item.get('caption', '')[:5000]
         tags = [
             'News', 'WorldNews', 'IndiaNews', 'Sports', 'Health',
             'Technology', 'Electronics', 'Science', 'Space',
             'Cars', 'Bikes', 'Crime', 'Anime', 'Entertainment'
         ]
-        vid = upload_video(video, title, description, tags, 'public', item.get('thumbnail'))
+        vid = upload_video(video, title, description, tags, 'public', item.get('thumbnail'))\n        record_tracker(vid, item, 'news')
 
         item.setdefault('youtube', {})['status'] = 'uploaded'
         item['youtube']['video_id'] = vid
