@@ -647,15 +647,14 @@ def run(cmd):
 
 
 def render_image_clip(image, out, duration, size='1920x1080'):
-    vf = (
-        sw, sh = (int(x) for x in size.split('x'))
+    sw, sh = (int(x) for x in size.split('x'))
     vf = (
         f'scale={sw}:{sh}:force_original_aspect_ratio=increase,'
         f'crop={sw}:{sh},'
         "zoompan=z='min(zoom+0.0009,1.07)':"
         "x='iw/2-(iw/zoom/2)':"
         "y='ih/2-(ih/zoom/2)':d=1:"
-        f's={size}:fps=25,'
+        f's={sw}x{sh}:fps=25,'
         'format=yuv420p'
     )
     fade_start = max(0.25, float(duration) - 0.22)
@@ -673,7 +672,6 @@ def render_image_clip(image, out, duration, size='1920x1080'):
         str(out)
     ])
     return out
-
 
 def concat_videos(clips, out):
     list_file = out.with_suffix('.concat.txt')
