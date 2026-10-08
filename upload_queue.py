@@ -34,6 +34,7 @@ def main():
     ap.add_argument('--facebook-images', action='store_true', help='Publish up to 2 ready images to a Facebook Page')
     ap.add_argument('--news', action='store_true', help='Fetch fresh RSS headlines and make 2 original news videos/cards')
     ap.add_argument('--news-upload', action='store_true', help='Upload up to 2 ready original news videos to YouTube')
+    ap.add_argument('--facebook-reels', action='store_true', help='Publish up to 2 ready news videos as Facebook Reels')
     args = ap.parse_args()
     if args.check: check_config(); return
     if args.queue: show_queue(); return
@@ -51,6 +52,9 @@ def main():
     if args.news_upload:
         from uploaders.youtube import publish_news
         publish_news(2); return
+    if args.facebook_reels:
+        from uploaders.facebook import publish_daily_reels
+        publish_daily_reels(2); return
     ap.print_help()
 
 if __name__ == '__main__': main()
