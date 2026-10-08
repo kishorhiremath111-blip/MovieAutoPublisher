@@ -95,7 +95,8 @@ def commentary(category, title):
     return 'Channel take: Story develop ho rahi ho sakti hai—confirmed facts aur official updates ko priority dena sabse important hai.'
 
 
-\ndef commons_image(item, out):
+
+def commons_image(item, out):
     """Find a rights-cleared real-world image on Wikimedia Commons.
     Only files whose machine-readable license is CC BY/CC BY-SA/CC0/Public Domain
     are accepted; otherwise the generator falls back to an original graphic.
@@ -225,7 +226,7 @@ def generate(limit=2):
         for row in ig.get('items',[])[:20]:
             cap=clean(row.get('caption',''))
             if cap:
-                fresh.append({'category':'instagram-trend','title':cap.split('\\n')[0][:180],'description':cap[:700],'link':row.get('permalink',''),'published':row.get('timestamp',''),'fingerprint':hashlib.sha256((row.get('id','')+'|'+cap).encode()).hexdigest(),'instagram_trend':True})
+                fresh.append({'category':'instagram-trend','title':cap.split('\n')[0][:180],'description':cap[:700],'link':row.get('permalink',''),'published':row.get('timestamp',''),'fingerprint':hashlib.sha256((row.get('id','')+'|'+cap).encode()).hexdigest(),'instagram_trend':True})
     except Exception:
         pass
     if not fresh: raise SystemExit('No fresh RSS/Instagram items found.')
