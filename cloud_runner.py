@@ -63,15 +63,10 @@ def main():
     # Facebook Reels are intentionally NOT required every day. They remain
     # available through the manual --facebook-reels command when needed.
     
-    # Optional movie/series image cards only when an authorized source video exists.
-    videos_dir = ROOT / 'input' / 'videos'
-    has_video = videos_dir.exists() and any(v.is_file() for v in videos_dir.iterdir())
-    if has_video:
-        run('upload_queue', '--daily-images')
-        if (CREDS / 'facebook_page.json').exists():
-            run('upload_queue', '--facebook-images')
-    else:
-        print('No authorized source video; skipping optional movie/series image cards.')
+    # Separate daily image posts are intentionally not automatic.
+    # News images are already assembled as 1-6 slides inside the single roundup.
+    # The manual --daily-images command remains available when specifically needed.
+
 
     # Process any licensed content already supplied to the cloud workspace.
     # Metadata controls which items are eligible; no source is fetched from
