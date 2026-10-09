@@ -543,6 +543,7 @@ def main():
                 'video': str(video.relative_to(ROOT)),
                 'short': str(short.relative_to(ROOT)),
                 'thumbnail': str(banner.relative_to(ROOT)),
+                'original_thumbnail': str(thumb.relative_to(ROOT)),
                 'title': title,
                 'type': item.get('type', 'movie'),
                 'category': item.get('category', item.get('type', 'movie')),
