@@ -124,10 +124,19 @@ jobs:
           test -n "$JADX_BIN"
           chmod +x "$JADX_BIN"
           "$JADX_BIN" --version
-          "$JADX_BIN" --no-res --show-bad-code -d jadx-out Movie.apk > jadx.log 2>&1 || {
-            tail -n 100 jadx.log
+          # JADX may return exit code 1 for individual decompiler errors while still
+          # producing useful Java sources. Keep the partial output and report the errors.
+          set +e
+          "$JADX_BIN" --no-res --show-bad-code -d jadx-out Movie.apk > jadx.log 2>&1
+          JADX_STATUS=$?
+          set -e
+          JAVA_COUNT="$(find jadx-out -type f -name '*.java' | wc -l)"
+          echo "JADX exit status: $JADX_STATUS; Java files produced: $JAVA_COUNT"
+          tail -n 30 jadx.log || true
+          if [[ "$JAVA_COUNT" -eq 0 ]]; then
+            echo "JADX produced no Java source files."
             exit 1
-          }
+          fi
           python - <<'PY'
           import json, re
           from pathlib import Path
