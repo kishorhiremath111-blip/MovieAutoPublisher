@@ -7,6 +7,7 @@ import json
 import time
 import subprocess
 from pathlib import Path
+from viral_tracker import score_candidate, trend_index
 
 import requests
 
@@ -199,8 +200,14 @@ def publish_movie_reels(limit=1):
             continue
         if cutoff_topics <= post_day < today_date and post.get('topic_id'):
             blocked_topics.add(str(post['topic_id']).strip().casefold())
-    # Prefer a fresh, rights-cleared social-source clip if one was generated,
-    # otherwise use a different licensed source from metadata.json.
+    # Rank only authorized source files with current trend metadata. We reuse
+    # the metadata signal, never the trending creators' videos themselves.
+    trends = trend_index()
+    tracker_path = ROOT / 'state' / 'viral_tracker.json'
+    try:
+        tracker = json.loads(tracker_path.read_text(encoding='utf-8'))
+    except Exception:
+        tracker = {}
     candidates = []
     for item in state.get('social', []):
         if item.get('date') != today:
@@ -218,7 +225,10 @@ def publish_movie_reels(limit=1):
                 and item_id and item_id not in used_ids and video.is_file()):
             source_key = str(source.resolve()) if source and source.exists() else str(video.resolve())
             if source_key not in used_sources:
-                candidates.append((item_id, item, video, source_key, 'social'))
+                score, breakdown = score_candidate(item, trends, tracker)
+                item['viral_score'] = score
+                item['viral_breakdown'] = breakdown
+                candidates.append((score, item_id, item, video, source_key, 'social'))
 
     for item in state.get('queue', []):
         item_id = str(item.get('item_id') or '')
@@ -232,16 +242,23 @@ def publish_movie_reels(limit=1):
         if (item.get('status') == 'ready' and item_id and item_id not in used_ids
                 and topic_id.strip().casefold() not in blocked_topics
                 and video.is_file() and source_key not in used_sources):
-            candidates.append((item_id, item, video, source_key, 'movie'))
+            score_item = dict(item)
+            score_item['id'] = item_id
+            score_item['selected_highlight'] = item.get('short_highlight') or {}
+            score, breakdown = score_candidate(score_item, trends, tracker)
+            item['viral_score'] = score
+            item['viral_breakdown'] = breakdown
+            candidates.append((score, item_id, item, video, source_key, 'movie'))
 
-    # De-duplicate source IDs and source paths.
+    # Highest trend-relevance score wins among authorized, unused sources.
+    candidates.sort(key=lambda row: row[0], reverse=True)
     selected = []
     seen_ids, seen_paths = set(), set()
     for row in candidates:
-        if row[0] in seen_ids or row[3] in seen_paths:
+        if row[1] in seen_ids or row[4] in seen_paths:
             continue
         selected.append(row)
-        seen_ids.add(row[0]); seen_paths.add(row[3])
+        seen_ids.add(row[1]); seen_paths.add(row[4])
         if len(selected) >= limit:
             break
 
@@ -250,7 +267,7 @@ def publish_movie_reels(limit=1):
         return
 
     done = 0
-    for item_id, item, video, source_key, source_kind in selected:
+    for viral_score, item_id, item, video, source_key, source_kind in selected:
         # Check for actual audio and video streams; do not post a silent placeholder.
         probe = subprocess.run(
             ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type',
@@ -265,6 +282,7 @@ def publish_movie_reels(limit=1):
         caption_text = str(item.get('caption_text') or '').strip()
         if caption_text and caption_text not in caption:
             caption = (caption + '\n\n' + caption_text).strip()
+        print(f'Facebook Reel candidate selected by trend score={viral_score:.2f}: {item.get(\'title\', item_id)}')
         reel_id = publish_reel(video, caption)
         item.setdefault('facebook_reel', {}).update({
             'status': 'uploaded', 'video_id': reel_id,
@@ -274,6 +292,7 @@ def publish_movie_reels(limit=1):
         daily.setdefault('reel_sources', []).append(source_key)
         daily.setdefault('movie_reel_sources', []).append(source_key)
         daily.setdefault('movie_reel_topics', []).append(str(item.get('topic_id') or item.get('source_item_id') or item_id))
+        daily.setdefault('movie_reel_scores', []).append(float(viral_score))
         blocked_topics.add(str(item.get('topic_id') or item.get('source_item_id') or item_id).strip().casefold())
         daily.setdefault('movie_reel_item_ids', []).append(str(item.get('source_item_id') or item_id))
         used_sources.add(source_key)
