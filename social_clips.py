@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
 from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
 from viral_tracker import trend_index, score_candidate, make_pack
 from pro_editor import choose_profile, filters as pro_filters, audio_filters as pro_audio_filters
+from caption_design import caption_line, palette
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / "config" / "config.json"
@@ -79,12 +80,25 @@ def best_window(path, cfg):
     return max(ranked, key=lambda x: x[2])
 
 
-def render(src, out, start, end, cfg, style):
+def _escape_drawtext(value):
+    return str(value).replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
+
+
+def render(src, out, start, end, cfg, style, item):
     width, height = 1080, 1920
-    item = {"edit_style": style, "category": style}
-    profile = choose_profile(item, duration=max(0.5, end-start), short=True)
+    edit_item = dict(item)
+    edit_item["edit_style"] = style
+    profile = choose_profile(edit_item, duration=max(0.5, end-start), short=True)
     vf = pro_filters(profile, width, height)
     af = pro_audio_filters(profile)
+    line = caption_line(edit_item, "social")
+    text_color, accent = palette(edit_item)
+    # Small, centered safe-area caption: original scene audio remains untouched.
+    vf.extend([
+        "drawbox=x=40:y=170:w=1000:h=92:color=black@0.58:t=fill",
+        f"drawbox=x=40:y=170:w=9:h=92:color={accent}:t=fill",
+        f"drawtext=text='{_escape_drawtext(line)}':x=(w-text_w)/2:y=197:fontsize=40:fontcolor={text_color}:borderw=2:bordercolor=black",
+    ])
     run([
         "ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", str(src),
         "-t", f"{max(0.5, end-start):.3f}",
@@ -95,6 +109,7 @@ def render(src, out, start, end, cfg, style):
         "-c:a", "aac", "-b:a", cfg.get("audio_bitrate", "160k"),
         "-movflags", "+faststart", str(out)
     ])
+    return line
 
 
 def thumb_font(size, bold=True):
@@ -201,7 +216,7 @@ def main():
         start, end, scene_score = best_window(source, cfg)
         style = str(item.get("edit_style", "clean")).lower()
         out = OUT_DIR / f"{safe_name(item_id)}_{today}_SHORT.mp4"
-        render(source, out, start, end, cfg, style)
+        caption_text = render(source, out, start, end, cfg, style, item)
 
         enriched = dict(item)
         enriched["selected_highlight"] = {"score": scene_score}
@@ -232,6 +247,7 @@ def main():
             "licensed": True,
             "creator": item.get("creator", ""),
             "edit_style": style,
+            "caption_text": caption_text,
             "viral_score": final_score,
             "viral_breakdown": final_breakdown,
             "viral_pack": pack,
