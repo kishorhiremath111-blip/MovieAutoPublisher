@@ -88,7 +88,7 @@
   "hook_max_seconds": 6,
   "professional_image_count": 9,
   "first_seconds_hook": "1-6",
-  "auto_facebook_reels": false,
+  "auto_facebook_reels": true,
   "youtube_trend_discovery": true,
   "youtube_trend_region": "IN",
   "youtube_trend_max_results": 50,
