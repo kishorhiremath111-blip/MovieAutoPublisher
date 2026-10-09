@@ -62,22 +62,53 @@ def safe_name(value):
     return re.sub(r"[^A-Za-z0-9._-]+", "_", str(value)).strip("_") or "social_clip"
 
 
-def best_window(path, cfg):
+def best_window(path, cfg, previous_windows=None):
     d = duration(path)
     scenes = detect_scene_times(path, float(cfg.get("scene_threshold", 0.35)))
     silence = detect_silence_ranges(path, float(cfg.get("silence_db", -34)))
     ranked = rank_highlight_windows(
         d,
         scenes,
-        count=int(cfg.get("social_candidate_count", 10)),
+        count=max(60, int(cfg.get("social_candidate_count", 10)) * 10),
         clip_seconds=float(cfg.get("social_clip_seconds", 45)),
         silence_ranges=silence,
         min_gap_seconds=float(cfg.get("social_min_gap_seconds", 8)),
     )
-    if not ranked:
-        length = min(float(cfg.get("social_clip_seconds", 45)), d)
-        return 0.0, length, 0.0
-    return max(ranked, key=lambda x: x[2])
+    previous_windows = previous_windows or []
+    fresh = []
+    for start, end, score in ranked:
+        repeats = False
+        for old_start, old_end in previous_windows:
+            overlap = max(0.0, min(end, old_end) - max(start, old_start))
+            if overlap >= min(8.0, (end - start) * 0.20):
+                repeats = True
+                break
+        if not repeats:
+            fresh.append((start, end, score))
+    if not fresh:
+        return None
+    return max(fresh, key=lambda x: x[2])
+
+
+def previous_scene_windows(state, source_rel, today, lookback_days=30):
+    from datetime import date, timedelta
+    current = date.fromisoformat(today)
+    cutoff = current - timedelta(days=max(1, int(lookback_days)))
+    target = str(Path(source_rel))
+    windows = []
+    for row in state.get("social", []):
+        try:
+            row_day = date.fromisoformat(str(row.get("date") or "")[:10])
+        except ValueError:
+            continue
+        if not (cutoff <= row_day < current) or str(row.get("source") or "") != target:
+            continue
+        window = row.get("selected_highlight") or {}
+        try:
+            windows.append((float(window["start"]), float(window["end"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return windows
 
 
 def _escape_drawtext(value):
@@ -176,25 +207,34 @@ def main():
     today = time.strftime("%Y-%m-%d")
     limit = int(cfg.get("daily_social_clips", 1))
     threshold = float(cfg.get("viral_pre_publish_min_score", 75))
-    used = {str(x.get("id")) for x in state.get("social", [])}
     trends = trend_index()
+    seen_sources = set()
+    already_generated_today = {
+        str(x.get("source_item_id") or x.get("id"))
+        for x in state.get("social", []) if x.get("date") == today
+    }
+    cooldown_days = int(cfg.get("viral_no_repeat_days", 30))
 
     candidates = []
     for item in items:
         if item.get("licensed") is not True:
             continue
-        item_id = str(item.get("id") or safe_name(Path(str(item.get("source", ""))).stem))
-        if item_id in used:
+        source_id = str(item.get("id") or safe_name(Path(str(item.get("source", ""))).stem))
+        if source_id in already_generated_today:
             continue
 
         source = ROOT / str(item.get("source", ""))
         if not source.exists():
             source = SRC_DIR / Path(str(item.get("source", ""))).name
-        if not source.exists():
+        if not source.exists() or not source.is_file():
             continue
-
+        source_path = str(source.relative_to(ROOT))
+        if source_path in seen_sources:
+            continue
+        seen_sources.add(source_path)
+        topic_id = str(item.get("topic_id") or source_id)
         score, breakdown = score_candidate(item, trends, tracker)
-        candidates.append((score, breakdown, item, source, item_id))
+        candidates.append((score, breakdown, item, source, source_id, topic_id, source_path))
 
     candidates.sort(key=lambda x: x[0], reverse=True)
     if not candidates:
@@ -202,7 +242,7 @@ def main():
         return
 
     created = 0
-    for base_score, base_breakdown, item, source, item_id in candidates[:limit]:
+    for base_score, base_breakdown, item, source, source_id, topic_id, source_path in candidates:
         if created >= limit:
             break
 
@@ -213,9 +253,15 @@ def main():
             )
             break
 
-        start, end, scene_score = best_window(source, cfg)
+        previous = previous_scene_windows(state, source_path, today, cooldown_days)
+        window = best_window(source, cfg, previous)
+        if not window:
+            print(f"Social source exhausted for {cooldown_days} days; no new scene window: {source_path}")
+            continue
+        start, end, scene_score = window
+        item_id = f"{source_id}-{today}"
         style = str(item.get("edit_style", "clean")).lower()
-        out = OUT_DIR / f"{safe_name(item_id)}_{today}_SHORT.mp4"
+        out = OUT_DIR / f"{safe_name(source_id)}_{today}_SHORT.mp4"
         caption_text = render(source, out, start, end, cfg, style, item)
 
         enriched = dict(item)
@@ -243,10 +289,10 @@ def main():
             "tags": pack["tags"],
             "hashtags": pack["hashtags"],
             "category": item.get("category", "viral"),
-            "source": str(source.relative_to(ROOT)),
+            "source": source_path,
             "licensed": True,
-            "topic_id": str(item.get("topic_id") or item_id),
-            "source_item_id": item_id,
+            "topic_id": topic_id,
+            "source_item_id": source_id,
             "creator": item.get("creator", ""),
             "edit_style": style,
             "caption_text": caption_text,
