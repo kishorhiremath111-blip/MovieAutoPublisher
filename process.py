@@ -350,7 +350,11 @@ def make_highlight_compilation(video, item, part, out_dir, cfg):
         clips.append(hook)
     for idx, (start, end, score) in enumerate(ordered, 1):
         clip = work / f'clip_{idx:02d}.mp4'
-        extract_clip(video, start, end, clip, int(cfg['output_width']), int(cfg['output_height']), item, item.get('edit_style','clean'))
+        scene_caption = caption_line(item, f'clip-{idx}')
+        extract_clip(
+            video, start, end, clip, int(cfg['output_width']), int(cfg['output_height']),
+            item, item.get('edit_style', 'clean'), overlay_text=scene_caption
+        )
         clips.append(clip)
 
     title = make_title(item, part if part > 1 else None)
