@@ -44,6 +44,12 @@ The daily processor makes date-specific outputs and avoids previously published 
 
 The generic YouTube Data API upload flow supports video uploads and thumbnails; it does not provide a general API method for arbitrary standalone Community image posts. Facebook image publication requires a configured Facebook Page access token. If these platform/credential capabilities are unavailable, upload the generated image manually or configure a supported authorized integration.
 
+## Optional trend-inspired original AI image
+
+If you configure the paid OpenAI Images API, the daily image step can create **at most one** original concept-art poster from current YouTube pop-culture trend metadata. It does not copy the trending video's images or frames and prompts the model to avoid named characters, actor likenesses, franchise logos and existing posters. The final card discloses that it is original AI-generated concept art, not an official frame or endorsement. Licensed still-image cards remain supported, up to the daily 1–3 card target.
+
+Set a GitHub Actions Secret named **OPENAI_API_KEY** to enable this feature. The key is optional; without it, the workflow uses only the separately authorized local still-image manifest and skips AI artwork. OpenAI API usage has separate API billing; a ChatGPT plan does not itself supply API credits. Keep the key private and never paste it into chat or source files.
+
 ## Credentials and setup
 
 - YouTube OAuth: **YOUTUBE_CLIENT_SECRET_B64** and **YOUTUBE_TOKEN_B64** (GitHub Actions Secrets).
