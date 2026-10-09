@@ -116,5 +116,12 @@
   "viral_no_repeat_days": 30,
   "viral_performance_tracking": true,
   "viral_winner_boost": 1.15,
-  "image_no_repeat_days": 30
+  "image_no_repeat_days": 30,
+  "show_scene_captions": false,
+  "audio_language_policy": "use_original_hindi_or_english_dub_only",
+  "allowed_audio_languages": [
+    "hi",
+    "en"
+  ],
+  "require_verified_audio_language": true
 }
