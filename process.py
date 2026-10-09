@@ -371,7 +371,7 @@ def make_short(video, item, part, out_dir, cfg):
     out = out_dir / f'{safe_name(base_title)}_SHORT.mp4'
     duration = ffprobe_duration(video)
     target_len = min(float(cfg['short_duration_seconds']), duration)
-    ranked = analyze_highlights(video, duration, cfg)
+    ranked = analyze_highlights(video, duration, cfg, item)
     if not ranked:
         raise RuntimeError('No fresh unused scene windows remain for this source.')
     start, end, score = max(ranked, key=lambda x: x[2])
