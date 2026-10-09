@@ -82,8 +82,20 @@ def infer_title(source, item):
 
 
 def validate_item(item):
-    if not item.get('licensed'):
+    if item.get('licensed') is not True:
         raise RuntimeError(f"{item.get('id','unknown')}: licensed=true is required")
+    cfg = load_json(CONFIG, {})
+    language = str(item.get('audio_language') or '').strip().lower()
+    if language not in set(cfg.get('allowed_audio_languages', ['hi', 'en'])):
+        raise RuntimeError(
+            f"{item.get('id','unknown')}: audio_language must be explicitly set to 'hi' or 'en'; "
+            "language is never guessed from the title."
+        )
+    if cfg.get('require_verified_audio_language', True) and item.get('audio_language_verified') is not True:
+        raise RuntimeError(
+            f"{item.get('id','unknown')}: set audio_language_verified=true only after checking "
+            "the actual dialogue/audio track."
+        )
     source = ROOT / item['source']
     thumb = ROOT / item['thumbnail']
     if not source.exists():
