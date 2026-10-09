@@ -28,10 +28,10 @@ jobs:
           GH_REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            TAG="v1.0.0"
-          else
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GH_REF_TYPE:-branch}" == "tag" ]]; then
             TAG="${GH_REF_NAME}"
+          else
+            TAG="v1.0.0"
           fi
           gh release download "$TAG" --repo "$GH_REPOSITORY" --pattern "Movie.apk" --dir .
           test -s Movie.apk
