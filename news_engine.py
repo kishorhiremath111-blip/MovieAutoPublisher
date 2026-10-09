@@ -31,6 +31,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageOps, ImageFont
+from human_narration import create_narration, mix_voice_music
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / 'config' / 'config.json'
@@ -929,22 +930,29 @@ def generate_roundup():
                 make_slide(story, media_row['path'], slide, j, total, real_photo=True)
                 slide_files.append(slide)
 
+        # Generate spoken narration before rendering so visuals last for the full voiceover.
+        story['take'] = CATEGORY_TAKE.get(story.get('category'), '')
+        story['question'] = CATEGORY_QUESTION.get(story.get('category'), '')
+        voice_file = story_dir / 'narration.mp3'
+        create_narration(story, voice_file)
+        voice_seconds = ff_duration(voice_file)
+        per_slide_seconds = max(slide_seconds, (voice_seconds + 0.8) / max(1, len(slide_files)))
+
         clips = []
         for j, slide in enumerate(slide_files, 1):
             clip = story_dir / f'slide_{j:02d}.mp4'
-            render_image_clip(slide, clip, slide_seconds)
+            render_image_clip(slide, clip, per_slide_seconds)
             clips.append(clip)
 
         story_silent = story_dir / 'story_silent.mp4'
         concat_videos(clips, story_silent)
 
-        # Each story gets its own related local licensed track when one exists.
-        # Example: a Naruto story prefers a Naruto/anime/action-named track.
+        # Prefer relevant licensed music; narration is mandatory even if no music exists.
         music = pick_music([story])
         story['music'] = str(music.relative_to(ROOT)) if music and music.exists() else None
         story_music.append(story.get('music'))
         story_audio = story_dir / 'story_with_audio.mp4'
-        add_music(story_silent, story_audio, music)
+        mix_voice_music(story_silent, voice_file, music, story_audio)
         story_clips.append(story_audio)
 
     hook = make_hook(stories, work)
@@ -974,15 +982,16 @@ def generate_roundup():
             1,
             bool(src)
         )
+        story['take'] = CATEGORY_TAKE.get(story.get('category'), '')
+        story['question'] = CATEGORY_QUESTION.get(story.get('category'), '')
+        voice_file = story_dir / 'narration_short.mp3'
+        create_narration(story, voice_file, short=True)
+        voice_seconds = ff_duration(voice_file)
         silent = story_dir / 'silent.mp4'
-        render_image_clip(vslide, silent, 7.0, size='1080x1920')
+        render_image_clip(vslide, silent, max(7.0, voice_seconds + 0.5), size='1080x1920')
         with_audio = story_dir / 'with_audio.mp4'
-        music_ref = None
-        if story.get('music'):
-            music_ref = ROOT / story['music']
-        else:
-            music_ref = pick_music([story])
-        add_music(silent, with_audio, music_ref)
+        music_ref = ROOT / story['music'] if story.get('music') else pick_music([story])
+        mix_voice_music(silent, voice_file, music_ref, with_audio)
         short_clips.append(with_audio)
 
     short_video = work / 'daily_world_short.mp4'
