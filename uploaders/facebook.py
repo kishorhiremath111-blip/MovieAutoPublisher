@@ -74,7 +74,7 @@ def publish_daily_images(limit=3):
         if item.get('date') != today:
             continue
         # Ignore legacy/news cards; only separately licensed image-source cards are eligible.
-        if item.get('asset_type') != 'licensed_image_source':
+        if item.get('asset_type') not in {'licensed_image_source', 'ai_generated_image'}:
             continue
         if item.get('status') != 'ready' or item.get('facebook', {}).get('status') == 'uploaded':
             continue
