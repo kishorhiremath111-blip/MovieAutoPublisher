@@ -42,6 +42,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate Python syntax
+        run: python -m compileall -q .
+
       - name: Run daily publisher
         env:
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
