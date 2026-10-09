@@ -10,6 +10,7 @@ from pathlib import Path
 
 from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
 from pro_editor import choose_profile, filters as pro_filters, audio_filters as pro_audio_filters
+from caption_design import caption_line, palette
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / 'config' / 'config.json'
@@ -217,8 +218,10 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
         af = None
     apply_manual_censors(vf, item)
     if overlay_text:
-        vf.append('drawbox=x=30:y=35:w=iw-60:h=86:color=black@0.58:t=fill')
-        vf.append(f"drawtext=text='{escape_drawtext(overlay_text)}':x=55:y=58:fontsize=34:fontcolor=white")
+        text_color, accent = palette(item)
+        vf.append('drawbox=x=30:y=35:w=iw-60:h=92:color=black@0.58:t=fill')
+        vf.append(f'drawbox=x=30:y=35:w=9:h=92:color={accent}:t=fill')
+        vf.append(f"drawtext=text='{escape_drawtext(overlay_text)}':x=55:y=58:fontsize=34:fontcolor={text_color}:borderw=2:bordercolor=black")
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{duration:.3f}',
         '-vf',','.join(vf),'-c:v','libx264','-preset','veryfast','-b:v',item['_cfg']['video_bitrate'],
@@ -285,7 +288,8 @@ def make_highlight_compilation(video, item, part, out_dir, cfg):
         hook_seconds = max(1.0, min(6.0, float(cfg.get('hook_seconds', 5))))
         hook_end = min(he, hs + hook_seconds)
         hook = work / 'hook_01.mp4'
-        extract_clip(video, hs, hook_end, hook, int(cfg['output_width']), int(cfg['output_height']), item, item.get('edit_style','clean'), overlay_text=item.get('hook_text') or 'WATCH THIS MOMENT')
+        hook_line = item.get('_daily_caption') or caption_line(item, 'long')
+        extract_clip(video, hs, hook_end, hook, int(cfg['output_width']), int(cfg['output_height']), item, item.get('edit_style','clean'), overlay_text=hook_line)
         clips.append(hook)
     for idx, (start, end, score) in enumerate(ordered, 1):
         clip = work / f'clip_{idx:02d}.mp4'
@@ -333,9 +337,11 @@ def make_short(video, item, part, out_dir, cfg):
     if overlay:
         vf.append('drawbox=x=25:y=25:w=430:h=68:color=black@0.55:t=fill')
         vf.append(f"drawtext=text='{escape_drawtext(overlay)}':x=42:y=44:fontsize=30:fontcolor=white")
-    hook_text = item.get('hook_text') or 'WATCH THIS'
-    vf.append('drawbox=x=28:y=125:w=1024:h=72:color=black@0.45:t=fill')
-    vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=52:y=145:fontsize=30:fontcolor=white")
+    hook_text = item.get('_daily_caption') or caption_line(item, 'short')
+    text_color, accent = palette(item)
+    vf.append('drawbox=x=40:y=132:w=1000:h=92:color=black@0.56:t=fill')
+    vf.append(f'drawbox=x=40:y=132:w=9:h=92:color={accent}:t=fill')
+    vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=158:fontsize=40:fontcolor={text_color}:borderw=2:bordercolor=black")
     apply_manual_censors(vf, item)
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{target_len:.3f}',
@@ -378,6 +384,8 @@ def main():
             continue
         item['_detected_title'] = infer_title(source, item)
         item['_cfg'] = cfg
+        # One short, scene-style hook per source; explicit metadata text wins.
+        item['_daily_caption'] = caption_line(item, 'daily')
         duration = ffprobe_duration(source)
         work = ROOT / 'output' / safe_name(item_id)
         raw_parts = split_video(source, work / 'parts', item, duration, cfg)
@@ -392,9 +400,10 @@ def main():
                 'title': title,
                 'edit_style': item.get('edit_style','clean'),
                 'adult_badge': bool(item.get('adult', False)),
-                'description': item.get('description',''),
+                'description': (str(item.get('description', '')).strip() + '\n\n' + str(item.get('_daily_caption') or caption_line(item, 'description'))).strip(),
+                'caption_text': item.get('_daily_caption') or caption_line(item, 'description'),
                 'tags': item.get('tags',[]),
-                'privacy_status': item.get('privacy_status','private'),
+                'privacy_status': item.get('privacy_status','public'),
                 'selected_highlights': [
                     {'start': round(s, 2), 'end': round(e, 2), 'score': round(score, 4)}
                     for s, e, score in selected
