@@ -81,7 +81,7 @@ def caption_line(item, role="short"):
     if explicit:
         explicit = re.sub(r"\s+", " ", explicit)
         # Overlay text is intentionally short to remain readable and unobtrusive.
-        return explicit[:46].rstrip()
+        return explicit[:36].rstrip()
     style = style_for(item)
     options = BANKS[style]
     item_id = str(item.get("id") or item.get("item_id") or item.get("_detected_title") or item.get("title") or "")
