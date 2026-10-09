@@ -196,11 +196,12 @@ def publish_movie_reels(limit=1):
         if cutoff <= row_day <= date.fromisoformat(today):
             for key in ('long', 'short', 'reel'):
                 used_ids.update(str(x) for x in row.get(key, []) if x is not None)
-            for key in ('long', 'short', 'reel'):
-                for item_id in row.get(key, []):
-                    src = processed.get(str(item_id), {}).get('source')
-                    if src:
-                        used_sources.add(str((ROOT / src).resolve()))
+    # Source-path separation is required for today's three formats. Reuse on
+    # later days is allowed only through a fresh scene window created by process.py.
+    for item_id in daily.get('long', []) + daily.get('short', []):
+        src = processed.get(str(item_id), {}).get('source')
+        if src:
+            used_sources.add(str((ROOT / src).resolve()))
 
     # Prefer a fresh, rights-cleared social-source clip if one was generated,
     # otherwise use a different licensed source from metadata.json.
@@ -212,6 +213,7 @@ def publish_movie_reels(limit=1):
         video = ROOT / video_rel
         source = ROOT / src_rel if src_rel else None
         if (item.get('licensed') is True and item.get('status') == 'ready'
+                and item.get('facebook_reel', {}).get('status') != 'uploaded'
                 and item_id and item_id not in used_ids and video.is_file()):
             source_key = str(source.resolve()) if source and source.exists() else str(video.resolve())
             if source_key not in used_sources:
