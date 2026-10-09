@@ -103,7 +103,7 @@ def main():
     if (ROOT / 'input' / 'taskearn.apk').exists() or (ROOT / 'input' / 'brand_assets').exists():
         run('brand_assets')
 
-    # 3) Generate content first. Nothing is published until the viral gate passes.
+    # 3) Generate original news and any available authorized social/movie content.
     run('upload_queue', '--social')
     run('upload_queue', '--news')
     run('upload_queue', '--daily-images')
@@ -113,7 +113,7 @@ def main():
     else:
         print('No licensed movie/series/anime source configured; original news is the daily long/Short fallback.')
 
-    # 4) Strict pre-publish gate: fresh, non-repeated and trend-aligned content only.
+    # 4) Strict viral score gate for optional social clips; fresh news is checked separately.
     if os.getenv('VIRAL_TRACKER_DISABLED', '').strip().lower() != 'true':
         run('viral_tracker', '--gate')
 
