@@ -396,15 +396,11 @@ def make_short(video, item, part, out_dir, cfg):
         ]
         vf.extend(style_filters(item.get('edit_style','clean')))
         af = 'loudnorm=I=-14:TP=-1.5:LRA=11'
-    overlay = make_overlay_text(item, part if part > 1 else None)
-    if overlay:
-        vf.append('drawbox=x=25:y=25:w=430:h=68:color=black@0.55:t=fill')
-        vf.append(f"drawtext=text='{escape_drawtext(overlay)}':x=42:y=44:fontsize=30:fontcolor=white")
     hook_text = item.get('_daily_caption') or caption_line(item, 'short')
-    text_color, accent = palette(item)
-    vf.append('drawbox=x=40:y=132:w=1000:h=92:color=black@0.56:t=fill')
-    vf.append(f'drawbox=x=40:y=132:w=9:h=92:color={accent}:t=fill')
-    vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=158:fontsize=40:fontcolor={text_color}:borderw=2:bordercolor=black")
+    hook_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(hook_text)).strip()[:54]
+    # Fixed brand design: white banner at top, centered black text, no emoji.
+    vf.append('drawbox=x=0:y=72:w=iw:h=100:color=white@1.0:t=fill')
+    vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=101:fontsize=36:fontcolor=black:fix_bounds=true")
     apply_manual_censors(vf, item)
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{target_len:.3f}',
