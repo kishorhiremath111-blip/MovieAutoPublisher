@@ -71,8 +71,7 @@ jobs:
         with:
           name: daily-output-${{ github.run_number }}
           path: |
-            output/news/**
-            output/images/**
+            output/*/final/**
             output/image_posts/**
             output/social/**
             state/state.json
