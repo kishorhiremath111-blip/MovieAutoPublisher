@@ -219,6 +219,7 @@ def publish_daily(limit_long=1, limit_short=1):
     long_uploads['long_video_id'] = long_id
     long_uploads['updated_at'] = int(time.time())
     daily['long'].append(long_key)
+    daily.setdefault('movie_long_sources', []).append(long_key)
 
     short_thumb = ROOT / short_item['thumbnail'] if short_item.get('thumbnail') else None
     short_pack = short_item.get('viral_pack') or {}
@@ -236,6 +237,7 @@ def publish_daily(limit_long=1, limit_short=1):
     short_uploads['short_video_id'] = short_id
     short_uploads['updated_at'] = int(time.time())
     daily['short'].append(short_key)
+    daily.setdefault('movie_short_sources', []).append(short_key)
     daily['long_video_id'] = long_id
     daily['short_video_id'] = short_id
     save_json(state_path, state)
