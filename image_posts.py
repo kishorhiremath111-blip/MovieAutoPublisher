@@ -91,7 +91,7 @@ def wrap(draw, text, fnt, max_width):
     return lines
 
 
-def card(frame, title, subtitle, out, badge=None, dark=False, question=None, source=None, accent=None, top_label='CINEMA MOMENT • FAN EDIT'):
+def card(frame, title, subtitle, out, badge=None, dark=False, question=None, source=None, accent=None, top_label='VIBEFRAME • DAILY MOOD'):
     """High-impact 4:5 social card inspired by editorial/meme carousel layouts."""
     im = Image.open(frame).convert('RGB')
     # Keep the original frame/photo as the hero; crop only to the social canvas.
@@ -123,6 +123,7 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
 
     # Editorial header: not a fake quotation or fake attribution.
     d.text((margin, 42), str(top_label)[:28], font=meta_f, fill=accent)
+    d.text((margin, 92), 'VIBEFRAME', font=font(22, True), fill=white, stroke_width=1, stroke_fill=black)
     if badge:
         badge_w = d.textbbox((0, 0), badge, font=meta_f)[2] + 28
         d.rounded_rectangle(
