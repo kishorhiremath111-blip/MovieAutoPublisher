@@ -479,10 +479,24 @@ def main():
         work = ROOT / 'output' / safe_name(item_id)
         raw_parts = split_video(source, work / 'parts', item, duration, cfg)
         produced = []
+        split_limit = float(cfg.get('max_single_video_hours', 2)) * 3600
+        segment_seconds = duration / 2.0 if duration > split_limit and len(raw_parts) > 1 else duration
         for part, raw in raw_parts:
+            part_offset = (part - 1) * segment_seconds if len(raw_parts) > 1 else 0.0
+            part_item = dict(item)
+            part_duration = ffprobe_duration(raw)
+            if args.daily:
+                part_item['_used_windows'] = []
+                for used_start, used_end in item.get('_used_windows', []):
+                    local_start = float(used_start) - part_offset
+                    local_end = float(used_end) - part_offset
+                    if local_end > 0 and local_start < part_duration:
+                        part_item['_used_windows'].append((
+                            max(0.0, local_start), min(part_duration, local_end)
+                        ))
             try:
                 video, short, banner, title, selected, short_info = process_part(
-                    raw, thumb, item, part, work / 'final', cfg
+                    raw, thumb, part_item, part, work / 'final', cfg
                 )
             except RuntimeError as exc:
                 if args.daily and 'fresh unused scene windows' in str(exc):
@@ -490,6 +504,15 @@ def main():
                     produced = []
                     break
                 raise
+            selected_global = [
+                {'start': round(st + part_offset, 2), 'end': round(en + part_offset, 2), 'score': round(score, 4)}
+                for st, en, score in selected
+            ]
+            short_global = dict(short_info)
+            if 'start' in short_global:
+                short_global['start'] = round(float(short_global['start']) + part_offset, 2)
+            if 'end' in short_global:
+                short_global['end'] = round(float(short_global['end']) + part_offset, 2)
             produced.append({
                 'part': part,
                 'date': today,
@@ -510,11 +533,8 @@ def main():
                 'caption_text': item.get('_daily_caption') or caption_line(item, 'description'),
                 'tags': item.get('tags', []),
                 'privacy_status': item.get('privacy_status', 'public'),
-                'selected_highlights': [
-                    {'start': round(st, 2), 'end': round(en, 2), 'score': round(score, 4)}
-                    for st, en, score in selected
-                ],
-                'short_highlight': {k: round(v, 2) for k, v in short_info.items()},
+                'selected_highlights': selected_global,
+                'short_highlight': short_global,
             })
         if not produced:
             continue
