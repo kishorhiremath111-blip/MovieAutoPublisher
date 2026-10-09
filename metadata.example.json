@@ -9,10 +9,18 @@
       "licensed": true,
       "adult": false,
       "edit_style": "clean",
-      "description": "Official description for this licensed video.",
-      "tags": ["movie", "highlights", "official"],
-      "privacy_status": "private",
-      "background_music": "input/music/background.mp3"
+      "description": "Rights-cleared source clip. Add the original source details and license/permission reference here.",
+      "tags": [
+        "movie",
+        "highlights",
+        "official"
+      ],
+      "privacy_status": "public",
+      "background_music": "input/music/background.mp3",
+      "topic_id": "movie-scene-001",
+      "caption_text": "THAT LOOK SAYS IT ALL",
+      "hook_text": "THAT LOOK SAYS IT ALL",
+      "category": "movie"
     },
     {
       "id": "my-series-s01e01",
@@ -25,10 +33,18 @@
       "licensed": true,
       "adult": false,
       "edit_style": "funny",
-      "description": "Official description for this licensed episode.",
-      "tags": ["series", "episode", "highlights"],
-      "privacy_status": "private",
-      "background_music": "input/music/background.mp3"
+      "description": "Rights-cleared source clip. Add the original source details and license/permission reference here.",
+      "tags": [
+        "series",
+        "episode",
+        "highlights"
+      ],
+      "privacy_status": "public",
+      "background_music": "input/music/background.mp3",
+      "topic_id": "series-episode-scene-001",
+      "caption_text": "PLAN TOH KUCH AUR THA",
+      "hook_text": "PLAN TOH KUCH AUR THA",
+      "category": "series"
     },
     {
       "id": "my-anime-s01e01",
@@ -41,10 +57,18 @@
       "licensed": true,
       "adult": false,
       "edit_style": "dark",
-      "description": "Official description for this licensed anime episode.",
-      "tags": ["anime", "episode", "highlights"],
-      "privacy_status": "private",
-      "background_music": "input/music/background.mp3"
+      "description": "Rights-cleared source clip. Add the original source details and license/permission reference here.",
+      "tags": [
+        "anime",
+        "episode",
+        "highlights"
+      ],
+      "privacy_status": "public",
+      "background_music": "input/music/background.mp3",
+      "topic_id": "anime-episode-scene-001",
+      "caption_text": "AURA ON ANOTHER LEVEL",
+      "hook_text": "AURA ON ANOTHER LEVEL",
+      "category": "anime"
     }
   ]
 }
