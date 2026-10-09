@@ -263,7 +263,7 @@ def publish_daily(limit_long=1, limit_short=1):
             short_title = short_title[:88].rstrip() + ' #Shorts'
         short_description = short_item.get('description', '')
         if short_item.get('caption_text') and short_item['caption_text'] not in short_description:
-            short_description = (short_description + '\\n\\n' + short_item['caption_text']).strip()
+            short_description = (short_description + '\n\n' + short_item['caption_text']).strip()
         print(f'Uploading Short from distinct source {short_source_path}: {short_video}')
         short_id = upload_video(short_video, short_title, short_description, short_item.get('tags', []),
                                 short_item.get('privacy_status', 'public'), short_thumb)
