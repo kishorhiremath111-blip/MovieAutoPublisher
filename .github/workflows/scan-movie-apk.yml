@@ -1,0 +1,101 @@
+name: Scan Movie APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download APK from this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="v1.0.0"
+          else
+            TAG="${GH_REF_NAME}"
+          fi
+          gh release download "$TAG" --repo "$GH_REPOSITORY" --pattern "Movie.apk" --dir .
+          test -s Movie.apk
+
+      - name: Inspect APK archive safely
+        run: |
+          python - <<'PY'
+          import json, re, zipfile
+          from pathlib import Path
+          apk = Path("Movie.apk")
+          video_exts = {".mp4", ".mkv", ".mov", ".webm", ".m4v", ".3gp", ".ts"}
+          image_exts = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+          report = {
+              "apk": apk.name,
+              "size_bytes": apk.stat().st_size,
+              "archive_opened": False,
+              "video_files": [],
+              "image_files_count": 0,
+              "media_like_assets": [],
+              "video_url_references": [],
+              "notes": [
+                  "This is a static archive inspection only.",
+                  "A URL/reference is not proof that a video can be downloaded or published.",
+                  "No DRM, login, or streaming restrictions are bypassed."
+              ]
+          }
+          try:
+              with zipfile.ZipFile(apk) as z:
+                  report["archive_opened"] = True
+                  names = z.namelist()
+                  report["video_files"] = [
+                      {"path": n, "size_bytes": z.getinfo(n).file_size}
+                      for n in names if Path(n).suffix.lower() in video_exts
+                  ]
+                  report["image_files_count"] = sum(
+                      1 for n in names if Path(n).suffix.lower() in image_exts
+                  )
+                  report["media_like_assets"] = [
+                      n for n in names
+                      if any(k in n.lower() for k in ("video", "movie", "media", "stream", "player"))
+                  ][:300]
+                  url_re = re.compile(rb'https?://[^\s"\x00<>]{1,500}', re.I)
+                  refs = set()
+                  for name in names:
+                      if not name.lower().endswith((".xml", ".json", ".html", ".js", ".txt", ".properties", ".smali")):
+                          continue
+                      try:
+                          data = z.read(name)
+                      except Exception:
+                          continue
+                      for match in url_re.findall(data):
+                          s = match.decode("utf-8", "ignore").rstrip("),;]}')
+                          if re.search(r'\.(mp4|m3u8|mpd|webm|mkv)(\?|$)', s, re.I):
+                              refs.add(s[:500])
+                  report["video_url_references"] = sorted(refs)[:200]
+          except Exception as e:
+              report["error"] = str(e)
+          Path("apk-scan-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+          print(json.dumps(report, indent=2))
+          if not report["archive_opened"]:
+              raise SystemExit("Could not open APK as a ZIP archive.")
+          PY
+
+      - name: Upload scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: movie-apk-scan-report
+          path: apk-scan-report.json
+          if-no-files-found: warn
+          retention-days: 30
