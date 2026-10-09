@@ -6,10 +6,14 @@ No web image scraping is performed, so the generated cards do not silently
 pull random copyrighted images from the internet.
 """
 import argparse
+import base64
 import json
+import os
 import re
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
@@ -184,6 +188,152 @@ def choose_source(state, recent_days=30):
         if item.get('licensed') and (ROOT / item.get('source', '')).exists():
             return item['id'], ROOT / item['source'], item
     return None, None, None
+
+
+
+def _topic_tokens(value):
+    words = re.findall(r"[a-z0-9]{3,}", str(value or "").lower())
+    stop = {"the", "and", "for", "with", "from", "this", "that", "official", "video", "short", "reel", "trailer"}
+    return {word for word in words if word not in stop}
+
+
+def choose_trending_image_subject(state, today, blocked_topics, recent_rows):
+    """Pick a fresh, pop-culture metadata topic; never use/download the trending video."""
+    trends = load(ROOT / "state" / "youtube_trends.json", {"popular": [], "music": []})
+    allowed = ("anime", "manga", "movie", "film", "bollywood", "hollywood", "series",
+               "episode", "cinema", "gaming", "game", "music", "song", "comedy",
+               "funny", "reaction", "character", "fantasy", "animation", "teaser")
+    disallowed = ("politics", "election", "war", "attack", "death", "killed", "crime",
+                  "arrest", "disaster", "breaking news", "weather", "stock market",
+                  "health warning", "accident", "tragedy")
+    daily = state.get("daily", {}).get(today, {})
+    today_topic_ids = {
+        str(x).strip().casefold()
+        for key in ("movie_long_topics", "movie_short_topics", "movie_reel_topics")
+        for x in daily.get(key, []) if x
+    }
+    used_titles = []
+    for row in recent_rows:
+        used_titles.append(str(row.get("topic_title") or row.get("caption") or ""))
+    for item in state.get("queue", []):
+        if item.get("date") == today:
+            used_titles.append(str(item.get("title") or item.get("description") or ""))
+    for item in state.get("social", []):
+        if item.get("date") == today:
+            used_titles.append(str(item.get("title") or ""))
+    used_token_sets = [_topic_tokens(title) for title in used_titles if title]
+
+    candidates = []
+    for source in ("popular", "music"):
+        for row in trends.get(source, [])[:100]:
+            title = str(row.get("title") or "").strip()
+            video_id = str(row.get("video_id") or "").strip()
+            if not title or not video_id:
+                continue
+            lowered = title.casefold()
+            if not any(term in lowered for term in allowed):
+                continue
+            if any(term in lowered for term in disallowed):
+                continue
+            views = int(row.get("view_count", 0) or 0)
+            if views < 10000:
+                continue
+            topic_id = f"yt-trend-{video_id}".casefold()
+            if topic_id in blocked_topics or topic_id in today_topic_ids:
+                continue
+            terms = _topic_tokens(title)
+            if len(terms) < 2:
+                continue
+            if any(len(terms & used) >= max(2, int(len(terms) * 0.45)) for used in used_token_sets if used):
+                continue
+            category = "anime" if any(x in lowered for x in ("anime", "manga", "animation")) else (
+                "gaming" if any(x in lowered for x in ("gaming", "game")) else (
+                "funny" if any(x in lowered for x in ("comedy", "funny", "reaction")) else (
+                "music" if any(x in lowered for x in ("music", "song")) else (
+                "series" if any(x in lowered for x in ("series", "episode")) else "movie"))))
+            candidates.append((views, title, video_id, category, row))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    views, title, video_id, category, row = candidates[0]
+    return {
+        "id": f"ai-trend-{video_id}",
+        "topic_id": f"yt-trend-{video_id}",
+        "topic_title": title,
+        "category": category,
+        "title": title[:140],
+        "caption_text": "Original concept art • not an official frame",
+        "tagline": "Inspired by today's pop-culture trend.",
+        "question": "Would you watch a story with this vibe?",
+        "hashtags": f"#{category.title()} #PopCulture #ConceptArt",
+        "tags": [category, "pop culture", "concept art", "trending"],
+        "credit": "Original AI-generated concept artwork",
+        "license": "AI-generated original artwork; not an official still",
+        "viral_score": min(100.0, 40.0 + min(35.0, views / 1000000.0)),
+        "trend_views": views,
+        "source_video_id": video_id,
+        "source_video_title": title,
+        "asset_type": "ai_generated_image",
+    }
+
+
+def generate_openai_concept_image(subject, output_path):
+    """Generate one original, trend-inspired poster via the OpenAI Images API."""
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    title = str(subject.get("topic_title") or subject.get("title") or "pop culture")
+    category = str(subject.get("category") or "cinema")
+    prompt = (
+        "Create a high-quality, original editorial concept-art poster for a social image post. "
+        f"Broad theme: {category}; trend context (for metadata only): {title!r}. "
+        "Use an original symbolic scene, strong composition, tactile lighting, beautiful detail, "
+        "rich but restrained colors and an unmistakably human art-director feel. "
+        "Do NOT show, imitate, or reconstruct any existing movie/anime/web-series frame, named character, "
+        "real actor, celebrity, brand logo, copyrighted costume, signature weapon, or identifiable franchise design. "
+        "No text, letters, logos, UI, watermark, QR code, or fake quotes in the image; post typography is added separately. "
+        "Portrait 2:3 composition, mobile-first, clear quiet area near the lower third for later typography. "
+        "The artwork must be original and illustrative, not an official poster or official key art."
+    )
+    payload = {
+        "model": os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+        "prompt": prompt,
+        "size": "1024x1536",
+        "quality": "low",
+        "output_format": "jpeg",
+        "n": 1,
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/images/generations",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "MovieAutoPublisher/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=180) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        encoded = (data.get("data") or [{}])[0].get("b64_json")
+        if not encoded:
+            print("OpenAI image API returned no image payload; skipping AI poster.")
+            return None
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(base64.b64decode(encoded, validate=True))
+        with Image.open(output_path) as verify:
+            verify.verify()
+        if output_path.stat().st_size < 15000:
+            output_path.unlink(missing_ok=True)
+            print("OpenAI image output was too small; skipping AI poster.")
+            return None
+        return output_path
+    except Exception as exc:
+        print(f"OpenAI trend poster unavailable ({type(exc).__name__}); keeping licensed-image path only.")
+        output_path.unlink(missing_ok=True)
+        return None
 
 
 def generate_daily_images():
