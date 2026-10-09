@@ -107,7 +107,7 @@
   "social_min_gap_seconds": 8,
   "social_sources_mode": "authorized_or_rights_cleared_only",
   "social_third_party_download": false,
-  "social_text_overlays": true,
+  "social_text_overlays": false,
   "social_natural_editing": true,
   "viral_tracker_enabled": true,
   "viral_pre_publish_min_score": 75,
@@ -123,5 +123,15 @@
     "hi",
     "en"
   ],
-  "require_verified_audio_language": true
+  "require_verified_audio_language": true,
+  "background_music_by_mood": {
+    "energy": "input/music/energy.mp3",
+    "funny": "input/music/funny.mp3",
+    "dark": "input/music/dark.mp3",
+    "cinematic": "input/music/cinematic.mp3",
+    "clean": "input/music/cinematic.mp3",
+    "editorial": "input/music/cinematic.mp3"
+  },
+  "music_mix_mode": "dialogue_aware_sidechain_ducking",
+  "scene_effect_policy": "restrained_mood_matched_no_random_flash"
 }
