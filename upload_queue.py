@@ -36,13 +36,10 @@ def main():
     ap.add_argument('--queue', action='store_true')
     ap.add_argument('--authorize', action='store_true')
     ap.add_argument('--daily', action='store_true')
-    ap.add_argument('--daily-images', action='store_true', help='Generate up to 9 authorized movie/series image posts')
-    ap.add_argument('--facebook-images', action='store_true', help='Publish up to 9 ready images to a Facebook Page')
-    ap.add_argument('--facebook-news-video', action='store_true', help='Publish the ready daily news roundup as a Facebook Page video')
+    ap.add_argument('--daily-images', action='store_true', help='Generate up to 3 separately sourced authorized image posts')
+    ap.add_argument('--facebook-images', action='store_true', help='Publish up to 3 separately sourced image cards to a Facebook Page')
     ap.add_argument('--facebook-movie-reels', action='store_true', help='Publish a separate authorized movie/anime scene as a Facebook Reel')
     ap.add_argument('--social', action='store_true', help='Generate Shorts/Reels from explicitly authorized social source clips')
-    ap.add_argument('--social-upload', action='store_true', help='Upload ready social clips to YouTube Shorts')
-    ap.add_argument('--facebook-social-reels', action='store_true', help='Publish ready social clips as Facebook Page Reels')
     args = ap.parse_args()
 
     if args.check:
@@ -69,14 +66,6 @@ def main():
     if args.social:
         from social_clips import main as generate_social_clips
         generate_social_clips()
-        return
-    if args.social_upload:
-        from uploaders.youtube import publish_social
-        publish_social(1)
-        return
-    if args.facebook_social_reels:
-        from uploaders.facebook import publish_social_reels
-        publish_social_reels(1)
         return
     if args.facebook_movie_reels:
         from uploaders.facebook import publish_movie_reels
