@@ -3,6 +3,10 @@ name: Scan Movie APK
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/scan-movie-apk.yml'
     tags:
       - 'v*'
 
