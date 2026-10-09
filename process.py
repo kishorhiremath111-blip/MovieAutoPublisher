@@ -491,6 +491,7 @@ def main():
                 'date': today,
                 'item_id': item_id,
                 'source_item_id': source_id,
+                'topic_id': str(item.get('topic_id') or source_id),
                 'source': source_rel,
                 'licensed': item.get('licensed') is True,
                 'video': str(video.relative_to(ROOT)),
