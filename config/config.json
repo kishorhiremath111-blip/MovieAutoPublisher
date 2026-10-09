@@ -28,8 +28,13 @@
   "pro_edit_adaptive": true,
   "pro_edit_no_effect_stacking": true,
   "pro_edit_audio_target_lufs": -14,
-  "creative_platform_signals": ["youtube", "instagram", "facebook", "tiktok"],
-  "daily_image_posts": 1,
+  "creative_platform_signals": [
+    "youtube",
+    "instagram",
+    "facebook",
+    "tiktok"
+  ],
+  "daily_image_posts": 3,
   "daily_news_stories": 12,
   "news_max_slides_per_story": 6,
   "news_min_slides_per_story": 1,
@@ -110,5 +115,6 @@
   "viral_fresh_hours": 36,
   "viral_no_repeat_days": 30,
   "viral_performance_tracking": true,
-  "viral_winner_boost": 1.15
+  "viral_winner_boost": 1.15,
+  "image_no_repeat_days": 30
 }
