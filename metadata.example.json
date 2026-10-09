@@ -21,7 +21,10 @@
       "caption_text": "THAT LOOK SAYS IT ALL",
       "hook_text": "THAT LOOK SAYS IT ALL",
       "category": "movie",
-      "license": "REPLACE with written permission or valid license reference"
+      "license": "REPLACE with written permission or valid license reference",
+      "audio_language": "hi",
+      "audio_language_verified": false,
+      "music_mood": "clean"
     },
     {
       "id": "my-series-s01e01",
@@ -46,7 +49,10 @@
       "caption_text": "PLAN TOH KUCH AUR THA",
       "hook_text": "PLAN TOH KUCH AUR THA",
       "category": "series",
-      "license": "REPLACE with written permission or valid license reference"
+      "license": "REPLACE with written permission or valid license reference",
+      "audio_language": "hi",
+      "audio_language_verified": false,
+      "music_mood": "funny"
     },
     {
       "id": "my-anime-s01e01",
@@ -71,7 +77,10 @@
       "caption_text": "AURA ON ANOTHER LEVEL",
       "hook_text": "AURA ON ANOTHER LEVEL",
       "category": "anime",
-      "license": "REPLACE with written permission or valid license reference"
+      "license": "REPLACE with written permission or valid license reference",
+      "audio_language": "hi",
+      "audio_language_verified": false,
+      "music_mood": "dark"
     }
   ]
 }
