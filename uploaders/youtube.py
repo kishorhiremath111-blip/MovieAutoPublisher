@@ -199,8 +199,8 @@ def publish_daily(limit_long=1, limit_short=1):
             'Only one unused source is available. Refusing to upload the same subject as both the long video and Short.'
         )
 
-    long_key, long_item, long_uploads, long_video, long_short = long_choice
-    short_key, short_item, short_uploads, short_video, unused_short_path = short_choice
+    long_key, long_item, long_uploads, long_video, long_short_path = long_choice
+    short_key, short_item, short_uploads, short_source_video, short_video = short_choice
     # Validate both exports before either is published.
     _check_audio_video(long_video)
     _check_audio_video(short_video)
