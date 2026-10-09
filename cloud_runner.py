@@ -51,9 +51,10 @@ def load_json(path, default):
 
 
 def has_movie_sources():
-    """Require at least two real, separate authorized source videos and thumbnails."""
+    """Require at least two real, separate authorized source videos and topics."""
     rows = load_json(ROOT / "metadata.json", {"items": []}).get("items", [])
-    paths = set()
+    valid = []
+    seen_paths = set()
     for item in rows:
         if item.get("licensed") is not True or item.get("type") not in {"movie", "series", "anime"}:
             continue
@@ -64,8 +65,14 @@ def has_movie_sources():
             continue
         if source.suffix.lower() not in {".mp4", ".mkv", ".mov", ".webm"}:
             continue
-        paths.add(str(source))
-    return len(paths) >= 2
+        path_key = str(source)
+        if path_key in seen_paths:
+            continue
+        seen_paths.add(path_key)
+        topic = str(item.get("topic_id") or item.get("id") or "").strip().casefold()
+        if topic:
+            valid.append((path_key, topic))
+    return len({path for path, _ in valid}) >= 2 and len({topic for _, topic in valid}) >= 2
 
 def verify_daily_youtube_quota():
     state = load_json(STATE, {})
@@ -122,12 +129,18 @@ def verify_facebook_quota():
         x for x in image_posts
         if x.get("facebook", {}).get("status") == "uploaded"
     ]
+    uploaded_topics = {
+        str(x.get("topic_id") or "").strip().casefold()
+        for x in image_uploaded if x.get("topic_id")
+    }
+    video_topics = long_topics | short_topics | reel_topics
     print(f"Facebook audit: reels={len(reels)}/1; separate image cards uploaded={len(image_uploaded)}")
-    if not image_uploaded:
+    if not 1 <= len(image_uploaded) <= 3:
         raise RuntimeError(
-            "Facebook image audit failed: no separate licensed image-source card was uploaded. "
-            "Add at least one unused item to image_sources.json and provide its licensed local image file."
+            "Facebook image audit failed: expected 1-3 separately sourced licensed image cards to be uploaded."
         )
+    if uploaded_topics & video_topics:
+        raise RuntimeError("Facebook image audit failed: an image card reused today's movie/Short/Reel topic.")
 
 
 def main():
