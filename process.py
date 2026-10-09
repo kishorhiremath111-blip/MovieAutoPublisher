@@ -304,15 +304,20 @@ def resolve_music(item, cfg):
     """Choose a local track from the configured licensed mood library."""
     mood = str(item.get('music_mood') or item.get('edit_style') or 'cinematic').lower()
     library = cfg.get('background_music_by_mood', {})
-    music_rel = item.get('background_music') or library.get(mood) or cfg.get('background_music_file')
-    if not music_rel:
-        return None
-    candidate = (ROOT / str(music_rel)).resolve()
-    if ROOT.resolve() not in candidate.parents or not candidate.is_file():
-        print(f'MUSIC: no local licensed track for mood={mood}; original audio only')
-        return None
-    print(f'MUSIC: mood={mood}; dialogue-aware ducking enabled')
-    return candidate
+    options = [item.get('background_music'), library.get(mood), cfg.get('background_music_file')]
+    seen = set()
+    for music_rel in options:
+        if not music_rel or str(music_rel) in seen:
+            continue
+        seen.add(str(music_rel))
+        candidate = (ROOT / str(music_rel)).resolve()
+        if ROOT.resolve() not in candidate.parents:
+            continue
+        if candidate.is_file():
+            print(f'MUSIC: mood={mood}; track={candidate.relative_to(ROOT)}; dialogue-aware ducking enabled')
+            return candidate
+    print(f'MUSIC: no local licensed track for mood={mood}; original audio only')
+    return None
 
 
 def mix_short_music(short_path, item, cfg):
