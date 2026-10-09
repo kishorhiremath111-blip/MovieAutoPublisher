@@ -368,7 +368,7 @@ def publish_daily(limit_long=1, limit_short=1):
             title = title[:88].rstrip() + ' #Shorts'
         description = item.get('description', '')
         if item.get('caption_text') and item['caption_text'] not in description:
-            description = (description + '\\n\\n' + item['caption_text']).strip()
+            description = (description + '\n\n' + item['caption_text']).strip()
         thumb_path = item.get('original_thumbnail') or item.get('thumbnail')
         thumb = ROOT / thumb_path if thumb_path else None
         print(f'Uploading additional Short {published_short_count + 1}/{short_limit} from distinct source {source_path}: {short_video}')
