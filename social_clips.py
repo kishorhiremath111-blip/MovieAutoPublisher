@@ -123,12 +123,11 @@ def render(src, out, start, end, cfg, style, item):
     vf = pro_filters(profile, width, height)
     af = pro_audio_filters(profile)
     line = caption_line(edit_item, "social")
-    text_color, accent = palette(edit_item)
-    # Small, centered safe-area caption: original scene audio remains untouched.
+    line = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(line)).strip()[:54]
+    # Same VIBEFRAME design on every Short/Reel: fixed white strip at top, black text, no emoji.
     vf.extend([
-        "drawbox=x=40:y=170:w=1000:h=92:color=black@0.58:t=fill",
-        f"drawbox=x=40:y=170:w=9:h=92:color={accent}:t=fill",
-        f"drawtext=text='{_escape_drawtext(line)}':x=(w-text_w)/2:y=197:fontsize=40:fontcolor={text_color}:borderw=2:bordercolor=black",
+        "drawbox=x=0:y=72:w=iw:h=100:color=white@1.0:t=fill",
+        f"drawtext=text='{_escape_drawtext(line)}':x=(w-text_w)/2:y=101:fontsize=36:fontcolor=black:fix_bounds=true",
     ])
     run([
         "ffmpeg", "-y", "-ss", f"{start:.3f}", "-i", str(src),
