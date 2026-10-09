@@ -22,7 +22,7 @@ The pipeline does not download random social-media clips, bypass Content ID, or 
 
 ## Configure source videos
 
-Copy **metadata.example.json** to **metadata.json** and replace all example paths with real files. Add at least **two different authorized source videos** if you want both a long video and a Short that day. Each item must provide:
+Copy **metadata.example.json** to **metadata.json** and replace all example paths with real files. Add at least **two different authorized source videos with different topic IDs** if you want both a long video and a Short that day. To publish a Facebook Reel from movie metadata alone, add a third authorized source/topic; alternatively, add a separate licensed item to social_sources.json that passes the viral score gate. Each item must provide:
 - A unique ID.
 - Source, a local video path (for example input/videos/clip-a.mp4).
 - Thumbnail, a local image path.
@@ -59,7 +59,7 @@ The workflow installs FFmpeg and runs Python syntax checks. The uploader checks 
 
 ## Important limits
 
-- This repository has no movie/anime clips in metadata.json, no authorized short clips in social_sources.json, and no stills in image_sources.json by default. Example manifests are templates only.
+- This repository has no movie/anime clips in metadata.json, no authorized short clips in social_sources.json, and no stills in image_sources.json by default. Full daily output also needs at least one separate image source whose topic differs from the day’s video/Short/Reel. Example manifests are templates only.
 - The Movie.apk in a supplied ZIP is an app package, not ready-to-upload scene footage. Until real authorized source files and separate licensed stills are provided, the daily publishing workflow will stop instead of posting the old news fallback.
 - The Facebook Page token must be added before Facebook Reels and image posts can upload.
 - VN Editor is a mobile editor; this GitHub Actions workflow does not control the VN app directly.
