@@ -270,6 +270,8 @@ def publish_movie_reels(limit=1):
         daily.setdefault('reel', []).append(item_id)
         daily.setdefault('reel_sources', []).append(source_key)
         daily.setdefault('movie_reel_sources', []).append(source_key)
+        daily.setdefault('movie_reel_topics', []).append(str(item.get('topic_id') or item.get('source_item_id') or item_id))
+        daily.setdefault('movie_reel_item_ids', []).append(str(item.get('source_item_id') or item_id))
         used_sources.add(source_key)
         used_ids.add(item_id)
         done += 1
