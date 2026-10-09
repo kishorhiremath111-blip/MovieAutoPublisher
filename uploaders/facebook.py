@@ -5,6 +5,7 @@ Configure credentials/facebook_page.json locally; never commit it.
 """
 import json
 import time
+import subprocess
 from pathlib import Path
 
 import requests
@@ -71,6 +72,9 @@ def publish_daily_images(limit=3):
     for item in state.get('image_posts', []):
         if item.get('date') != today:
             continue
+        # Ignore legacy/news cards; only separately licensed image-source cards are eligible.
+        if item.get('asset_type') != 'licensed_image_source':
+            continue
         if item.get('status') != 'ready' or item.get('facebook', {}).get('status') == 'uploaded':
             continue
         image = ROOT / item['image']
@@ -80,6 +84,8 @@ def publish_daily_images(limit=3):
         item.setdefault('facebook', {})['status'] = 'uploaded'
         item['facebook']['post_id'] = post_id
         item['facebook']['updated_at'] = int(time.time())
+        daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': [], 'images': []})
+        daily.setdefault('image_posts_uploaded', []).append(item.get('source_item') or item.get('id'))
         done += 1
         if done >= limit:
             break
