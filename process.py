@@ -287,8 +287,7 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
         af = None
     if cfg.get('brand_watermark_enabled', True):
         brand = escape_drawtext(cfg.get('brand_watermark_text', 'VYROX-2008'))
-        vf.append("drawbox=x=w-tw-34:y=h-th-34:w=tw+22:h=th+18:color=black@0.48:t=fill")
-        vf.append(f"drawtext=text='{brand}':x=w-text_w-46:y=h-text_h-43:fontsize=28:fontcolor=white@0.92:borderw=1:bordercolor=black@0.55:fix_bounds=true")
+        vf.append(f"drawtext=text='{brand}':x=w-text_w-34:y=h-text_h-34:fontsize=28:fontcolor=white@0.92:box=1:boxcolor=black@0.48:boxborderw=10:borderw=1:bordercolor=black@0.55:fix_bounds=true")
     apply_manual_censors(vf, item)
     if overlay_text and cfg.get('show_scene_captions', False):
         # Optional VIBEFRAME banner; disabled by default when show_scene_captions=false.
@@ -454,8 +453,7 @@ def make_short(video, item, part, out_dir, cfg):
         vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=101:fontsize=36:fontcolor=black:fix_bounds=true")
     if cfg.get('brand_watermark_enabled', True):
         brand = escape_drawtext(cfg.get('brand_watermark_text', 'VYROX-2008'))
-        vf.append("drawbox=x=w-tw-42:y=h-th-42:w=tw+28:h=th+24:color=black@0.48:t=fill")
-        vf.append(f"drawtext=text='{brand}':x=w-text_w-56:y=h-text_h-52:fontsize=34:fontcolor=white@0.94:borderw=1:bordercolor=black@0.55:fix_bounds=true")
+        vf.append(f"drawtext=text='{brand}':x=w-text_w-42:y=h-text_h-42:fontsize=34:fontcolor=white@0.94:box=1:boxcolor=black@0.48:boxborderw=12:borderw=1:bordercolor=black@0.55:fix_bounds=true")
     apply_manual_censors(vf, item)
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{target_len:.3f}',
