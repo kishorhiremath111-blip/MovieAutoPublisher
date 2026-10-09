@@ -211,20 +211,37 @@ def generate_daily_images():
         for x in daily.get(key, [])
     }
     video_topics = {
-        str(x) for key in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics')
+        str(x).strip().casefold()
+        for key in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics')
         for x in daily.get(key, []) if x
     }
-    cutoff = time.time() - int(cfg.get('image_no_repeat_days', 30)) * 86400
+    cutoff_days = int(cfg.get('image_no_repeat_days', 30))
+    cutoff = time.time() - cutoff_days * 86400
+    from datetime import date, timedelta
+    today_date = date.fromisoformat(today)
+    cutoff_date = today_date - timedelta(days=cutoff_days)
     recent_rows = [
         row for row in state.get('image_posts', [])
         if float(row.get('created_at', 0) or 0) >= cutoff
     ]
     recently_used = {str(row.get('source_item')) for row in recent_rows}
-    recently_used_topics = {str(row.get('topic_id')) for row in recent_rows if row.get('topic_id')}
+    recently_used_topics = {
+        str(row.get('topic_id')).strip().casefold()
+        for row in recent_rows if row.get('topic_id')
+    }
+    # Avoid recent movie/reel topics too, not just duplicate still images.
+    for stamp, history in state.get('daily', {}).items():
+        try:
+            history_date = date.fromisoformat(str(stamp)[:10])
+        except ValueError:
+            continue
+        if cutoff_date <= history_date < today_date:
+            for key in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics'):
+                video_topics.update(str(x).strip().casefold() for x in history.get(key, []) if x)
     today_image_topics = {
         str(row.get('topic_id')) for row in generated_today if row.get('topic_id')
     }
-    blocked_topics = video_topics | recently_used_topics | today_image_topics
+    blocked_topics = video_topics | recently_used_topics | {str(x).strip().casefold() for x in today_image_topics}
     seen_topic_ids = set()
 
     candidates = []
@@ -234,9 +251,10 @@ def generate_daily_images():
             continue
         item_id = str(item.get('id') or '')
         topic_id = str(item.get('topic_id') or item_id).strip()
+        topic_key = topic_id.casefold()
         if (not item_id or item_id in recently_used or item_id in video_ids
                 or item_id in video_item_ids or not topic_id
-                or topic_id in blocked_topics or topic_id in seen_topic_ids):
+                or topic_key in blocked_topics or topic_key in seen_topic_ids):
             continue
         rel = str(item.get('source') or '')
         if not rel or rel.startswith(('http://', 'https://')):
@@ -249,7 +267,7 @@ def generate_daily_images():
         if str(path) in seen_paths:
             continue
         seen_paths.add(str(path))
-        seen_topic_ids.add(topic_id)
+        seen_topic_ids.add(topic_key)
         candidates.append((item, path))
 
     if not candidates:
