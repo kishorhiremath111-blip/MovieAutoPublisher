@@ -512,39 +512,54 @@ def main():
 
     if mode == "gate":
         threshold = float(cfg.get("viral_pre_publish_min_score", 75))
+        today = time.strftime("%Y-%m-%d")
 
-        # Score news first; image posts can inherit the exact score of the
-        # fresh news story they visually represent.
-        for collection_name in ("social", "news"):
-            for item in state.get(collection_name, []):
-                if item.get("status") != "ready":
-                    continue
-                score, breakdown = score_candidate(item, trends, tracker)
-                item["viral_score"] = score
-                item["viral_breakdown"] = breakdown
-                item.setdefault("viral_pack", make_pack(item, trends, score))
-                if score < threshold:
-                    item["status"] = "hold"
-                    item["hold_reason"] = f"viral_score {score} < {threshold}"
+        # The strict 75+ viral gate applies to optional third-party social clips.
+        # Fresh original news has its own freshness/deduplication gate in news_engine;
+        # don't suppress the required daily roundup just because external trend APIs
+        # are unavailable. It still gets scored and packaged for performance tracking.
+        for item in state.get("social", []):
+            if item.get("status") != "ready":
+                continue
+            score, breakdown = score_candidate(item, trends, tracker)
+            item["viral_score"] = score
+            item["viral_breakdown"] = breakdown
+            item["viral_pack"] = make_pack(item, trends, score)
+            if score < threshold:
+                item["status"] = "hold"
+                item["hold_reason"] = f"viral_score {score} < {threshold}"
 
-        news_by_id = {
-            str(x.get("id")): x
-            for x in state.get("news", [])
-            if x.get("id")
-        }
+        news_by_id = {}
+        for item in state.get("news", []):
+            if item.get("id"):
+                news_by_id[str(item.get("id"))] = item
+            if item.get("status") != "ready":
+                continue
+            score, breakdown = score_candidate(item, trends, tracker)
+            item["viral_score"] = score
+            item["viral_breakdown"] = breakdown
+            item["viral_pack"] = make_pack(item, trends, score)
+            # Only today's generated, source-attributed roundup may pass. Its
+            # freshness and repeat checks happen before rendering in news_engine.
+            if item.get("date") != today or not item.get("stories"):
+                item["status"] = "hold"
+                item["hold_reason"] = "news is stale or has no attributed stories"
+
+        # News image cards follow the fresh-news readiness check, not the viral
+        # score, so missing trend credentials cannot suppress the daily image.
         for item in state.get("image_posts", []):
             if item.get("status") != "ready":
                 continue
             parent = news_by_id.get(str(item.get("viral_parent_id")))
-            if parent and parent.get("viral_score") is not None:
-                item["viral_score"] = parent.get("viral_score")
+            if parent:
+                item["viral_score"] = parent.get("viral_score", 0)
                 item["viral_breakdown"] = parent.get("viral_breakdown", {})
-                if item["viral_score"] < threshold:
+                if parent.get("status") != "ready" or parent.get("date") != today:
                     item["status"] = "hold"
-                    item["hold_reason"] = f"viral_score {item['viral_score']} < {threshold}"
+                    item["hold_reason"] = "parent news is stale or not publishable"
 
         save(STATE, state)
-        print(f"Viral gate applied at {threshold}.")
+        print(f"Viral gate applied: social clips require {threshold}+; fresh original news uses its freshness gate.")
         return
 
     print("Usage: VIRAL_TRACKER_MODE=update|plan|gate python viral_tracker.py")
