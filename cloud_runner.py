@@ -73,8 +73,8 @@ def verify_daily_youtube_quota():
     daily = state.get("daily", {}).get(today, {})
     long_sources = [str(x) for x in daily.get("movie_long_sources", [])]
     short_sources = [str(x) for x in daily.get("movie_short_sources", [])]
-    long_topics = [str(x) for x in daily.get("movie_long_topics", [])]
-    short_topics = [str(x) for x in daily.get("movie_short_topics", [])]
+    long_topics = [str(x).strip().casefold() for x in daily.get("movie_long_topics", [])]
+    short_topics = [str(x).strip().casefold() for x in daily.get("movie_short_topics", [])]
     long_ok = len(long_sources) >= 1 and bool(daily.get("long_video_id"))
     short_ok = len(short_sources) >= 1 and bool(daily.get("short_video_id"))
     different_source = bool(long_sources and short_sources and long_sources[0] != short_sources[0])
@@ -103,13 +103,13 @@ def verify_facebook_quota():
     reels = [str(x) for x in daily.get("movie_reel_sources", [])]
     long_sources = {str(x) for x in daily.get("movie_long_sources", [])}
     short_sources = {str(x) for x in daily.get("movie_short_sources", [])}
-    long_topics = {str(x) for x in daily.get("movie_long_topics", [])}
-    short_topics = {str(x) for x in daily.get("movie_short_topics", [])}
+    long_topics = {str(x).strip().casefold() for x in daily.get("movie_long_topics", [])}
+    short_topics = {str(x).strip().casefold() for x in daily.get("movie_short_topics", [])}
     if not reels:
         raise RuntimeError(
             "Facebook Reel audit failed: no separate unused licensed Reel source was published today."
         )
-    reel_topics = {str(x) for x in daily.get("movie_reel_topics", [])}
+    reel_topics = {str(x).strip().casefold() for x in daily.get("movie_reel_topics", [])}
     if reels and (reels[0] in long_sources or reels[0] in short_sources):
         raise RuntimeError("Facebook Reel audit failed: Reel reused the long-video or Short source.")
     if reel_topics and (reel_topics & long_topics or reel_topics & short_topics):
