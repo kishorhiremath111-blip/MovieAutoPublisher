@@ -73,12 +73,16 @@ def verify_daily_youtube_quota():
     daily = state.get("daily", {}).get(today, {})
     long_sources = [str(x) for x in daily.get("movie_long_sources", [])]
     short_sources = [str(x) for x in daily.get("movie_short_sources", [])]
+    long_topics = [str(x) for x in daily.get("movie_long_topics", [])]
+    short_topics = [str(x) for x in daily.get("movie_short_topics", [])]
     long_ok = len(long_sources) >= 1 and bool(daily.get("long_video_id"))
     short_ok = len(short_sources) >= 1 and bool(daily.get("short_video_id"))
-    distinct = bool(long_sources and short_sources and long_sources[0] != short_sources[0])
+    different_source = bool(long_sources and short_sources and long_sources[0] != short_sources[0])
+    different_topic = bool(long_topics and short_topics and long_topics[0] != short_topics[0])
+    distinct = different_source and different_topic
     print(
-        f"Movie YouTube audit: long={int(long_ok)}/1 source={long_sources[:1]}, "
-        f"short={int(short_ok)}/1 source={short_sources[:1]}, distinct={distinct}"
+        f"Movie YouTube audit: long={int(long_ok)}/1 topic={long_topics[:1]}, "
+        f"short={int(short_ok)}/1 topic={short_topics[:1]}, distinct={distinct}"
     )
     if not long_ok or not short_ok or not distinct:
         raise RuntimeError(
@@ -99,12 +103,17 @@ def verify_facebook_quota():
     reels = [str(x) for x in daily.get("movie_reel_sources", [])]
     long_sources = {str(x) for x in daily.get("movie_long_sources", [])}
     short_sources = {str(x) for x in daily.get("movie_short_sources", [])}
+    long_topics = {str(x) for x in daily.get("movie_long_topics", [])}
+    short_topics = {str(x) for x in daily.get("movie_short_topics", [])}
     if not reels:
         raise RuntimeError(
             "Facebook Reel audit failed: no separate unused licensed Reel source was published today."
         )
+    reel_topics = {str(x) for x in daily.get("movie_reel_topics", [])}
     if reels and (reels[0] in long_sources or reels[0] in short_sources):
         raise RuntimeError("Facebook Reel audit failed: Reel reused the long-video or Short source.")
+    if reel_topics and (reel_topics & long_topics or reel_topics & short_topics):
+        raise RuntimeError("Facebook Reel audit failed: Reel repeated a long-video or Short topic.")
     image_posts = [
         x for x in state.get("image_posts", [])
         if x.get("date") == today and x.get("asset_type") == "licensed_image_source"
