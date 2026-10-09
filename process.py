@@ -274,8 +274,8 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
         vf.extend(style_filters(style))
         af = None
     apply_manual_censors(vf, item)
-    if overlay_text:
-        # VIBEFRAME fixed brand style: white banner at the top, black text, no emoji.
+    if overlay_text and cfg.get('show_scene_captions', False):
+        # Optional VIBEFRAME banner; disabled by default when show_scene_captions=false.
         clean_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(overlay_text)).strip()[:54]
         vf.append('drawbox=x=0:y=34:w=iw:h=88:color=white@1.0:t=fill')
         vf.append(f"drawtext=text='{escape_drawtext(clean_text)}':x=(w-text_w)/2:y=58:fontsize=32:fontcolor=black:fix_bounds=true")
@@ -396,11 +396,12 @@ def make_short(video, item, part, out_dir, cfg):
         ]
         vf.extend(style_filters(item.get('edit_style','clean')))
         af = 'loudnorm=I=-14:TP=-1.5:LRA=11'
-    hook_text = item.get('_daily_caption') or caption_line(item, 'short')
-    hook_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(hook_text)).strip()[:54]
-    # Fixed brand design: white banner at top, centered black text, no emoji.
-    vf.append('drawbox=x=0:y=72:w=iw:h=100:color=white@1.0:t=fill')
-    vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=101:fontsize=36:fontcolor=black:fix_bounds=true")
+    # Scene captions are disabled by default; keep the source dialogue/audio clean.
+    if cfg.get('show_scene_captions', False):
+        hook_text = item.get('_daily_caption') or caption_line(item, 'short')
+        hook_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(hook_text)).strip()[:54]
+        vf.append('drawbox=x=0:y=72:w=iw:h=100:color=white@1.0:t=fill')
+        vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=101:fontsize=36:fontcolor=black:fix_bounds=true")
     apply_manual_censors(vf, item)
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{target_len:.3f}',
