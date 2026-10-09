@@ -63,7 +63,7 @@ def publish_video(video_path, title='', description=''):
     return data.get('id')
 
 
-def publish_daily_images(limit=2):
+def publish_daily_images(limit=3):
     state_path = ROOT / 'state' / 'state.json'
     state = json.loads(state_path.read_text(encoding='utf-8'))
     today = time.strftime('%Y-%m-%d')
@@ -164,6 +164,110 @@ def publish_reel(video_path, description=''):
     )
     finish.raise_for_status()
     return video_id
+
+
+
+def publish_movie_reels(limit=1):
+    """Publish a distinct authorized movie/series/anime Short as today's Page Reel."""
+    from datetime import date, timedelta
+    state_path = ROOT / 'state' / 'state.json'
+    state = json.loads(state_path.read_text(encoding='utf-8'))
+    today = time.strftime('%Y-%m-%d')
+    daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': [], 'images': []})
+    if daily.get('reel'):
+        print('Facebook movie Reel: already recorded for today')
+        return
+
+    cutoff = date.fromisoformat(today) - timedelta(days=30)
+    used_ids = set()
+    used_sources = set()
+    processed = state.get('processed', {})
+    for stamp, row in state.get('daily', {}).items():
+        try:
+            row_day = date.fromisoformat(str(stamp)[:10])
+        except Exception:
+            continue
+        if cutoff <= row_day <= date.fromisoformat(today):
+            for key in ('long', 'short', 'reel'):
+                used_ids.update(str(x) for x in row.get(key, []) if x is not None)
+            for key in ('long', 'short', 'reel'):
+                for item_id in row.get(key, []):
+                    src = processed.get(str(item_id), {}).get('source')
+                    if src:
+                        used_sources.add(str((ROOT / src).resolve()))
+
+    # Prefer a fresh, rights-cleared social-source clip if one was generated,
+    # otherwise use a different licensed source from metadata.json.
+    candidates = []
+    for item in state.get('social', []):
+        item_id = str(item.get('id') or '')
+        src_rel = str(item.get('source') or '')
+        video_rel = str(item.get('video') or '')
+        video = ROOT / video_rel
+        source = ROOT / src_rel if src_rel else None
+        if (item.get('licensed') is True and item.get('status') == 'ready'
+                and item_id and item_id not in used_ids and video.is_file()):
+            source_key = str(source.resolve()) if source and source.exists() else str(video.resolve())
+            if source_key not in used_sources:
+                candidates.append((item_id, item, video, source_key, 'social'))
+
+    for item in state.get('queue', []):
+        item_id = str(item.get('item_id') or '')
+        video_rel = str(item.get('short') or '')
+        video = ROOT / video_rel
+        source_rel = processed.get(item_id, {}).get('source', '')
+        source_key = str((ROOT / source_rel).resolve()) if source_rel else str(video.resolve())
+        if (item.get('status') == 'ready' and item_id and item_id not in used_ids
+                and video.is_file() and source_key not in used_sources):
+            candidates.append((item_id, item, video, source_key, 'movie'))
+
+    # De-duplicate source IDs and source paths.
+    selected = []
+    seen_ids, seen_paths = set(), set()
+    for row in candidates:
+        if row[0] in seen_ids or row[3] in seen_paths:
+            continue
+        selected.append(row)
+        seen_ids.add(row[0]); seen_paths.add(row[3])
+        if len(selected) >= limit:
+            break
+
+    if not selected:
+        print('Facebook movie Reel: 0/1; no distinct unused licensed source available.')
+        return
+
+    done = 0
+    for item_id, item, video, source_key, source_kind in selected:
+        # Check for actual audio and video streams; do not post a silent placeholder.
+        probe = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type',
+             '-of', 'csv=p=0', str(video)],
+            capture_output=True, text=True
+        )
+        kinds = set(probe.stdout.split())
+        if probe.returncode or not {'audio', 'video'}.issubset(kinds):
+            print(f'Facebook Reel blocked by media QA: {video.name}')
+            continue
+        caption = str(item.get('description') or item.get('caption') or '').strip()
+        caption_text = str(item.get('caption_text') or '').strip()
+        if caption_text and caption_text not in caption:
+            caption = (caption + '\\n\\n' + caption_text).strip()
+        reel_id = publish_reel(video, caption)
+        item.setdefault('facebook_reel', {}).update({
+            'status': 'uploaded', 'video_id': reel_id,
+            'updated_at': int(time.time()), 'source_kind': source_kind
+        })
+        daily.setdefault('reel', []).append(item_id)
+        daily.setdefault('reel_sources', []).append(source_key)
+        used_sources.add(source_key)
+        used_ids.add(item_id)
+        done += 1
+        if done >= limit:
+            break
+
+    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
+    print(f'Facebook movie Reel: {done}/{limit}')
+
 
 
 def publish_daily_reels(limit=1):
