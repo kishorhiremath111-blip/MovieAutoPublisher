@@ -25,4 +25,4 @@ jobs:
       - name: Compile all Python files
         run: python -m compileall -q .
       - name: Verify caption and media pipeline imports
-        run: python -c "import caption_design, process, image_posts, social_clips; print('Movie scene pipeline imports OK')"
+        run: python -c "import caption_design, process, image_posts, social_clips, upload_queue, cloud_runner; import uploaders.youtube, uploaders.facebook; print('Movie scene pipeline imports OK')"
