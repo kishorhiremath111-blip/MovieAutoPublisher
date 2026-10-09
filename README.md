@@ -80,3 +80,12 @@ third-party sites.
 ### Secrets
 Use the names in `cloud-secrets.example`. Keep OAuth client secrets and tokens in
 GitHub Actions Secrets, never in Git. The workflow does not print secret values.
+
+
+## Human-style daily narration
+
+The news video pipeline now creates a conversational Hinglish voiceover for each story and mixes it above optional licensed background music. It uses Gemini for source-grounded script drafting when `GEMINI_API_KEY` is configured; without that secret it uses a conservative template. Edge TTS is used to synthesize speech. If speech synthesis fails, news generation fails rather than deliberately adding a silent track.
+
+Add a Gemini API key in GitHub Actions Secrets as `GEMINI_API_KEY` to enable Gemini-written narration. Do not paste the key into source files or chat. The automated pipeline does not control the VN mobile editor; VN can be used manually to further edit exported MP4s.
+
+**Copyright note:** editing a movie/anime clip does not make it copyright-free. Only publish media you own, have licensed, or are explicitly authorized to reuse. No system can guarantee zero copyright claims on third-party footage or music.
