@@ -51,17 +51,21 @@ def load_json(path, default):
 
 
 def has_movie_sources():
-    """Require actual local source videos and thumbnails, not placeholder metadata."""
+    """Require at least two real, separate authorized source videos and thumbnails."""
     rows = load_json(ROOT / "metadata.json", {"items": []}).get("items", [])
+    paths = set()
     for item in rows:
         if item.get("licensed") is not True or item.get("type") not in {"movie", "series", "anime"}:
             continue
-        source = ROOT / str(item.get("source") or "")
-        thumb = ROOT / str(item.get("thumbnail") or "")
-        if source.is_file() and thumb.is_file():
-            return True
-    return False
-
+        source = (ROOT / str(item.get("source") or "")).resolve()
+        thumb = (ROOT / str(item.get("thumbnail") or "")).resolve()
+        if (ROOT.resolve() not in source.parents or ROOT.resolve() not in thumb.parents
+                or not source.is_file() or not thumb.is_file()):
+            continue
+        if source.suffix.lower() not in {".mp4", ".mkv", ".mov", ".webm"}:
+            continue
+        paths.add(str(source))
+    return len(paths) >= 2
 
 def verify_daily_youtube_quota():
     state = load_json(STATE, {})
