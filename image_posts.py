@@ -14,6 +14,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance, ImageOps
 from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
+from viral_tracker import score_candidate, trend_index
 
 ROOT = Path(__file__).resolve().parent
 STATE = ROOT / 'state' / 'state.json'
@@ -274,7 +275,28 @@ def generate_daily_images():
         print('Daily images: no separate, unused licensed image sources configured; no news or video-frame fallback will be used.')
         return
 
-    # Rotate by least-recently-used input order; each post has its own source ID.
+    # Prefer still-image subjects that match current trend metadata; never copy
+    # the actual trending videos or their copyrighted footage.
+    trends = trend_index()
+    tracker = load(ROOT / 'state' / 'viral_tracker.json', {})
+    scored = []
+    for item, image in candidates:
+        score_item = dict(item)
+        score_item['id'] = str(item.get('id') or '')
+        score_item['description'] = str(item.get('caption_text') or item.get('tagline') or '')
+        tags = item.get('tags') or []
+        hashtags = item.get('hashtags') or ''
+        if isinstance(hashtags, str):
+            tags = list(tags) + [x.lstrip('#') for x in hashtags.split()]
+        score_item['tags'] = tags
+        score, breakdown = score_candidate(score_item, trends, tracker)
+        item['_viral_score'] = score
+        item['_viral_breakdown'] = breakdown
+        scored.append((score, item, image))
+    scored.sort(key=lambda row: row[0], reverse=True)
+    candidates = [(item, image) for _, item, image in scored]
+
+    # Generate up to three cards from the highest-ranked unused licensed subjects.
     posts = []
     work = OUT / today
     work.mkdir(parents=True, exist_ok=True)
@@ -311,6 +333,8 @@ def generate_daily_images():
             'topic_id': str(item.get('topic_id') or item['id']),
             'source': str(image.relative_to(ROOT)),
             'license': str(item.get('license') or 'rights-cleared; user-confirmed'),
+            'viral_score': float(item.get('_viral_score', 0) or 0),
+            'viral_breakdown': item.get('_viral_breakdown', {}),
             'asset_type': 'licensed_image_source',
             'status': 'ready',
             'created_at': int(time.time()),
