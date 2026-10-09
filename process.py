@@ -186,10 +186,10 @@ def create_banner(thumbnail, item, part, out_dir):
     return out
 
 
-def analyze_highlights(video, duration, cfg):
+def analyze_highlights(video, duration, cfg, item=None):
     threshold = float(cfg.get('scene_threshold', 0.35))
     clip_seconds = float(cfg.get('highlight_clip_seconds', 42))
-    max_candidates = int(cfg.get('max_highlight_clips', 12))
+    max_candidates = max(60, int(cfg.get('max_highlight_clips', 12)) * 12)
     gap = float(cfg.get('min_highlight_gap_seconds', 12))
     silence_db = float(cfg.get('silence_db', -34))
     scenes = detect_scene_times(video, threshold)
@@ -198,10 +198,67 @@ def analyze_highlights(video, duration, cfg):
         duration, scenes, count=max_candidates, clip_seconds=clip_seconds,
         silence_ranges=silence, min_gap_seconds=gap,
     )
-    if not ranked:
+    used = (item or {}).get('_used_windows', [])
+    if used:
+        fresh = []
+        for start, end, score in ranked:
+            length = max(0.1, end - start)
+            repeat = False
+            for ustart, uend in used:
+                overlap = max(0.0, min(end, uend) - max(start, ustart))
+                if overlap >= min(10.0, length * 0.25):
+                    repeat = True
+                    break
+            if not repeat:
+                fresh.append((start, end, score))
+        ranked = fresh
+    if not ranked and not used:
         start = max(0.0, (duration - min(clip_seconds, duration)) / 2.0)
         ranked = [(start, min(duration, start + clip_seconds), 0.25)]
     return ranked
+
+
+def previously_published_windows(state, source_rel, today, lookback_days=30):
+    """Read only scenes from prior uploads, not merely generated-but-unused exports."""
+    from datetime import date, timedelta
+    try:
+        current = date.fromisoformat(today)
+    except ValueError:
+        current = date.today()
+    cutoff = current - timedelta(days=max(1, int(lookback_days)))
+    processed = state.get('processed', {})
+    windows = []
+    for stamp, daily in state.get('daily', {}).items():
+        try:
+            day = date.fromisoformat(str(stamp)[:10])
+        except ValueError:
+            continue
+        if not (cutoff <= day < current):
+            continue
+        roles = (
+            ('long', 'selected_highlights'),
+            ('short', 'short_highlight'),
+            ('reel', 'short_highlight'),
+        )
+        for role, field in roles:
+            for variant_id in daily.get(role, []):
+                rec = processed.get(str(variant_id), {})
+                if str(rec.get('source') or '') != str(source_rel):
+                    continue
+                for output in rec.get('outputs', []):
+                    if field == 'selected_highlights':
+                        for w in output.get(field, []):
+                            try:
+                                windows.append((float(w['start']), float(w['end'])))
+                            except (KeyError, TypeError, ValueError):
+                                pass
+                    else:
+                        w = output.get(field) or {}
+                        try:
+                            windows.append((float(w['start']), float(w['end'])))
+                        except (KeyError, TypeError, ValueError):
+                            pass
+    return windows
 
 
 def extract_clip(video, start, end, out, width, height, item, style='clean', overlay_text=None):
@@ -259,7 +316,7 @@ def concat_clips(clips, out, cfg, music=None):
 
 def make_highlight_compilation(video, item, part, out_dir, cfg):
     duration = ffprobe_duration(video)
-    ranked = analyze_highlights(video, duration, cfg)
+    ranked = analyze_highlights(video, duration, cfg, item)
     target = float(cfg.get('long_highlight_target_seconds', 480))
     min_clip = float(cfg.get('highlight_min_clip_seconds', 20))
     max_clips = int(cfg.get('max_highlight_clips', 12))
@@ -277,7 +334,7 @@ def make_highlight_compilation(video, item, part, out_dir, cfg):
         if len(selected) >= max_clips or total >= target:
             break
     if not selected:
-        selected = ranked[:1]
+        raise RuntimeError('No fresh unused scene windows remain for this source.')
 
     work = out_dir / 'clips'
     work.mkdir(parents=True, exist_ok=True)
@@ -315,6 +372,8 @@ def make_short(video, item, part, out_dir, cfg):
     duration = ffprobe_duration(video)
     target_len = min(float(cfg['short_duration_seconds']), duration)
     ranked = analyze_highlights(video, duration, cfg)
+    if not ranked:
+        raise RuntimeError('No fresh unused scene windows remain for this source.')
     start, end, score = max(ranked, key=lambda x: x[2])
     if end - start > target_len:
         center = (start + end) / 2.0
@@ -364,11 +423,14 @@ def main():
     ap = argparse.ArgumentParser(description='Licensed MovieAutoPublisher processor')
     ap.add_argument('--metadata', default='metadata.json')
     ap.add_argument('--id', help='process one metadata item')
+    ap.add_argument('--daily', action='store_true', help='create date-specific edits and avoid previously published scene windows')
     args = ap.parse_args()
     check_ffmpeg()
     cfg = load_json(CONFIG, {})
     meta = load_json(ROOT / args.metadata, {'items': []})
-    state = load_json(STATE, {'processed': {}, 'queue': []})
+    state = load_json(STATE, {'processed': {}, 'queue': [], 'daily': {}})
+    today = time.strftime('%Y-%m-%d')
+    lookback = int(cfg.get('viral_no_repeat_days', 30))
 
     items = meta.get('items', [])
     if args.id:
@@ -376,51 +438,95 @@ def main():
         if not items:
             raise SystemExit(f'No item found: {args.id}')
 
-    for item in items:
-        source, thumb = validate_item(item)
-        item_id = item['id']
-        if item_id in state.get('processed', {}):
-            print(f'SKIP already processed: {item_id}')
+    seen_sources = set()
+    for raw_item in items:
+        item = dict(raw_item)
+        source_id = str(item.get('id') or '').strip()
+        if not source_id:
+            print('SKIP source with no id')
             continue
+        source, thumb = validate_item(item)
+        source_rel = str(source.relative_to(ROOT))
+        if source_rel in seen_sources:
+            print(f'SKIP duplicate source file in metadata: {source_rel}')
+            continue
+        seen_sources.add(source_rel)
+
+        item['_source_item_id'] = source_id
+        item_id = f'{source_id}-{today}' if args.daily else source_id
+        item['id'] = item_id
+        if item_id in state.get('processed', {}):
+            print(f'SKIP already processed today: {item_id}')
+            continue
+
+        item['_used_windows'] = previously_published_windows(
+            state, source_rel, today, lookback_days=lookback
+        ) if args.daily else []
         item['_detected_title'] = infer_title(source, item)
         item['_cfg'] = cfg
-        # One short, scene-style hook per source; explicit metadata text wins.
         item['_daily_caption'] = caption_line(item, 'daily')
         duration = ffprobe_duration(source)
+        if args.daily:
+            fresh_options = analyze_highlights(source, duration, cfg, item)
+            if not fresh_options:
+                print(f'SKIP no fresh unused scenes left within lookback: {source_rel}')
+                continue
+
         work = ROOT / 'output' / safe_name(item_id)
         raw_parts = split_video(source, work / 'parts', item, duration, cfg)
         produced = []
         for part, raw in raw_parts:
-            video, short, banner, title, selected, short_info = process_part(raw, thumb, item, part, work / 'final', cfg)
+            try:
+                video, short, banner, title, selected, short_info = process_part(
+                    raw, thumb, item, part, work / 'final', cfg
+                )
+            except RuntimeError as exc:
+                if args.daily and 'fresh unused scene windows' in str(exc):
+                    print(f'SKIP source output with no fresh scene window: {source_rel}')
+                    produced = []
+                    break
+                raise
             produced.append({
                 'part': part,
+                'date': today,
+                'item_id': item_id,
+                'source_item_id': source_id,
+                'source': source_rel,
+                'licensed': item.get('licensed') is True,
                 'video': str(video.relative_to(ROOT)),
                 'short': str(short.relative_to(ROOT)),
                 'thumbnail': str(banner.relative_to(ROOT)),
                 'title': title,
-                'edit_style': item.get('edit_style','clean'),
+                'type': item.get('type', 'movie'),
+                'category': item.get('category', item.get('type', 'movie')),
+                'edit_style': item.get('edit_style', 'clean'),
                 'adult_badge': bool(item.get('adult', False)),
                 'description': (str(item.get('description', '')).strip() + '\n\n' + str(item.get('_daily_caption') or caption_line(item, 'description'))).strip(),
                 'caption_text': item.get('_daily_caption') or caption_line(item, 'description'),
-                'tags': item.get('tags',[]),
-                'privacy_status': item.get('privacy_status','public'),
+                'tags': item.get('tags', []),
+                'privacy_status': item.get('privacy_status', 'public'),
                 'selected_highlights': [
-                    {'start': round(s, 2), 'end': round(e, 2), 'score': round(score, 4)}
-                    for s, e, score in selected
+                    {'start': round(st, 2), 'end': round(en, 2), 'score': round(score, 4)}
+                    for st, en, score in selected
                 ],
                 'short_highlight': {k: round(v, 2) for k, v in short_info.items()},
             })
+        if not produced:
+            continue
         state.setdefault('processed', {})[item_id] = {
+            'source_item_id': source_id,
             'duration_seconds': duration,
             'detected_title': item['_detected_title'],
-            'source': str(source.relative_to(ROOT)),
+            'source': source_rel,
             'type': item.get('type', 'content'),
             'created_at': int(time.time()),
             'outputs': produced,
         }
-        state.setdefault('queue', []).extend([{**x, 'item_id': item_id, 'status': 'ready'} for x in produced])
+        state.setdefault('queue', []).extend([{**x, 'item_id': item_id, 'source_item_id': source_id, 'status': 'ready'} for x in produced])
         save_json(STATE, state)
         print(f'DONE: {item_id} -> {len(produced)} daily upload item(s) queued')
+
+
 
 
 if __name__ == '__main__':
