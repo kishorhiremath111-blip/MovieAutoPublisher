@@ -93,34 +93,6 @@ def publish_daily_images(limit=3):
     print(f'Facebook images: {done}/{limit}')
 
 
-def publish_news_video(limit=1):
-    """Publish only today's ready news roundups as normal Page videos."""
-    state_path = ROOT / 'state' / 'state.json'
-    state = json.loads(state_path.read_text(encoding='utf-8'))
-    today = time.strftime('%Y-%m-%d')
-    done = 0
-    for item in state.get('news', []):
-        if item.get('date') != today or item.get('status') != 'ready':
-            continue
-        if item.get('facebook_video', {}).get('status') == 'uploaded':
-            continue
-        video = ROOT / item.get('video', '')
-        if not video.exists():
-            continue
-        video_id = publish_video(
-            video,
-            item.get('title', ''),
-            item.get('caption', ''),
-        )
-        item.setdefault('facebook_video', {})['status'] = 'uploaded'
-        item['facebook_video']['video_id'] = video_id
-        item['facebook_video']['updated_at'] = int(time.time())
-        done += 1
-        if done >= limit:
-            break
-    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
-    print(f'Facebook news videos: {done}/{limit}')
-
 def publish_reel(video_path, description=''):
     """Publish a short vertical MP4 as a Facebook Page Reel via the Graph API."""
     cfg = load_creds()
@@ -293,60 +265,3 @@ def publish_movie_reels(limit=1):
 
     state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
     print(f'Facebook movie Reel: {done}/{limit}')
-
-
-
-def publish_daily_reels(limit=1):
-    state_path = ROOT / 'state' / 'state.json'
-    state = json.loads(state_path.read_text(encoding='utf-8'))
-    today = time.strftime('%Y-%m-%d')
-    daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': []})
-    if daily.get('reel'):
-        print('Facebook reels: 1/1 (already published today)')
-        return
-    done = 0
-    for item in state.get('news', []):
-        if item.get('date') != today or item.get('status') != 'ready' or item.get('facebook_reel', {}).get('status') == 'uploaded':
-            continue
-        video = ROOT / item['short'] if item.get('short') else ROOT / item['video']
-        if not video.exists():
-            continue
-        reel_id = publish_reel(video, item.get('caption', ''))
-        item.setdefault('facebook_reel', {})['status'] = 'uploaded'
-        item['facebook_reel']['video_id'] = reel_id
-        item['facebook_reel']['updated_at'] = int(time.time())
-        daily.setdefault('reel', []).append(item.get('id'))
-        done += 1
-        if done >= limit:
-            break
-    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
-    print(f'Facebook reels: {done}/{limit}')
-
-
-def publish_social_reels(limit=1):
-    """Publish today's authorized short-form clips as Facebook Page Reels."""
-    state_path = ROOT / 'state' / 'state.json'
-    state = json.loads(state_path.read_text(encoding='utf-8'))
-    today = time.strftime('%Y-%m-%d')
-    daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': []})
-    if daily.get('reel'):
-        print('Social Facebook Reels: 1/1 (already published today)')
-        return
-    done = 0
-    for item in state.get('social', []):
-        if item.get('date') != today or item.get('status') != 'ready':
-            continue
-        reel = item.setdefault('facebook_reel', {})
-        if reel.get('status') == 'uploaded':
-            continue
-        video = ROOT / item.get('video', '')
-        if not video.exists():
-            continue
-        reel_id = publish_reel(video, item.get('description', ''))
-        reel.update({'status': 'uploaded', 'video_id': reel_id, 'updated_at': int(time.time())})
-        daily.setdefault('reel', []).append(item.get('id'))
-        done += 1
-        if done >= limit:
-            break
-    state_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding='utf-8')
-    print(f'Social Facebook Reels: {done}/{limit}')
