@@ -123,6 +123,30 @@ def _recently_used_sources(state, day, cooldown_days=30):
     return used
 
 
+def _recently_used_topics(state, day, cooldown_days=30):
+    from datetime import date, timedelta
+    today = date.fromisoformat(day)
+    cutoff = today - timedelta(days=max(1, int(cooldown_days)))
+    used = set()
+    for stamp, row in state.get('daily', {}).items():
+        try:
+            row_day = date.fromisoformat(str(stamp)[:10])
+        except Exception:
+            continue
+        if not (cutoff <= row_day < today):
+            continue
+        for key in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics'):
+            used.update(str(x).strip().casefold() for x in row.get(key, []) if x)
+    for row in state.get('image_posts', []):
+        try:
+            made = date.fromtimestamp(float(row.get('created_at', 0)))
+        except Exception:
+            continue
+        if cutoff <= made < today and row.get('topic_id'):
+            used.add(str(row['topic_id']).strip().casefold())
+    return used
+
+
 def _check_audio_video(path):
     """Refuse blank/silent uploads; preserve the original scene audio."""
     path = Path(path)
@@ -160,7 +184,9 @@ def publish_daily(limit_long=1, limit_short=1):
     daily.setdefault('reel', [])
     daily.setdefault('movie_long_sources', [])
     daily.setdefault('movie_short_sources', [])
-    used_recent = _recently_used_sources(state, day, 30)
+    cooldown_days = int(load_json(ROOT / 'config' / 'config.json', {}).get('viral_no_repeat_days', 30))
+    used_recent = _recently_used_sources(state, day, cooldown_days)
+    used_recent_topics = _recently_used_topics(state, day, cooldown_days)
 
     long_done = bool(daily.get('movie_long_sources') and daily.get('long_video_id'))
     short_done = bool(daily.get('movie_short_sources') and daily.get('short_video_id'))
@@ -188,6 +214,8 @@ def publish_daily(limit_long=1, limit_short=1):
             continue
         source_path = str(item.get('source') or item.get('source_item_id') or key)
         topic_id = str(item.get('topic_id') or item.get('source_item_id') or key)
+        if topic_id.strip().casefold() in used_recent_topics:
+            continue
         video = ROOT / str(item.get('video', ''))
         short = ROOT / str(item.get('short', ''))
         uploads = item.setdefault('uploads', {}).setdefault('youtube', {})
