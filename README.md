@@ -1,81 +1,66 @@
-# MovieAutoPublisher Pro
+# MovieAutoPublisher — Human-Style Scene Edits
 
-Automation toolkit for **licensed/owned/authorized** video content.
+A scheduled publishing pipeline for **authorized movie, web-series and anime scene files**. It is intended for short, natural scene edits with the original clip audio, restrained on-screen text, and content-matched colors. It does not generate news-anchor videos or synthetic narration.
 
-## Daily content pipeline
+## Daily publishing goal
 
-1. Process an authorized source video.
-2. Detect duration and split videos longer than 2 hours into exactly 2 parts.
-3. Rank scene/highlight candidates using visual scene changes and audio activity.
-4. Build a professional highlight compilation and one vertical Short.
-5. Create exactly **2 original daily image cards** from source frames using `image_posts.py`.
-6. Queue YouTube long/Short uploads.
-7. Optionally publish the 2 image cards to a configured Facebook Page.
+The GitHub Actions workflow is scheduled for **7:00 PM India time** (cron: 30 13 * * * UTC):
+- YouTube: one long highlight compilation and one vertical Short.
+- Facebook Page: one separate vertical Reel and 1–3 separate image cards.
+- Every output should be based on a different source/topic for that day. The long video and Short must use distinct source files. The Reel must not reuse either source, and image-card topics must differ from all three.
+- The editor keeps the original clip audio. No AI voice-over or generated spoken narration is used.
+- Caption text is short, style-matched (anime/action/funny/cinematic/dark/clean), changes by source/day, and is placed in a safe area with restrained color. It must not cover faces or important action deliberately.
+- Trend metadata can inform discovery and prioritization. It cannot guarantee views or virality.
 
-The image generator does **not** scrape random web images. It uses frames from the supplied authorized video and adds original text/layout treatment.
+The workflow fails honestly when it cannot produce the required distinct content or when Facebook Page credentials are missing. A green GitHub check alone is not proof that all content was published.
 
-## Daily image commands
+## Copyright and sourcing — required
 
-Generate two cards:
+Use only footage and still images that you own, have licensed for the planned uploads, or have explicit permission to edit and repost. **Editing a copyrighted scene, adding captions, changing colors, or using a short excerpt does not make it copyright-free.** No tool can guarantee that a third-party platform will never issue a copyright claim or block a video.
 
-```bash
-python upload_queue.py --daily-images
-```
+The pipeline does not download random social-media clips, bypass Content ID, or extract protected video from an APK. A movie streaming APK is not, by itself, a source-media license. The source files need to be available locally or from storage you control and are authorized to use.
 
-Publish up to two ready cards to a Facebook Page:
+## Configure source videos
 
-```bash
-python upload_queue.py --facebook-images
-```
+Copy **metadata.example.json** to **metadata.json** and replace all example paths with real files. Add at least **two different authorized source videos** if you want both a long video and a Short that day. Each item must provide:
+- A unique ID.
+- Source, a local video path (for example input/videos/clip-a.mp4).
+- Thumbnail, a local image path.
+- Type: movie, series, or anime.
+- licensed: true only after verifying the rights/permission.
+- topic_id, a short ID for the exact scene/topic, not merely the overall franchise; reuse the same topic ID for media that covers the same subject.
+- Optional caption_text or hook_text for your chosen short overlay line. Otherwise a style- and day-dependent caption is selected automatically.
+- Required credit/license details in the description where applicable.
 
-Facebook credentials stay local in `credentials/facebook_page.json`.
+The daily processor makes date-specific outputs and avoids previously published scene windows for the same source within the configured no-repeat period. If it cannot find a sufficiently different unused window or a second distinct source, it stops rather than recycling yesterday's output.
 
-## Content styles
+### Social clip source manifest
 
-The image generator adapts copy to movie, series, and anime content. It can produce moment, mood, anime, series and dark-comedy style cards. It does not claim that a scene is objectively viral; it ranks/frames content from the supplied source.
+**social_sources.json** is for separate, explicitly authorized short-form clips that may be used for the Facebook Reel and trend-scored Short candidate. Copy the structure in **social_sources.example.json** and update each source path, license status, topic ID, license/credit, category, and caption. The viral score gate is a ranking heuristic, not a promise of viral performance.
 
-For health/wellness posts, use separately authored, factual copy. Do not automatically invent medical claims or diagnoses.
+## Configure separate image posts
 
-## YouTube image posts
+**image_sources.json** contains still image files used for 1–3 daily social image cards. Copy the structure in **image_sources.example.json** and supply actual local stills in **input/image_sources/**. Each image must be licensed/owned/authorized. Use a unique topic ID that differs from the day's video, Short and Reel topics. Cards are not silently replaced with news cards or frames from the day's video when no separate image is available.
 
-The current YouTube Data API supports video uploads and video thumbnails, but it does not provide a general public API method for publishing a standalone Community image post. Therefore this project generates the image assets and can publish them to a configured Facebook Page; YouTube image/community publishing remains a manual/platform-supported step unless Google exposes an applicable API for the channel.
+The generic YouTube Data API upload flow supports video uploads and thumbnails; it does not provide a general API method for arbitrary standalone Community image posts. Facebook image publication requires a configured Facebook Page access token. If these platform/credential capabilities are unavailable, upload the generated image manually or configure a supported authorized integration.
 
-## Credentials
+## Credentials and setup
 
-Never commit `credentials/client_secret.json`, `credentials/token.json`, or `credentials/facebook_page.json`.
+- YouTube OAuth: **YOUTUBE_CLIENT_SECRET_B64** and **YOUTUBE_TOKEN_B64** (GitHub Actions Secrets).
+- Trend metadata: **YOUTUBE_API_KEY** (GitHub Actions Secrets; official YouTube Data API metadata only).
+- Facebook Page: **FACEBOOK_PAGE_B64**, containing a base64-encoded JSON object with page_id, page_access_token and optional graph_api_version. The Page token is not configured yet, so Facebook cannot publish.
+- Instagram metadata collection is optional and requires its own configured credentials.
 
-## News engine
+Never commit raw credentials or send them in chat. Do not hardcode secrets into Python files.
 
-`news_engine.py` fetches fresh public RSS headlines and creates original vertical news cards/videos with a black headline panel, category label, channel-take text, and source link. It does **not** download or repost third-party news footage. For news footage, only use media you own or have explicit reuse rights for.
+## Local edit checks
 
-Generate two fresh news videos/cards:
+The workflow installs FFmpeg and runs Python syntax checks. The uploader checks that published files have both audio and video streams and a valid duration. This is a structural media check, not a human review of whether a scene is funny, suitable, or likely to perform well. Review licensed source quality before adding it.
 
-```bash
-python upload_queue.py --news
-```
+## Important limits
 
-Upload up to two generated news videos to YouTube:
-
-```bash
-python upload_queue.py --news-upload
-```
-
-News is generated from configurable RSS feeds and deduplicated in `state/state.json`. “Breaking”/“viral” status is not guaranteed; feeds can lag and stories can change, so the source link is included for verification. Health posts use cautious wording and are not medical advice.
-
-## 24/7 cloud mode
-
-`cloud_runner.py` is a cloud-safe entry point. `.github/workflows/daily-publisher.yml`
-runs once per day and can be started manually from GitHub Actions. It generates two
-original news cards/videos, publishes eligible news videos, generates the daily image
-cards, and processes only licensed content already present in the workspace.
-
-### Important storage note
-GitHub Actions runners are temporary. Large movie/video source files should **not** be
-stored in the Git repository. For production, place licensed source media in a private
-object-storage bucket and add a small download/sync step before `cloud_runner.py`.
-The current workflow deliberately does not scrape or download movies/anime from
-third-party sites.
-
-### Secrets
-Use the names in `cloud-secrets.example`. Keep OAuth client secrets and tokens in
-GitHub Actions Secrets, never in Git. The workflow does not print secret values.
+- This repository has no movie/anime clips in metadata.json, no authorized short clips in social_sources.json, and no stills in image_sources.json by default. Example manifests are templates only.
+- The Movie.apk in a supplied ZIP is an app package, not ready-to-upload scene footage. Until real authorized source files and separate licensed stills are provided, the daily publishing workflow will stop instead of posting the old news fallback.
+- The Facebook Page token must be added before Facebook Reels and image posts can upload.
+- VN Editor is a mobile editor; this GitHub Actions workflow does not control the VN app directly.
+- Daily posting depends on available unique source media, API quotas, platform review and credentials. It cannot be honestly guaranteed to run without interruption if any of those are missing.
