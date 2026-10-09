@@ -289,7 +289,8 @@ def publish_daily(limit_long=1, limit_short=1):
 
     if long_choice:
         long_key, long_item, long_uploads, long_video, long_short_path, long_source_path, long_topic = long_choice
-        long_thumb = ROOT / long_item['thumbnail'] if long_item.get('thumbnail') else None
+        long_thumb_path = long_item.get('original_thumbnail') or long_item.get('thumbnail')
+        long_thumb = ROOT / long_thumb_path if long_thumb_path else None
         long_pack = long_item.get('viral_pack') or {}
         long_title = long_pack.get('title') or long_item.get('title', 'Movie Scene Highlights')
         long_description = long_item.get('description', '')
@@ -314,7 +315,8 @@ def publish_daily(limit_long=1, limit_short=1):
 
     if short_choice:
         short_key, short_item, short_uploads, short_source_video, short_video, short_source_path, short_topic = short_choice
-        short_thumb = ROOT / short_item['thumbnail'] if short_item.get('thumbnail') else None
+        short_thumb_path = short_item.get('original_thumbnail') or short_item.get('thumbnail')
+        short_thumb = ROOT / short_thumb_path if short_thumb_path else None
         short_pack = short_item.get('viral_pack') or {}
         short_title = short_pack.get('title') or short_item.get('title', 'Scene of the Day')
         if '#Shorts' not in short_title:
