@@ -277,7 +277,10 @@ def main():
         thumb = OUT_DIR / f"{safe_name(item_id)}_{today}_THUMB.jpg"
         make_thumbnail(source, thumb, pack["thumbnail_text"])
 
-        description = (str(item.get("description", "")).strip() + "\n\n" + caption_text + "\n\n" + " ".join(pack["hashtags"])).strip()
+        brand_line = "Follow VIBEFRAME for fresh relatable edits, anime moments and daily scene picks."
+        source_credit = str(item.get("source_credit") or item.get("creator") or "").strip()
+        credit_line = f"Source/creator: {source_credit}" if source_credit else ""
+        description = "\n\n".join(part for part in [str(item.get("description", "")).strip(), caption_text, credit_line, " ".join(pack["hashtags"]), brand_line] if part).strip()
         row = {
             "id": item_id,
             "date": today,
