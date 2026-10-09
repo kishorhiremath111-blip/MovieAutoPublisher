@@ -80,6 +80,10 @@ def main():
         from uploaders.facebook import publish_news_video
         publish_news_video(1)
         return
+    if args.social:
+        from social_clips import main as generate_social_clips
+        generate_social_clips()
+        return
     if args.social_upload:
         from uploaders.youtube import publish_social
         publish_social(1)
