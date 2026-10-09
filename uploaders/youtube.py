@@ -247,6 +247,8 @@ def publish_daily(limit_long=1, limit_short=1):
         daily['long'].append(long_key)
         daily.setdefault('movie_long_variant_ids', []).append(long_key)
         daily['movie_long_sources'].append(long_source_path)
+        daily.setdefault('movie_long_topics', []).append(str(long_item.get('topic_id') or long_item.get('source_item_id') or long_key))
+        daily.setdefault('movie_long_item_ids', []).append(str(long_item.get('source_item_id') or long_key))
         daily['long_video_id'] = long_id
         save_json(state_path, state)
         existing_long_source = long_source_path
@@ -272,6 +274,8 @@ def publish_daily(limit_long=1, limit_short=1):
         daily['short'].append(short_key)
         daily.setdefault('movie_short_variant_ids', []).append(short_key)
         daily['movie_short_sources'].append(short_source_path)
+        daily.setdefault('movie_short_topics', []).append(str(short_item.get('topic_id') or short_item.get('source_item_id') or short_key))
+        daily.setdefault('movie_short_item_ids', []).append(str(short_item.get('source_item_id') or short_key))
         daily['short_video_id'] = short_id
         save_json(state_path, state)
         existing_short_source = short_source_path
