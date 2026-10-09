@@ -44,6 +44,23 @@ def has_movie_sources():
         return False
 
 
+def verify_daily_youtube_quota():
+    state_path = ROOT / 'state' / 'state.json'
+    if not state_path.exists():
+        raise RuntimeError('Daily publish audit failed: state/state.json was not created.')
+    state = json.loads(state_path.read_text(encoding='utf-8'))
+    today = __import__('time').strftime('%Y-%m-%d')
+    daily = state.get('daily', {}).get(today, {})
+    long_count = len(daily.get('long', []))
+    short_count = len(daily.get('short', []))
+    print(f'Daily YouTube publish audit: long={long_count}/1, short={short_count}/1')
+    if long_count < 1 or short_count < 1:
+        raise RuntimeError(
+            'Daily YouTube quota not met. Check current-day fresh news, OAuth credentials, '
+            'and upload logs; refusing to report a green run with zero uploads.'
+        )
+
+
 def main():
     restore_secret('YOUTUBE_CLIENT_SECRET_B64', CREDS / 'client_secret.json')
     restore_secret('YOUTUBE_TOKEN_B64', CREDS / 'token.json')
@@ -117,6 +134,8 @@ def main():
 
     if has_movie_sources():
         run('upload_queue', '--daily')
+
+    verify_daily_youtube_quota()
 
 
 if __name__ == '__main__':
