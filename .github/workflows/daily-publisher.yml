@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: movieautopublisher-daily
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -66,6 +70,8 @@ jobs:
           path: |
             output/news/**
             output/images/**
+            output/image_posts/**
+            output/social/**
             state/state.json
           if-no-files-found: ignore
           retention-days: 7
