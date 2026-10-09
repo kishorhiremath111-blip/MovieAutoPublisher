@@ -231,7 +231,7 @@ def main():
         thumb = OUT_DIR / f"{safe_name(item_id)}_{today}_THUMB.jpg"
         make_thumbnail(source, thumb, pack["thumbnail_text"])
 
-        description = (str(item.get("description", "")).strip() + "\n\n" + " ".join(pack["hashtags"])).strip()
+        description = (str(item.get("description", "")).strip() + "\n\n" + caption_text + "\n\n" + " ".join(pack["hashtags"])).strip()
         row = {
             "id": item_id,
             "date": today,
