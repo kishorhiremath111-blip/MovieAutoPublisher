@@ -282,7 +282,7 @@ def publish_movie_reels(limit=1):
         caption_text = str(item.get('caption_text') or '').strip()
         if caption_text and caption_text not in caption:
             caption = (caption + '\n\n' + caption_text).strip()
-        print(f'Facebook Reel candidate selected by trend score={viral_score:.2f}: {item.get(\'title\', item_id)}')
+        print(f"Facebook Reel candidate selected by trend score={viral_score:.2f}: {item.get('title', item_id)}")
         reel_id = publish_reel(video, caption)
         item.setdefault('facebook_reel', {}).update({
             'status': 'uploaded', 'video_id': reel_id,
