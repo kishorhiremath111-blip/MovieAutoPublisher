@@ -79,7 +79,7 @@ jobs:
                       except Exception:
                           continue
                       for match in url_re.findall(data):
-                          s = match.decode("utf-8", "ignore").rstrip("),;]}')
+                          s = match.decode("utf-8", "ignore").rstrip("),;]}")
                           if re.search(r'\.(mp4|m3u8|mpd|webm|mkv)(\?|$)', s, re.I):
                               refs.add(s[:500])
                   report["video_url_references"] = sorted(refs)[:200]
