@@ -165,7 +165,8 @@ def publish_daily(limit_long=1, limit_short=1):
     by_source = {}
     for item in state.get('queue', []):
         key = _item_key(item)
-        if not key or item.get('status') != 'ready':
+        # Only today's date-specific recuts are eligible; never drain stale queue entries.
+        if not key or item.get('date') != day or item.get('status') != 'ready':
             continue
         by_source.setdefault(key, item)
 
@@ -219,7 +220,7 @@ def publish_daily(limit_long=1, limit_short=1):
     long_uploads['long_video_id'] = long_id
     long_uploads['updated_at'] = int(time.time())
     daily['long'].append(long_key)
-    daily.setdefault('movie_long_sources', []).append(long_key)
+    daily.setdefault('movie_long_sources', []).append(str(long_item.get('source') or long_item.get('source_item_id') or long_key))
 
     short_thumb = ROOT / short_item['thumbnail'] if short_item.get('thumbnail') else None
     short_pack = short_item.get('viral_pack') or {}
@@ -237,7 +238,7 @@ def publish_daily(limit_long=1, limit_short=1):
     short_uploads['short_video_id'] = short_id
     short_uploads['updated_at'] = int(time.time())
     daily['short'].append(short_key)
-    daily.setdefault('movie_short_sources', []).append(short_key)
+    daily.setdefault('movie_short_sources', []).append(str(short_item.get('source') or short_item.get('source_item_id') or short_key))
     daily['long_video_id'] = long_id
     daily['short_video_id'] = short_id
     save_json(state_path, state)
