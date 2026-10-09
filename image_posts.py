@@ -203,13 +203,29 @@ def generate_daily_images():
     manifest_path = ROOT / 'image_sources.json'
     manifest = load(manifest_path, {'items': []})
     daily = state.get('daily', {}).get(today, {})
-    video_ids = {str(x) for key in ('long', 'short', 'reel') for x in daily.get(key, [])}
-    cutoff = time.time() - int(cfg.get('image_no_repeat_days', 30)) * 86400
-    recently_used = {
-        str(row.get('source_item'))
-        for row in state.get('image_posts', [])
-        if float(row.get('created_at', 0) or 0) >= cutoff
+    video_ids = {
+        str(x) for key in ('long', 'short', 'reel') for x in daily.get(key, [])
     }
+    video_item_ids = {
+        str(x) for key in ('movie_long_item_ids', 'movie_short_item_ids', 'movie_reel_item_ids')
+        for x in daily.get(key, [])
+    }
+    video_topics = {
+        str(x) for key in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics')
+        for x in daily.get(key, []) if x
+    }
+    cutoff = time.time() - int(cfg.get('image_no_repeat_days', 30)) * 86400
+    recent_rows = [
+        row for row in state.get('image_posts', [])
+        if float(row.get('created_at', 0) or 0) >= cutoff
+    ]
+    recently_used = {str(row.get('source_item')) for row in recent_rows}
+    recently_used_topics = {str(row.get('topic_id')) for row in recent_rows if row.get('topic_id')}
+    today_image_topics = {
+        str(row.get('topic_id')) for row in generated_today if row.get('topic_id')
+    }
+    blocked_topics = video_topics | recently_used_topics | today_image_topics
+    seen_topic_ids = set()
 
     candidates = []
     seen_paths = set()
@@ -217,7 +233,10 @@ def generate_daily_images():
         if item.get('licensed') is not True:
             continue
         item_id = str(item.get('id') or '')
-        if not item_id or item_id in recently_used or item_id in video_ids:
+        topic_id = str(item.get('topic_id') or item_id).strip()
+        if (not item_id or item_id in recently_used or item_id in video_ids
+                or item_id in video_item_ids or not topic_id
+                or topic_id in blocked_topics or topic_id in seen_topic_ids):
             continue
         rel = str(item.get('source') or '')
         if not rel or rel.startswith(('http://', 'https://')):
@@ -230,6 +249,7 @@ def generate_daily_images():
         if str(path) in seen_paths:
             continue
         seen_paths.add(str(path))
+        seen_topic_ids.add(topic_id)
         candidates.append((item, path))
 
     if not candidates:
@@ -270,6 +290,7 @@ def generate_daily_images():
             'image': str(out.relative_to(ROOT)),
             'caption': f'{title}\n\n{subtitle}\n\n{str(item.get("hashtags") or "#MovieMoments #AnimeEdit").strip()}',
             'source_item': item['id'],
+            'topic_id': str(item.get('topic_id') or item['id']),
             'source': str(image.relative_to(ROOT)),
             'license': str(item.get('license') or 'rights-cleared; user-confirmed'),
             'asset_type': 'licensed_image_source',
