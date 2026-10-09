@@ -9,6 +9,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
+from viral_tracker import score_candidate, trend_index
 
 ROOT = Path(__file__).resolve().parents[1]
 CREDS = ROOT / 'credentials'
@@ -209,6 +210,9 @@ def publish_daily(limit_long=1, limit_short=1):
         by_source.setdefault(key, item)
 
     eligible = {}
+    trends = trend_index()
+    tracker = load_json(ROOT / 'state' / 'viral_tracker.json', {})
+    candidate_scores = {}
     for key, item in by_source.items():
         if key in used_recent:
             continue
@@ -220,7 +224,22 @@ def publish_daily(limit_long=1, limit_short=1):
         short = ROOT / str(item.get('short', ''))
         uploads = item.setdefault('uploads', {}).setdefault('youtube', {})
         if video.exists() and short.exists():
+            score_item = dict(item)
+            score_item['id'] = key
+            score_item['selected_highlight'] = item.get('short_highlight') or {}
+            score, breakdown = score_candidate(score_item, trends, tracker)
+            item['viral_score'] = score
+            item['viral_breakdown'] = breakdown
+            candidate_scores[key] = score
             eligible[key] = (item, uploads, video, short, source_path, topic_id)
+
+    # Trend-match and source quality rank candidates; this ranking never downloads
+    # or copies the popular creators' own videos.
+    eligible = dict(sorted(
+        eligible.items(), key=lambda row: candidate_scores.get(row[0], 0.0), reverse=True
+    ))
+    for key, data in eligible.items():
+        print(f"Candidate rank: {data[0].get('title', key)} score={candidate_scores.get(key, 0.0):.2f}")
 
     existing_long_source = str(daily.get('movie_long_sources', [''])[0] or '')
     existing_short_source = str(daily.get('movie_short_sources', [''])[0] or '')
