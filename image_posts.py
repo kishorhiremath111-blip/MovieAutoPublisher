@@ -344,7 +344,7 @@ def generate_daily_images():
     target_count = max(1, min(3, int(cfg.get('daily_image_posts', 3))))
     generated_today = [
         x for x in state.get('image_posts', [])
-        if x.get('date') == today and x.get('asset_type') == 'licensed_image_source'
+        if x.get('date') == today and x.get('asset_type') in {'licensed_image_source', 'ai_generated_image'}
     ]
     if len(generated_today) >= target_count:
         print(f'Image posts already generated for {today}: {len(generated_today)}')
@@ -421,8 +421,28 @@ def generate_daily_images():
         seen_topic_ids.add(topic_key)
         candidates.append((item, path))
 
+    # When configured, create at most ONE original AI concept-art image per day,
+    # using trending metadata only as a broad theme signal. Never use/download the
+    # trend video's footage, frames, named characters or logos.
+    today_has_ai = any(
+        x.get('date') == today and x.get('asset_type') == 'ai_generated_image'
+        for x in state.get('image_posts', [])
+    )
+    if target_count > 0 and not today_has_ai and os.getenv('OPENAI_API_KEY', '').strip():
+        ai_blocked = set(blocked_topics) | {str(x).strip().casefold() for x in recently_used_topics}
+        subject = choose_trending_image_subject(state, today, ai_blocked, recent_rows)
+        if subject:
+            work = OUT / today
+            raw_path = work / f"ai_source_{safe_name(subject['source_video_id'])}.jpg"
+            image = generate_openai_concept_image(subject, raw_path)
+            if image:
+                subject['source'] = str(image.relative_to(ROOT))
+                subject['topic_id'] = str(subject['topic_id'])
+                candidates.append((subject, image))
+                print(f"Original AI concept image generated for trend metadata: {subject['source_video_title']}")
+
     if not candidates:
-        print('Daily images: no separate, unused licensed image sources configured; no news or video-frame fallback will be used.')
+        print('Daily images: no separate, unused licensed stills or eligible AI trend poster available; no news/video-frame fallback will be used.')
         return
 
     # Prefer still-image subjects that match current trend metadata; never copy
@@ -440,6 +460,11 @@ def generate_daily_images():
             tags = list(tags) + [x.lstrip('#') for x in hashtags.split()]
         score_item['tags'] = tags
         score, breakdown = score_candidate(score_item, trends, tracker)
+        if item.get('asset_type') == 'ai_generated_image':
+            # Original concept art gets a small discovery preference; it still
+            # has to pass the same distinct-topic and trend-based candidate sort.
+            score = min(100.0, score + 15.0)
+            breakdown['ai_original_trend_bonus'] = 15.0
         item['_viral_score'] = score
         item['_viral_breakdown'] = breakdown
         scored.append((score, item, image))
@@ -473,19 +498,24 @@ def generate_daily_images():
             accent=accent,
             top_label=f'{category.upper()} • MOMENT'
         )
+        asset_type = str(item.get('asset_type') or 'licensed_image_source')
+        caption = f'{title}\n\n{subtitle}\n\n{str(item.get("hashtags") or "#MovieMoments #AnimeEdit").strip()}'
+        if asset_type == 'ai_generated_image':
+            caption += '\n\nOriginal AI-generated concept artwork inspired by pop-culture trend metadata; not an official frame or endorsement.'
         post = {
             'id': f'{today}-{item["id"]}',
             'date': today,
             'category': category,
             'image': str(out.relative_to(ROOT)),
-            'caption': f'{title}\n\n{subtitle}\n\n{str(item.get("hashtags") or "#MovieMoments #AnimeEdit").strip()}',
+            'caption': caption,
             'source_item': item['id'],
             'topic_id': str(item.get('topic_id') or item['id']),
+            'topic_title': str(item.get('topic_title') or title),
             'source': str(image.relative_to(ROOT)),
             'license': str(item.get('license') or 'rights-cleared; user-confirmed'),
             'viral_score': float(item.get('_viral_score', 0) or 0),
             'viral_breakdown': item.get('_viral_breakdown', {}),
-            'asset_type': 'licensed_image_source',
+            'asset_type': asset_type,
             'status': 'ready',
             'created_at': int(time.time()),
         }
@@ -495,7 +525,7 @@ def generate_daily_images():
     daily.setdefault('images', [])
     daily['images'].extend([p['source_item'] for p in posts])
     save(STATE, state)
-    print(f'Generated {len(posts)} separate image cards from licensed image sources for {today}')
+    print(f'Generated {len(posts)} separate image cards for {today} (licensed stills and/or disclosed AI concept artwork)')
     for post in posts:
         print(post['image'])
 
