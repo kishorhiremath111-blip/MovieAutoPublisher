@@ -300,6 +300,38 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
     return out
 
 
+def resolve_music(item, cfg):
+    """Choose a local track from the configured licensed mood library."""
+    mood = str(item.get('music_mood') or item.get('edit_style') or 'cinematic').lower()
+    library = cfg.get('background_music_by_mood', {})
+    music_rel = item.get('background_music') or library.get(mood) or cfg.get('background_music_file')
+    if not music_rel:
+        return None
+    candidate = (ROOT / str(music_rel)).resolve()
+    if ROOT.resolve() not in candidate.parents or not candidate.is_file():
+        print(f'MUSIC: no local licensed track for mood={mood}; original audio only')
+        return None
+    print(f'MUSIC: mood={mood}; dialogue-aware ducking enabled')
+    return candidate
+
+
+def mix_short_music(short_path, item, cfg):
+    music = resolve_music(item, cfg)
+    if not music:
+        return short_path
+    temp = short_path.with_name(short_path.stem + '_music_tmp.mp4')
+    run([
+        'ffmpeg','-y','-i',str(short_path),'-stream_loop','-1','-i',str(music),
+        '-filter_complex',
+        '[1:a]volume=0.18[music];[music][0:a]sidechaincompress=threshold=0.025:ratio=8:attack=15:release=280[ducked];'
+        '[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=1.5[a]',
+        '-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-b:a',cfg['audio_bitrate'],
+        '-shortest','-movflags','+faststart',str(temp)
+    ])
+    temp.replace(short_path)
+    return short_path
+
+
 def concat_clips(clips, out, cfg, music=None):
     concat_file = out.parent / 'concat.txt'
     with concat_file.open('w', encoding='utf-8') as f:
@@ -312,10 +344,12 @@ def concat_clips(clips, out, cfg, music=None):
         '-c','copy','-movflags','+faststart',str(temp)
     ])
     if music and music.exists():
+        # Duck licensed music under the original scene dialogue.
         run([
             'ffmpeg','-y','-i',str(temp),'-stream_loop','-1','-i',str(music),
             '-filter_complex',
-            '[1:a]volume=0.10[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=2[a]',
+            '[1:a]volume=0.18[music];[music][0:a]sidechaincompress=threshold=0.025:ratio=8:attack=15:release=280[ducked];'
+            '[0:a][ducked]amix=inputs=2:duration=first:dropout_transition=1.5[a]',
             '-map','0:v:0','-map','[a]','-c:v','copy','-c:a','aac','-b:a',cfg['audio_bitrate'],
             '-shortest','-movflags','+faststart',str(out)
         ])
@@ -371,12 +405,7 @@ def make_highlight_compilation(video, item, part, out_dir, cfg):
 
     title = make_title(item, part if part > 1 else None)
     out = out_dir / f'{safe_name(title)}_HIGHLIGHTS.mp4'
-    music = None
-    music_rel = item.get('background_music') or cfg.get('background_music_file')
-    if music_rel:
-        candidate = ROOT / music_rel
-        if candidate.exists():
-            music = candidate
+    music = resolve_music(item, cfg)
     concat_clips(clips, out, cfg, music=music)
     return out, selected
 
@@ -420,6 +449,7 @@ def make_short(video, item, part, out_dir, cfg):
         '-vf',','.join(vf),'-af',af,'-c:v','libx264','-preset','veryfast','-b:v',cfg['video_bitrate'],
         '-c:a','aac','-b:a',cfg['audio_bitrate'],'-movflags','+faststart',str(out)
     ])
+    mix_short_music(out, item, cfg)
     return out, {'start': start, 'end': end, 'score': score}
 
 
@@ -476,6 +506,7 @@ def main():
             state, source_rel, today, lookback_days=lookback
         ) if args.daily else []
         item['_detected_title'] = infer_title(source, item)
+        item.setdefault('music_mood', item.get('edit_style', 'cinematic'))
         item['_cfg'] = cfg
         item['_daily_caption'] = caption_line(item, 'daily')
         duration = ffprobe_duration(source)
