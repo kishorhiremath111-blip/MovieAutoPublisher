@@ -219,6 +219,8 @@ def publish_movie_reels(limit=1):
 
     for item in state.get('queue', []):
         item_id = str(item.get('item_id') or '')
+        if item.get('date') != today:
+            continue
         video_rel = str(item.get('short') or '')
         video = ROOT / video_rel
         source_rel = processed.get(item_id, {}).get('source', '')
@@ -265,7 +267,7 @@ def publish_movie_reels(limit=1):
         })
         daily.setdefault('reel', []).append(item_id)
         daily.setdefault('reel_sources', []).append(source_key)
-        daily.setdefault('movie_reel_sources', []).append(item_id)
+        daily.setdefault('movie_reel_sources', []).append(source_key)
         used_sources.add(source_key)
         used_ids.add(item_id)
         done += 1
