@@ -58,6 +58,9 @@ def has_movie_sources():
     for item in rows:
         if item.get("licensed") is not True or item.get("type") not in {"movie", "series", "anime"}:
             continue
+        language = str(item.get("audio_language") or "").strip().lower()
+        if language not in {"hi", "en"} or item.get("audio_language_verified") is not True:
+            continue
         source = (ROOT / str(item.get("source") or "")).resolve()
         thumb = (ROOT / str(item.get("thumbnail") or "")).resolve()
         if (ROOT.resolve() not in source.parents or ROOT.resolve() not in thumb.parents
@@ -180,7 +183,8 @@ def main():
     if not has_movie_sources():
         raise RuntimeError(
             "No usable authorized movie/series/anime source videos found. metadata.json must point "
-            "to real local files under input/videos and each item must have licensed=true plus a real thumbnail. "
+            "to real local files under input/videos and each item must have licensed=true, a real thumbnail, "
+            "audio_language ('hi' or 'en'), and audio_language_verified=true after checking the actual audio track. "
             "The uploaded ZIP contains the Movie APK but no standalone scene clips; no news/AI-voice fallback will run."
         )
 
