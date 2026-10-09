@@ -50,6 +50,7 @@ jobs:
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           FACEBOOK_PAGE_B64: ${{ secrets.FACEBOOK_PAGE_B64 }}
           INSTAGRAM_ACCESS_TOKEN_B64: ${{ secrets.INSTAGRAM_ACCESS_TOKEN_B64 }}
           INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
