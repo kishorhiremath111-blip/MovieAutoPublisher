@@ -31,6 +31,8 @@ Copy **metadata.example.json** to **metadata.json** and replace all example path
 - topic_id, a short ID for the exact scene/topic, not merely the overall franchise; reuse the same topic ID for media that covers the same subject.
 - Optional caption_text or hook_text for your chosen short overlay line. Otherwise a style- and day-dependent caption is selected automatically.
 - Required credit/license details in the description where applicable.
+- `audio_language`: `"hi"` for a source file whose actual dialogue is Hindi, or `"en"` for English.
+- `audio_language_verified`: `true` only after checking the actual audio/dialogue track yourself. The pipeline does not infer language from a title or generate/translate a dub. Add separately authorized Hindi-dub and English-dub files as separate metadata items if you have rights to both; the processor preserves the audio track in each selected file and rejects unverified/missing language labels.
 
 The daily processor makes date-specific outputs and avoids previously published scene windows for the same source within the configured no-repeat period. If it cannot find a sufficiently different unused window or a second distinct source, it stops rather than recycling yesterday's output.
 
