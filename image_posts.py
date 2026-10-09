@@ -191,9 +191,14 @@ def generate_daily_images():
     cfg = load(CONFIG, {})
     today = time.strftime('%Y-%m-%d')
     target_count = max(1, min(3, int(cfg.get('daily_image_posts', 3))))
-    if any(x.get('date') == today for x in state.get('image_posts', [])):
-        print(f'Image posts already generated for {today}')
+    generated_today = [
+        x for x in state.get('image_posts', [])
+        if x.get('date') == today and x.get('asset_type') == 'licensed_image_source'
+    ]
+    if len(generated_today) >= target_count:
+        print(f'Image posts already generated for {today}: {len(generated_today)}')
         return
+    target_count = target_count - len(generated_today)
 
     manifest_path = ROOT / 'image_sources.json'
     manifest = load(manifest_path, {'items': []})
@@ -267,6 +272,7 @@ def generate_daily_images():
             'source_item': item['id'],
             'source': str(image.relative_to(ROOT)),
             'license': str(item.get('license') or 'rights-cleared; user-confirmed'),
+            'asset_type': 'licensed_image_source',
             'status': 'ready',
             'created_at': int(time.time()),
         }
