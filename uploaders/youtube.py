@@ -158,14 +158,23 @@ def publish_daily(limit_long=1, limit_short=1):
     daily.setdefault('long', [])
     daily.setdefault('short', [])
     daily.setdefault('reel', [])
+    daily.setdefault('movie_long_sources', [])
+    daily.setdefault('movie_short_sources', [])
     used_recent = _recently_used_sources(state, day, 30)
 
-    # Build one output row per source so two parts of the same movie can never
-    # masquerade as two distinct daily subjects.
+    long_done = bool(daily.get('movie_long_sources') and daily.get('long_video_id'))
+    short_done = bool(daily.get('movie_short_sources') and daily.get('short_video_id'))
+    if long_done and short_done:
+        if daily['movie_long_sources'][0] == daily['movie_short_sources'][0]:
+            raise RuntimeError('Daily audit failed: previously recorded long and Short share the same source.')
+        print('Daily movie video and Short are already uploaded; skipping duplicate uploads.')
+        return
+
+    # Only today's date-specific recuts are eligible. Source paths are the
+    # identity boundary, so one movie cannot fill both daily formats.
     by_source = {}
     for item in state.get('queue', []):
         key = _item_key(item)
-        # Only today's date-specific recuts are eligible; never drain stale queue entries.
         if not key or item.get('date') != day or item.get('status') != 'ready':
             continue
         by_source.setdefault(key, item)
@@ -174,75 +183,106 @@ def publish_daily(limit_long=1, limit_short=1):
     for key, item in by_source.items():
         if key in used_recent:
             continue
+        source_path = str(item.get('source') or item.get('source_item_id') or key)
         video = ROOT / str(item.get('video', ''))
         short = ROOT / str(item.get('short', ''))
         uploads = item.setdefault('uploads', {}).setdefault('youtube', {})
         if video.exists() and short.exists():
-            eligible[key] = (item, uploads, video, short)
+            eligible[key] = (item, uploads, video, short, source_path)
 
+    existing_long_source = str(daily.get('movie_long_sources', [''])[0] or '')
+    existing_short_source = str(daily.get('movie_short_sources', [''])[0] or '')
     long_candidates = [
         (key, *data) for key, data in eligible.items()
-        if data[1].get('long_status') != 'uploaded'
+        if not long_done
+        and data[1].get('long_status') != 'uploaded'
+        and (not short_done or data[4] != existing_short_source)
+        and (not existing_short_source or data[4] != existing_short_source)
     ]
     short_candidates = [
         (key, *data) for key, data in eligible.items()
-        if data[1].get('short_status') != 'uploaded'
+        if not short_done
+        and data[1].get('short_status') != 'uploaded'
+        and (not long_done or data[4] != existing_long_source)
+        and (not existing_long_source or data[4] != existing_long_source)
     ]
-    if not long_candidates or not short_candidates:
+
+    long_choice = long_candidates[0] if not long_done and long_candidates else None
+    if short_done:
+        short_choice = None
+    else:
+        long_source_chosen = long_choice[5] if long_choice else existing_long_source
+        short_choice = next((row for row in short_candidates if row[5] != long_source_chosen), None)
+
+    if not long_done and long_choice is None:
         raise RuntimeError(
-            'Not enough unused authorized video sources for today. Need one fresh long-video source '
-            'and a DIFFERENT fresh Short source. Add more licensed movie/series/anime files to metadata.json.'
+            'No fresh authorized source is ready for today\'s long video. Add valid licensed movie/series/anime source files.'
         )
-    long_choice = long_candidates[0]
-    short_choice = next((row for row in short_candidates if row[0] != long_choice[0]), None)
-    if short_choice is None:
+    if not short_done and short_choice is None:
         raise RuntimeError(
-            'Only one unused source is available. Refusing to upload the same subject as both the long video and Short.'
+            'No DIFFERENT fresh authorized source is ready for today\'s Short. '
+            'The same source will not be reused for both formats.'
         )
 
-    long_key, long_item, long_uploads, long_video, long_short_path = long_choice
-    short_key, short_item, short_uploads, short_source_video, short_video = short_choice
-    # Validate both exports before either is published.
-    _check_audio_video(long_video)
-    _check_audio_video(short_video)
+    # Quality-check all uploads still needed before making a public upload.
+    if long_choice:
+        _check_audio_video(long_choice[3])
+    if short_choice:
+        _check_audio_video(short_choice[4])
 
-    long_thumb = ROOT / long_item['thumbnail'] if long_item.get('thumbnail') else None
-    long_pack = long_item.get('viral_pack') or {}
-    long_title = long_pack.get('title') or long_item.get('title', 'Movie Scene Highlights')
-    long_description = long_item.get('description', '')
-    long_tags = long_item.get('tags', [])
-    long_privacy = long_item.get('privacy_status', 'public')
+    if long_choice:
+        long_key, long_item, long_uploads, long_video, long_short_path, long_source_path = long_choice
+        long_thumb = ROOT / long_item['thumbnail'] if long_item.get('thumbnail') else None
+        long_pack = long_item.get('viral_pack') or {}
+        long_title = long_pack.get('title') or long_item.get('title', 'Movie Scene Highlights')
+        long_description = long_item.get('description', '')
+        long_tags = long_item.get('tags', [])
+        long_privacy = long_item.get('privacy_status', 'public')
+        print(f'Uploading long from source {long_source_path}: {long_video}')
+        long_id = upload_video(long_video, long_title, long_description, long_tags, long_privacy, long_thumb)
+        record_tracker(long_id, long_item, 'movie-long')
+        long_uploads['long_status'] = 'uploaded'
+        long_uploads['long_video_id'] = long_id
+        long_uploads['updated_at'] = int(time.time())
+        daily['long'].append(long_key)
+        daily.setdefault('movie_long_variant_ids', []).append(long_key)
+        daily['movie_long_sources'].append(long_source_path)
+        daily['long_video_id'] = long_id
+        save_json(state_path, state)
+        existing_long_source = long_source_path
+        long_done = True
 
-    print(f'Uploading long from distinct source {long_key}: {long_video}')
-    long_id = upload_video(long_video, long_title, long_description, long_tags, long_privacy, long_thumb)
-    record_tracker(long_id, long_item, 'movie-long')
-    long_uploads['long_status'] = 'uploaded'
-    long_uploads['long_video_id'] = long_id
-    long_uploads['updated_at'] = int(time.time())
-    daily['long'].append(long_key)
-    daily.setdefault('movie_long_sources', []).append(str(long_item.get('source') or long_item.get('source_item_id') or long_key))
+    if short_choice:
+        short_key, short_item, short_uploads, short_source_video, short_video, short_source_path = short_choice
+        short_thumb = ROOT / short_item['thumbnail'] if short_item.get('thumbnail') else None
+        short_pack = short_item.get('viral_pack') or {}
+        short_title = short_pack.get('title') or short_item.get('title', 'Scene of the Day')
+        if '#Shorts' not in short_title:
+            short_title = short_title[:88].rstrip() + ' #Shorts'
+        short_description = short_item.get('description', '')
+        if short_item.get('caption_text') and short_item['caption_text'] not in short_description:
+            short_description = (short_description + '\\n\\n' + short_item['caption_text']).strip()
+        print(f'Uploading Short from distinct source {short_source_path}: {short_video}')
+        short_id = upload_video(short_video, short_title, short_description, short_item.get('tags', []),
+                                short_item.get('privacy_status', 'public'), short_thumb)
+        record_tracker(short_id, short_item, 'movie-short')
+        short_uploads['short_status'] = 'uploaded'
+        short_uploads['short_video_id'] = short_id
+        short_uploads['updated_at'] = int(time.time())
+        daily['short'].append(short_key)
+        daily.setdefault('movie_short_variant_ids', []).append(short_key)
+        daily['movie_short_sources'].append(short_source_path)
+        daily['short_video_id'] = short_id
+        save_json(state_path, state)
+        existing_short_source = short_source_path
+        short_done = True
 
-    short_thumb = ROOT / short_item['thumbnail'] if short_item.get('thumbnail') else None
-    short_pack = short_item.get('viral_pack') or {}
-    short_title = short_pack.get('title') or short_item.get('title', 'Scene of the Day')
-    if '#Shorts' not in short_title:
-        short_title = short_title[:88].rstrip() + ' #Shorts'
-    short_description = short_item.get('description', '')
-    if short_item.get('caption_text') and short_item['caption_text'] not in short_description:
-        short_description = (short_description + '\\n\\n' + short_item['caption_text']).strip()
-    print(f'Uploading Short from distinct source {short_key}: {short_video}')
-    short_id = upload_video(short_video, short_title, short_description, short_item.get('tags', []),
-                            short_item.get('privacy_status', 'public'), short_thumb)
-    record_tracker(short_id, short_item, 'movie-short')
-    short_uploads['short_status'] = 'uploaded'
-    short_uploads['short_video_id'] = short_id
-    short_uploads['updated_at'] = int(time.time())
-    daily['short'].append(short_key)
-    daily.setdefault('movie_short_sources', []).append(str(short_item.get('source') or short_item.get('source_item_id') or short_key))
-    daily['long_video_id'] = long_id
-    daily['short_video_id'] = short_id
-    save_json(state_path, state)
-    print(f'Daily result: long=1/1 source={long_key}; short=1/1 source={short_key}; distinct_sources=yes')
+    if long_done and short_done and existing_long_source == existing_short_source:
+        raise RuntimeError('Daily publish audit failed: long and Short have the same source path.')
+    print(
+        f'Daily result: long={int(long_done)}/{limit_long} source={existing_long_source}; '
+        f'short={int(short_done)}/{limit_short} source={existing_short_source}; distinct_sources=yes'
+    )
 
 
 def publish_news(limit=1):
