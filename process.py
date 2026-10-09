@@ -275,10 +275,10 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
         af = None
     apply_manual_censors(vf, item)
     if overlay_text:
-        text_color, accent = palette(item)
-        vf.append('drawbox=x=30:y=35:w=iw-60:h=92:color=black@0.58:t=fill')
-        vf.append(f'drawbox=x=30:y=35:w=9:h=92:color={accent}:t=fill')
-        vf.append(f"drawtext=text='{escape_drawtext(overlay_text)}':x=55:y=58:fontsize=34:fontcolor={text_color}:borderw=2:bordercolor=black")
+        # VIBEFRAME fixed brand style: white banner at the top, black text, no emoji.
+        clean_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(overlay_text)).strip()[:54]
+        vf.append('drawbox=x=0:y=34:w=iw:h=88:color=white@1.0:t=fill')
+        vf.append(f"drawtext=text='{escape_drawtext(clean_text)}':x=(w-text_w)/2:y=58:fontsize=32:fontcolor=black:fix_bounds=true")
     run([
         'ffmpeg','-y','-ss',f'{start:.3f}','-i',str(video),'-t',f'{duration:.3f}',
         '-vf',','.join(vf),'-c:v','libx264','-preset','veryfast','-b:v',item['_cfg']['video_bitrate'],
