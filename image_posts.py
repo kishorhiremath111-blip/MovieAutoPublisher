@@ -111,8 +111,8 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
     black = 'black'
 
     meta_f = font(27, True)
-    title_f = font(64, True)
-    sub_f = font(31, True)
+    title_f = font(58, True)
+    sub_f = font(30, True)
     q_f = font(30, True)
     tiny_f = font(21, False)
 
@@ -128,9 +128,9 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
 
     # Keep the source frame dominant; no fake quotes or distracting sticker stack.
     y = 730
-    for line in wrap(d, title, title_f, 950)[:5]:
+    for line in wrap(d, title, title_f, 950)[:3]:
         d.text((margin, y), line, font=title_f, fill=white, stroke_width=2, stroke_fill=black)
-        y += 76
+        y += 70
 
     y += 10
     for line in wrap(d, subtitle, sub_f, 930)[:2]:
