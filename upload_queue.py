@@ -42,6 +42,7 @@ def main():
     ap.add_argument('--news-upload', action='store_true', help='Upload the ready daily news roundup to YouTube (long + Short)')
     ap.add_argument('--facebook-news-video', action='store_true', help='Publish the ready daily news roundup as a Facebook Page video')
     ap.add_argument('--facebook-reels', action='store_true', help='Manually publish a ready news video as a Facebook Reel; not part of the daily run')
+    ap.add_argument('--facebook-movie-reels', action='store_true', help='Publish a separate authorized movie/anime scene as a Facebook Reel')
     ap.add_argument('--social', action='store_true', help='Generate Shorts/Reels from explicitly authorized social source clips')
     ap.add_argument('--social-upload', action='store_true', help='Upload ready social clips to YouTube Shorts')
     ap.add_argument('--facebook-social-reels', action='store_true', help='Publish ready social clips as Facebook Page Reels')
@@ -66,7 +67,7 @@ def main():
         return
     if args.facebook_images:
         from uploaders.facebook import publish_daily_images
-        publish_daily_images(1)
+        publish_daily_images(3)
         return
     if args.news:
         from news_engine import generate
@@ -95,6 +96,10 @@ def main():
     if args.facebook_reels:
         from uploaders.facebook import publish_daily_reels
         publish_daily_reels(1)
+        return
+    if args.facebook_movie_reels:
+        from uploaders.facebook import publish_movie_reels
+        publish_movie_reels(1)
         return
     ap.print_help()
 
