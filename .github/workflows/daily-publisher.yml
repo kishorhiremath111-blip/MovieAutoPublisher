@@ -57,6 +57,13 @@ jobs:
           INSTAGRAM_GRAPH_API_VERSION: ${{ secrets.INSTAGRAM_GRAPH_API_VERSION }}
         run: python cloud_runner.py
 
+      - name: Build daily tracker report
+        if: always()
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: python daily_tracker.py
+
       - name: Save persistent state cache
         if: always()
         uses: actions/cache/save@v4
@@ -66,7 +73,7 @@ jobs:
             state/viral_tracker.json
           key: movieautopublisher-state-${{ github.run_id }}
 
-      - name: Save logs and generated cards
+      - name: Save logs, tracker, and generated cards
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -76,5 +83,8 @@ jobs:
             output/image_posts/**
             output/social/**
             state/state.json
+            state/viral_tracker.json
+            state/daily_tracker.json
+            state/daily_tracker.md
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
