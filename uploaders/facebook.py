@@ -180,7 +180,7 @@ def publish_movie_reels(limit=1):
     state = json.loads(state_path.read_text(encoding='utf-8'))
     today = time.strftime('%Y-%m-%d')
     daily = state.setdefault('daily', {}).setdefault(today, {'long': [], 'short': [], 'reel': [], 'images': []})
-    if daily.get('reel'):
+    if daily.get('movie_reel_sources'):
         print('Facebook movie Reel: already recorded for today')
         return
 
@@ -265,6 +265,7 @@ def publish_movie_reels(limit=1):
         })
         daily.setdefault('reel', []).append(item_id)
         daily.setdefault('reel_sources', []).append(source_key)
+        daily.setdefault('movie_reel_sources', []).append(item_id)
         used_sources.add(source_key)
         used_ids.add(item_id)
         done += 1
