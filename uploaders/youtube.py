@@ -342,6 +342,61 @@ def publish_daily(limit_long=1, limit_short=1):
         existing_short_topic = short_topic
         short_done = True
 
+    # Publish additional Shorts up to the configured daily limit. Every Short must
+    # come from a different authorized source and topic than the long video and
+    # every other Short already published today.
+    cfg = load_json(ROOT / 'config' / 'config.json', {})
+    short_limit = max(1, int(cfg.get('daily_short_videos', limit_short)))
+    published_short_sources = set(str(x) for x in daily.get('movie_short_sources', []))
+    published_short_topics = set(str(x).strip().casefold() for x in daily.get('movie_short_topics', []) if x)
+    published_short_count = len(daily.get('movie_short_sources', []))
+    for key, data in eligible.items():
+        if published_short_count >= short_limit:
+            break
+        item, uploads, long_video, short_video, source_path, topic_id = data
+        topic_norm = str(topic_id).strip().casefold()
+        if uploads.get('short_status') == 'uploaded':
+            continue
+        if source_path == existing_long_source or (existing_long_topic and topic_norm == str(existing_long_topic).strip().casefold()):
+            continue
+        if source_path in published_short_sources or topic_norm in published_short_topics:
+            continue
+        _check_audio_video(short_video)
+        pack = item.get('viral_pack') or {}
+        title = pack.get('title') or item.get('title', 'Scene of the Day')
+        if '#Shorts' not in title:
+            title = title[:88].rstrip() + ' #Shorts'
+        description = item.get('description', '')
+        if item.get('caption_text') and item['caption_text'] not in description:
+            description = (description + '\\n\\n' + item['caption_text']).strip()
+        thumb_path = item.get('original_thumbnail') or item.get('thumbnail')
+        thumb = ROOT / thumb_path if thumb_path else None
+        print(f'Uploading additional Short {published_short_count + 1}/{short_limit} from distinct source {source_path}: {short_video}')
+        video_id = upload_video(short_video, title, description, item.get('tags', []),
+                                item.get('privacy_status', 'public'), thumb)
+        record_tracker(video_id, item, 'movie-short')
+        uploads['short_status'] = 'uploaded'
+        uploads['short_video_id'] = video_id
+        uploads['updated_at'] = int(time.time())
+        daily.setdefault('short', []).append(key)
+        daily.setdefault('movie_short_variant_ids', []).append(key)
+        daily.setdefault('movie_short_sources', []).append(source_path)
+        daily.setdefault('movie_short_topics', []).append(str(item.get('topic_id') or item.get('source_item_id') or key))
+        daily.setdefault('movie_short_item_ids', []).append(str(item.get('source_item_id') or key))
+        # Keep the legacy field for the first Short; store all IDs for the daily audit.
+        daily.setdefault('short_video_ids', [])
+        daily['short_video_ids'].append(video_id)
+        daily.setdefault('short_video_id', video_id)
+        save_json(state_path, state)
+        published_short_sources.add(source_path)
+        published_short_topics.add(topic_norm)
+        published_short_count += 1
+
+    if long_done and short_done and any(
+        src == existing_long_source for src in daily.get('movie_short_sources', [])
+    ):
+        raise RuntimeError('Daily publish audit failed: a Short reused the long-video source.')
+
     if long_done and short_done and (existing_long_source == existing_short_source or
                                      (existing_long_topic and existing_short_topic and existing_long_topic == existing_short_topic)):
         raise RuntimeError('Daily publish audit failed: long and Short share a source path or topic.')
