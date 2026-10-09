@@ -8,8 +8,9 @@ The GitHub Actions workflow is scheduled for **7:00 PM India time** (cron: 30 13
 - YouTube: one long highlight compilation and one vertical Short.
 - Facebook Page: one separate vertical Reel and 1–3 separate image cards.
 - Every output should be based on a different source/topic for that day. The long video and Short must use distinct source files. The Reel must not reuse either source, and image-card topics must differ from all three.
-- Every Short/Reel and movie scene edit uses the same VIBEFRAME overlay: a solid white bar at the top with short black text and no emoji. The editor keeps the original clip audio. No AI voice-over or generated spoken narration is used.
-- Caption text is short, style-matched (anime/action/funny/cinematic/dark/clean), changes by source/day, and is placed in a safe area with restrained color. It must not cover faces or important action deliberately.
+- Scene captions and text overlays are OFF. The editor preserves the selected source's original Hindi or English dialogue/audio and never guesses language from the title.
+- Effects are mood-matched and restrained: action/energy gets a stronger grade and controlled sharpening; dark/thriller gets a darker grade; cinematic scenes get a softer grade. A short clip-edge fade is used instead of random flashes. Highlight timing ranks detected scene changes and audio activity.
+- Optional music is selected by `music_mood` from local licensed tracks (`input/music/energy.mp3`, `funny.mp3`, `dark.mp3`, `cinematic.mp3`). If the matching file exists, music is mixed quietly and ducked under original dialogue. Missing tracks mean original scene audio only; the workflow never downloads commercial songs.
 - Trend metadata can inform discovery and prioritization. It cannot guarantee views or virality.
 
 The workflow fails honestly when it cannot produce the required distinct content or when Facebook Page credentials are missing. A green GitHub check alone is not proof that all content was published.
@@ -33,6 +34,7 @@ Copy **metadata.example.json** to **metadata.json** and replace all example path
 - Required credit/license details in the description where applicable.
 - `audio_language`: `"hi"` for a source file whose actual dialogue is Hindi, or `"en"` for English.
 - `audio_language_verified`: `true` only after checking the actual audio/dialogue track yourself. The pipeline does not infer language from a title or generate/translate a dub. Add separately authorized Hindi-dub and English-dub files as separate metadata items if you have rights to both; the processor preserves the audio track in each selected file and rejects unverified/missing language labels.
+- `music_mood`: `energy`, `funny`, `dark`, `cinematic`, or `editorial`. Supply the matching licensed local track from `config/config.json`; the tracks are not bundled automatically.
 
 The daily processor makes date-specific outputs and avoids previously published scene windows for the same source within the configured no-repeat period. If it cannot find a sufficiently different unused window or a second distinct source, it stops rather than recycling yesterday's output.
 
