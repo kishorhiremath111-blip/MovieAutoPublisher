@@ -165,8 +165,11 @@ def publish_daily(limit_long=1, limit_short=1):
     long_done = bool(daily.get('movie_long_sources') and daily.get('long_video_id'))
     short_done = bool(daily.get('movie_short_sources') and daily.get('short_video_id'))
     if long_done and short_done:
-        if daily['movie_long_sources'][0] == daily['movie_short_sources'][0]:
-            raise RuntimeError('Daily audit failed: previously recorded long and Short share the same source.')
+        same_source = daily['movie_long_sources'][0] == daily['movie_short_sources'][0]
+        long_topic_old = str((daily.get('movie_long_topics') or [''])[0])
+        short_topic_old = str((daily.get('movie_short_topics') or [''])[0])
+        if same_source or (long_topic_old and short_topic_old and long_topic_old == short_topic_old):
+            raise RuntimeError('Daily audit failed: previously recorded long and Short reuse a source or topic.')
         print('Daily movie video and Short are already uploaded; skipping duplicate uploads.')
         return
 
@@ -184,20 +187,24 @@ def publish_daily(limit_long=1, limit_short=1):
         if key in used_recent:
             continue
         source_path = str(item.get('source') or item.get('source_item_id') or key)
+        topic_id = str(item.get('topic_id') or item.get('source_item_id') or key)
         video = ROOT / str(item.get('video', ''))
         short = ROOT / str(item.get('short', ''))
         uploads = item.setdefault('uploads', {}).setdefault('youtube', {})
         if video.exists() and short.exists():
-            eligible[key] = (item, uploads, video, short, source_path)
+            eligible[key] = (item, uploads, video, short, source_path, topic_id)
 
     existing_long_source = str(daily.get('movie_long_sources', [''])[0] or '')
     existing_short_source = str(daily.get('movie_short_sources', [''])[0] or '')
+    existing_long_topic = str(daily.get('movie_long_topics', [''])[0] or '')
+    existing_short_topic = str(daily.get('movie_short_topics', [''])[0] or '')
     long_candidates = [
         (key, *data) for key, data in eligible.items()
         if not long_done
         and data[1].get('long_status') != 'uploaded'
         and (not short_done or data[4] != existing_short_source)
         and (not existing_short_source or data[4] != existing_short_source)
+        and (not existing_short_topic or data[5] != existing_short_topic)
     ]
     short_candidates = [
         (key, *data) for key, data in eligible.items()
@@ -205,6 +212,7 @@ def publish_daily(limit_long=1, limit_short=1):
         and data[1].get('short_status') != 'uploaded'
         and (not long_done or data[4] != existing_long_source)
         and (not existing_long_source or data[4] != existing_long_source)
+        and (not existing_long_topic or data[5] != existing_long_topic)
     ]
 
     long_choice = long_candidates[0] if not long_done and long_candidates else None
@@ -212,7 +220,9 @@ def publish_daily(limit_long=1, limit_short=1):
         short_choice = None
     else:
         long_source_chosen = long_choice[5] if long_choice else existing_long_source
-        short_choice = next((row for row in short_candidates if row[5] != long_source_chosen), None)
+        long_topic_chosen = long_choice[6] if long_choice else existing_long_topic
+        short_choice = next((row for row in short_candidates
+                             if row[5] != long_source_chosen and row[6] != long_topic_chosen), None)
 
     if not long_done and long_choice is None:
         raise RuntimeError(
@@ -231,7 +241,7 @@ def publish_daily(limit_long=1, limit_short=1):
         _check_audio_video(short_choice[4])
 
     if long_choice:
-        long_key, long_item, long_uploads, long_video, long_short_path, long_source_path = long_choice
+        long_key, long_item, long_uploads, long_video, long_short_path, long_source_path, long_topic = long_choice
         long_thumb = ROOT / long_item['thumbnail'] if long_item.get('thumbnail') else None
         long_pack = long_item.get('viral_pack') or {}
         long_title = long_pack.get('title') or long_item.get('title', 'Movie Scene Highlights')
@@ -252,10 +262,11 @@ def publish_daily(limit_long=1, limit_short=1):
         daily['long_video_id'] = long_id
         save_json(state_path, state)
         existing_long_source = long_source_path
+        existing_long_topic = long_topic
         long_done = True
 
     if short_choice:
-        short_key, short_item, short_uploads, short_source_video, short_video, short_source_path = short_choice
+        short_key, short_item, short_uploads, short_source_video, short_video, short_source_path, short_topic = short_choice
         short_thumb = ROOT / short_item['thumbnail'] if short_item.get('thumbnail') else None
         short_pack = short_item.get('viral_pack') or {}
         short_title = short_pack.get('title') or short_item.get('title', 'Scene of the Day')
@@ -279,13 +290,15 @@ def publish_daily(limit_long=1, limit_short=1):
         daily['short_video_id'] = short_id
         save_json(state_path, state)
         existing_short_source = short_source_path
+        existing_short_topic = short_topic
         short_done = True
 
-    if long_done and short_done and existing_long_source == existing_short_source:
-        raise RuntimeError('Daily publish audit failed: long and Short have the same source path.')
+    if long_done and short_done and (existing_long_source == existing_short_source or
+                                     (existing_long_topic and existing_short_topic and existing_long_topic == existing_short_topic)):
+        raise RuntimeError('Daily publish audit failed: long and Short share a source path or topic.')
     print(
         f'Daily result: long={int(long_done)}/{limit_long} source={existing_long_source}; '
-        f'short={int(short_done)}/{limit_short} source={existing_short_source}; distinct_sources=yes'
+        f'short={int(short_done)}/{limit_short} source={existing_short_source}; distinct_sources_and_topics=yes'
     )
 
 
