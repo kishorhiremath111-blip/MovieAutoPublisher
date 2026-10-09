@@ -11,7 +11,8 @@
       "licensed": true,
       "adult": false,
       "question": "Which detail did you notice first?",
-      "hashtags": "#AnimeEdit #AnimeMoments"
+      "hashtags": "#AnimeEdit #AnimeMoments",
+      "topic_id": "image-topic-anime-art"
     },
     {
       "id": "series-still-licensed-002",
@@ -24,7 +25,8 @@
       "licensed": true,
       "adult": false,
       "question": "Did you catch the detail?",
-      "hashtags": "#SeriesEdit #SceneOfTheDay"
+      "hashtags": "#SeriesEdit #SceneOfTheDay",
+      "topic_id": "image-topic-series-still"
     },
     {
       "id": "cinema-still-licensed-003",
@@ -37,7 +39,8 @@
       "licensed": true,
       "adult": false,
       "question": "Which movie mood is this?",
-      "hashtags": "#CinemaMoments #MovieEdit"
+      "hashtags": "#CinemaMoments #MovieEdit",
+      "topic_id": "image-topic-cinema-still"
     }
   ]
 }
