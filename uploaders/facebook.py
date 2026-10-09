@@ -177,9 +177,28 @@ def publish_movie_reels(limit=1):
 
     # Topic identity must also differ from today's YouTube long video and Short.
     blocked_topics = {
-        str(x) for key in ('movie_long_topics', 'movie_short_topics')
+        str(x).strip().casefold()
+        for key in ('movie_long_topics', 'movie_short_topics')
         for x in daily.get(key, []) if x
     }
+    # Keep topics unique across recent days, including previously published image cards.
+    cutoff_topics = date.fromisoformat(today) - timedelta(days=30)
+    today_date = date.fromisoformat(today)
+    for stamp, history in state.get('daily', {}).items():
+        try:
+            history_date = date.fromisoformat(str(stamp)[:10])
+        except Exception:
+            continue
+        if cutoff_topics <= history_date < today_date:
+            for key in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics'):
+                blocked_topics.update(str(x).strip().casefold() for x in history.get(key, []) if x)
+    for post in state.get('image_posts', []):
+        try:
+            post_day = date.fromtimestamp(float(post.get('created_at', 0)))
+        except Exception:
+            continue
+        if cutoff_topics <= post_day < today_date and post.get('topic_id'):
+            blocked_topics.add(str(post['topic_id']).strip().casefold())
     # Prefer a fresh, rights-cleared social-source clip if one was generated,
     # otherwise use a different licensed source from metadata.json.
     candidates = []
@@ -187,7 +206,7 @@ def publish_movie_reels(limit=1):
         if item.get('date') != today:
             continue
         topic_id = str(item.get('topic_id') or item.get('source_item_id') or item.get('id') or '')
-        if topic_id and topic_id in blocked_topics:
+        if topic_id and topic_id.strip().casefold() in blocked_topics:
             continue
         item_id = str(item.get('id') or '')
         src_rel = str(item.get('source') or '')
@@ -211,7 +230,7 @@ def publish_movie_reels(limit=1):
         source_key = str((ROOT / source_rel).resolve()) if source_rel else str(video.resolve())
         topic_id = str(item.get('topic_id') or item.get('source_item_id') or item_id)
         if (item.get('status') == 'ready' and item_id and item_id not in used_ids
-                and topic_id not in blocked_topics
+                and topic_id.strip().casefold() not in blocked_topics
                 and video.is_file() and source_key not in used_sources):
             candidates.append((item_id, item, video, source_key, 'movie'))
 
@@ -255,7 +274,7 @@ def publish_movie_reels(limit=1):
         daily.setdefault('reel_sources', []).append(source_key)
         daily.setdefault('movie_reel_sources', []).append(source_key)
         daily.setdefault('movie_reel_topics', []).append(str(item.get('topic_id') or item.get('source_item_id') or item_id))
-        blocked_topics.add(str(item.get('topic_id') or item.get('source_item_id') or item_id))
+        blocked_topics.add(str(item.get('topic_id') or item.get('source_item_id') or item_id).strip().casefold())
         daily.setdefault('movie_reel_item_ids', []).append(str(item.get('source_item_id') or item_id))
         used_sources.add(source_key)
         used_ids.add(item_id)
