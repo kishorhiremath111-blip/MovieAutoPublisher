@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Cloud entry point for scheduled MovieAutoPublisher jobs."""
 import base64
+import json
 import os
 import subprocess
 import sys
@@ -32,11 +33,40 @@ def run(*args):
     subprocess.run(cmd, cwd=ROOT, check=True)
 
 
+def has_movie_sources():
+    path = ROOT / 'metadata.json'
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        return bool(data.get('items'))
+    except Exception:
+        return False
+
+
 def main():
     restore_secret('YOUTUBE_CLIENT_SECRET_B64', CREDS / 'client_secret.json')
     restore_secret('YOUTUBE_TOKEN_B64', CREDS / 'token.json')
     restore_secret('FACEBOOK_PAGE_B64', CREDS / 'facebook_page.json')
     restore_secret('INSTAGRAM_ACCESS_TOKEN_B64', CREDS / 'instagram_access_token.txt')
+
+    # Fail early if the required YouTube OAuth pair is missing. A green run
+    # without upload credentials would misleadingly look like publishing worked.
+    missing_youtube = [
+        name for name, path in (
+            ('YOUTUBE_CLIENT_SECRET_B64', CREDS / 'client_secret.json'),
+            ('YOUTUBE_TOKEN_B64', CREDS / 'token.json'),
+        ) if not path.exists()
+    ]
+    if missing_youtube:
+        raise RuntimeError('Missing required YouTube Actions secrets: ' + ', '.join(missing_youtube))
+
+    if not os.getenv('YOUTUBE_API_KEY', '').strip():
+        print('WARNING: YOUTUBE_API_KEY is missing; YouTube trend discovery/performance updates are disabled.')
+    if not (CREDS / 'facebook_page.json').exists():
+        print('WARNING: FACEBOOK_PAGE_B64 is missing; Facebook publishing will be skipped.')
+    if not (CREDS / 'instagram_access_token.txt').exists() or not os.getenv('INSTAGRAM_USER_ID', '').strip():
+        print('WARNING: Instagram trend credentials are incomplete; Instagram trend discovery will be skipped.')
 
     # 1) Collect fresh trend signals and learn from previous uploads.
     if os.getenv('YOUTUBE_API_KEY', '').strip():
@@ -61,8 +91,10 @@ def main():
     run('upload_queue', '--news')
     run('upload_queue', '--daily-images')
 
-    if (ROOT / 'metadata.json').exists():
+    if has_movie_sources():
         run('process')
+    else:
+        print('No licensed movie/series/anime source configured; original news is the daily long/Short fallback.')
 
     # 4) Strict pre-publish gate: fresh, non-repeated and trend-aligned content only.
     if os.getenv('VIRAL_TRACKER_DISABLED', '').strip().lower() != 'true':
@@ -83,7 +115,7 @@ def main():
     if (CREDS / 'facebook_page.json').exists():
         run('upload_queue', '--facebook-images')
 
-    if (ROOT / 'metadata.json').exists():
+    if has_movie_sources():
         run('upload_queue', '--daily')
 
 
