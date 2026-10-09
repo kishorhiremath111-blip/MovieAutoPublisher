@@ -86,7 +86,7 @@ def wrap(draw, text, fnt, max_width):
     return lines
 
 
-def card(frame, title, subtitle, out, badge=None, dark=False, question=None, source=None):
+def card(frame, title, subtitle, out, badge=None, dark=False, question=None, source=None, accent=None, top_label='CINEMA MOMENT • FAN EDIT'):
     """High-impact 4:5 social card inspired by editorial/meme carousel layouts."""
     im = Image.open(frame).convert('RGB')
     # Keep the original frame/photo as the hero; crop only to the social canvas.
@@ -106,7 +106,7 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
 
     d = ImageDraw.Draw(im)
     margin = 58
-    accent = (47, 202, 236)
+    accent = accent or (47, 202, 236)
     white = 'white'
     black = 'black'
 
@@ -117,7 +117,7 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
     tiny_f = font(21, False)
 
     # Editorial header: not a fake quotation or fake attribution.
-    d.text((margin, 42), 'TASK EARN • TRENDING', font=meta_f, fill=accent)
+    d.text((margin, 42), str(top_label)[:28], font=meta_f, fill=accent)
     if badge:
         badge_w = d.textbbox((0, 0), badge, font=meta_f)[2] + 28
         d.rounded_rectangle(
@@ -126,10 +126,8 @@ def card(frame, title, subtitle, out, badge=None, dark=False, question=None, sou
         )
         d.text((1080 - margin - badge_w + 14, 46), badge, font=meta_f, fill=white)
 
-    # Quote marks are purely a visual device; do not imply a quotation.
-    d.text((margin, 685), '“', font=font(92, True), fill=accent)
-
-    y = 770
+    # Keep the source frame dominant; no fake quotes or distracting sticker stack.
+    y = 730
     for line in wrap(d, title, title_f, 950)[:5]:
         d.text((margin, y), line, font=title_f, fill=white, stroke_width=2, stroke_fill=black)
         y += 76
@@ -188,145 +186,101 @@ def choose_source(state, recent_days=30):
 
 
 def generate_daily_images():
-    state = load(STATE, {'processed': {}, 'queue': [], 'image_posts': []})
-    today = time.strftime('%Y-%m-%d')
-    target_count = int(load(CONFIG, {}).get('daily_image_posts', 9))
-    target_count = max(1, min(9, target_count))
-    if any(x.get('date') == today for x in state.get('image_posts', [])):
-        print(f'Images already generated for {today}')
-        return
-
-    item_id, video, info = choose_source(
-        state,
-        recent_days=int(load(CONFIG, {}).get('viral_no_repeat_days', 30))
-    )
-    if not video:
-        # Daily news is the guaranteed fresh, rights-cleared visual fallback.
-        # Use the first generated news slide when no authorized movie/source
-        # video is available.
-        news_items = [
-            x for x in state.get('news', [])
-            if x.get('date') == today and x.get('status') == 'ready'
-        ]
-        if news_items:
-            news = news_items[-1]
-            news_root = ROOT / 'output' / 'news' / today
-            slides = sorted(news_root.glob('story_*/*slide_01.jpg'))
-            if slides:
-                work = OUT / today
-                work.mkdir(parents=True, exist_ok=True)
-                out = work / 'daily_news_card.jpg'
-                story = (news.get('stories') or [{}])[0]
-                title = story.get('title') or news.get('title') or 'Today\'s Big Update'
-                q = 'Would you share this update with a friend?'
-                card(
-                    slides[0],
-                    title,
-                    'Fresh update • Read the full story',
-                    out,
-                    badge=None,
-                    dark=True,
-                    question=q,
-                    source=story.get('source') or 'Rights-cleared news source'
-                )
-                post = {
-                    'id': f'{today}-news-image-01',
-                    'date': today,
-                    'category': 'news',
-                    'image': str(out.relative_to(ROOT)),
-                    'caption': f'{title}\n\nFresh update • Read the full story',
-                    'source_item': news.get('id'),
-                    'viral_parent_id': news.get('id'),
-                    'status': 'ready',
-                    'created_at': int(time.time()),
-                }
-                state.setdefault('image_posts', []).append(post)
-                save(STATE, state)
-                print(f'Generated 1 daily news image: {out}')
-                return
-        print('Daily images: no fresh unused authorized source; skipping.')
-        return
-
-    dur = duration(video)
-    work = OUT / today
+    """Build 1-3 cards from a separate, licensed image library, never video/news fallback."""
+    state = load(STATE, {'processed': {}, 'queue': [], 'image_posts': [], 'daily': {}})
     cfg = load(CONFIG, {})
-    scenes = detect_scene_times(video, float(cfg.get('scene_threshold', 0.35)))
-    silence = detect_silence_ranges(video, float(cfg.get('silence_db', -34)))
-    ranked = rank_highlight_windows(
-        dur, scenes, count=max(12, target_count * 2),
-        clip_seconds=float(cfg.get('highlight_clip_seconds', 42)),
-        silence_ranges=silence,
-        min_gap_seconds=float(cfg.get('min_highlight_gap_seconds', 12)),
-    )
-    ranked = sorted(ranked, key=lambda x: x[2], reverse=True)
-    points = []
-    for s0, e0, score in ranked:
-        point = min(dur - 0.2, max(0.2, (s0 + e0) / 2.0))
-        if all(abs(point - old) >= 8 for old in points):
-            points.append(point)
-        if len(points) >= target_count:
-            break
-    if not points:
-        points = [dur * (i + 1) / (target_count + 1) for i in range(target_count)]
+    today = time.strftime('%Y-%m-%d')
+    target_count = max(1, min(3, int(cfg.get('daily_image_posts', 3))))
+    if any(x.get('date') == today for x in state.get('image_posts', [])):
+        print(f'Image posts already generated for {today}')
+        return
 
-    frames = []
-    for i, point in enumerate(points, 1):
-        frame = work / f'frame_{i:02d}.jpg'
-        extract_frame(video, point, frame)
-        frames.append(frame)
-
-    title = info.get('detected_title') or info.get('title') or item_id
-    typ = str(info.get('type', '')).lower() or 'movie'
-    adult = bool(info.get('adult', False))
-    caption_sets = {
-        'anime': [
-            ('POWER FRAME', 'Peak anime energy.'), ('BATTLE MOOD', 'This frame goes hard.'),
-            ('CHARACTER MOMENT', 'One frame, full aura.'), ('WAIT FOR IT', 'The setup is everything.'),
-            ('PEAK MOMENT', 'That timing though.'), ('DARK MOOD', 'The mood just changed.'),
-            ('FAN FAVOURITE', 'Instant replay material.'), ('STORY DROP', 'There is more behind this scene.'),
-            ('FINAL LOOK', 'Worth the pause.')
-        ],
-        'series': [
-            ('SCENE OF THE DAY', 'One scene. Full mood.'), ('PLOT MOOD', 'When the episode takes a turn.'),
-            ('BEST FRAME', 'The frame says enough.'), ('WAIT FOR IT', 'The setup matters.'),
-            ('DARK MOOD', 'The atmosphere is different here.'), ('CHARACTER MOMENT', 'A small moment, big impact.'),
-            ('THAT LOOK', 'You know the scene.'), ('EPISODE ENERGY', 'This is the vibe.'),
-            ('REPLAY THIS', 'Worth another look.')
-        ],
-        'movie': [
-            ('BEST FRAME', 'Cinema in one frame.'), ('SCENE MOOD', 'The atmosphere says it all.'),
-            ('WAIT FOR IT', 'The setup is everything.'), ('ICONIC MOMENT', 'A frame worth stopping for.'),
-            ('DARK MOOD', 'When the tone shifts.'), ('CHARACTER MOMENT', 'The look says enough.'),
-            ('CINEMATIC', 'Shot. Mood. Moment.'), ('STORY BEAT', 'A small detail can change everything.'),
-            ('REPLAY THIS', 'One more look.')
-        ]
+    manifest_path = ROOT / 'image_sources.json'
+    manifest = load(manifest_path, {'items': []})
+    daily = state.get('daily', {}).get(today, {})
+    video_ids = {str(x) for key in ('long', 'short', 'reel') for x in daily.get(key, [])}
+    cutoff = time.time() - int(cfg.get('image_no_repeat_days', 30)) * 86400
+    recently_used = {
+        str(row.get('source_item'))
+        for row in state.get('image_posts', [])
+        if float(row.get('created_at', 0) or 0) >= cutoff
     }
-    captions = caption_sets.get(typ, caption_sets['movie'])
+
+    candidates = []
+    seen_paths = set()
+    for item in manifest.get('items', []):
+        if item.get('licensed') is not True:
+            continue
+        item_id = str(item.get('id') or '')
+        if not item_id or item_id in recently_used or item_id in video_ids:
+            continue
+        rel = str(item.get('source') or '')
+        if not rel or rel.startswith(('http://', 'https://')):
+            continue
+        path = (ROOT / rel).resolve()
+        if ROOT.resolve() not in path.parents or not path.is_file():
+            continue
+        if path.suffix.lower() not in {'.jpg', '.jpeg', '.png', '.webp'}:
+            continue
+        if str(path) in seen_paths:
+            continue
+        seen_paths.add(str(path))
+        candidates.append((item, path))
+
+    if not candidates:
+        print('Daily images: no separate, unused licensed image sources configured; no news or video-frame fallback will be used.')
+        return
+
+    # Rotate by least-recently-used input order; each post has its own source ID.
     posts = []
-    for idx, frame in enumerate(frames, 1):
-        cap, sub = captions[(idx - 1) % len(captions)]
-        out = work / f'{safe_name(item_id)}_{idx:02d}.jpg'
-        q = 'Would you share this with a friend?' if cap != 'DARK MOOD' else 'Too dark, or exactly your kind of humour?'
-        card(frame, f'{title} • {cap}', sub, out, badge=('18+' if adult else None), dark=(cap == 'DARK MOOD'), question=q, source='Authorized source video')
-        posts.append({
-            'id': f'{today}-{item_id}-{idx}',
+    work = OUT / today
+    work.mkdir(parents=True, exist_ok=True)
+    accents = {
+        'anime': (255, 110, 205), 'funny': (255, 220, 70),
+        'comedy': (255, 220, 70), 'action': (255, 145, 60),
+        'movie': (235, 190, 95), 'series': (75, 220, 230),
+        'dark': (175, 160, 255), 'cinematic': (235, 190, 95),
+    }
+    for index, (item, image) in enumerate(candidates[:target_count], 1):
+        title = str(item.get('title') or item.get('category') or 'Cinema moment').strip()
+        subtitle = str(item.get('caption_text') or item.get('tagline') or 'A moment worth keeping.').strip()
+        category = str(item.get('category') or 'movie').lower()
+        accent = accents.get(category, accents['cinematic'])
+        out = work / f"{safe_name(item['id'])}_{index:02d}.jpg"
+        question = str(item.get('question') or 'Which detail did you notice first?')
+        credit = str(item.get('credit') or item.get('license') or 'Rights-cleared source')
+        card(
+            image, title, subtitle, out,
+            badge='18+' if item.get('adult') else None,
+            dark=category == 'dark',
+            question=question,
+            source=credit,
+            accent=accent,
+            top_label=f'{category.upper()} • MOMENT'
+        )
+        post = {
+            'id': f'{today}-{item["id"]}',
             'date': today,
-            'category': cap.lower(),
+            'category': category,
             'image': str(out.relative_to(ROOT)),
-            'caption': f'{title} • {cap}\n\n{sub}',
-            'source_item': item_id,
+            'caption': f'{title}\n\n{subtitle}\n\n{str(item.get("hashtags") or "#MovieMoments #AnimeEdit").strip()}',
+            'source_item': item['id'],
+            'source': str(image.relative_to(ROOT)),
+            'license': str(item.get('license') or 'rights-cleared; user-confirmed'),
             'status': 'ready',
             'created_at': int(time.time()),
-        })
+        }
+        posts.append(post)
 
     state.setdefault('image_posts', []).extend(posts)
-    # Store source so future runs can reuse processed state safely.
-    if item_id in state.get('processed', {}):
-        state['processed'][item_id]['source'] = str(video.relative_to(ROOT))
+    daily.setdefault('images', [])
+    daily['images'].extend([p['source_item'] for p in posts])
     save(STATE, state)
-    print(f'Generated {len(posts)} image posts for {today}')
-    for p in posts:
-        print(p['image'])
+    print(f'Generated {len(posts)} separate image cards from licensed image sources for {today}')
+    for post in posts:
+        print(post['image'])
+
+
 
 
 def main():
