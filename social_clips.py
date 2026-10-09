@@ -245,6 +245,8 @@ def main():
             "category": item.get("category", "viral"),
             "source": str(source.relative_to(ROOT)),
             "licensed": True,
+            "topic_id": str(item.get("topic_id") or item_id),
+            "source_item_id": item_id,
             "creator": item.get("creator", ""),
             "edit_style": style,
             "caption_text": caption_text,
