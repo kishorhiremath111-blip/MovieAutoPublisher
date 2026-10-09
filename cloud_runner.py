@@ -1,25 +1,33 @@
 #!/usr/bin/env python3
-"""Cloud entry point for scheduled MovieAutoPublisher jobs."""
+"""Daily publisher for approved movie/series/anime clips.
+
+The cloud runner does not synthesize news videos or voiceovers and does not
+scrape/download random third-party clips. It edits supplied authorized source
+files, keeps their scene audio, adds restrained on-screen caption text, and
+requires separate sources for the long video, Short, Reel, and image cards.
+"""
 import base64
 import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-CREDS = ROOT / 'credentials'
+CREDS = ROOT / "credentials"
+STATE = ROOT / "state" / "state.json"
 
 
 def restore_secret(name, target):
-    value = os.getenv(name, '').strip()
+    value = os.getenv(name, "").strip()
     if not value:
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
         target.write_bytes(base64.b64decode(value, validate=True))
     except Exception as exc:
-        raise RuntimeError(f'{name} is not valid base64: {exc}')
+        raise RuntimeError(f"{name} is not valid base64: {exc}")
     try:
         target.chmod(0o600)
     except OSError:
@@ -28,115 +36,140 @@ def restore_secret(name, target):
 
 
 def run(*args):
-    cmd = [sys.executable, '-m', *args]
-    print('RUN:', ' '.join(cmd), flush=True)
+    cmd = [sys.executable, "-m", *args]
+    print("RUN:", " ".join(cmd), flush=True)
     subprocess.run(cmd, cwd=ROOT, check=True)
 
 
-def has_movie_sources():
-    path = ROOT / 'metadata.json'
+def load_json(path, default):
     if not path.exists():
-        return False
+        return default
     try:
-        data = json.loads(path.read_text(encoding='utf-8'))
-        return bool(data.get('items'))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return False
+        return default
+
+
+def has_movie_sources():
+    """Require actual local source videos and thumbnails, not placeholder metadata."""
+    rows = load_json(ROOT / "metadata.json", {"items": []}).get("items", [])
+    for item in rows:
+        if item.get("licensed") is not True or item.get("type") not in {"movie", "series", "anime"}:
+            continue
+        source = ROOT / str(item.get("source") or "")
+        thumb = ROOT / str(item.get("thumbnail") or "")
+        if source.is_file() and thumb.is_file():
+            return True
+    return False
 
 
 def verify_daily_youtube_quota():
-    state_path = ROOT / 'state' / 'state.json'
-    if not state_path.exists():
-        raise RuntimeError('Daily publish audit failed: state/state.json was not created.')
-    state = json.loads(state_path.read_text(encoding='utf-8'))
-    today = __import__('time').strftime('%Y-%m-%d')
-    daily = state.get('daily', {}).get(today, {})
-    long_count = len(daily.get('long', []))
-    short_count = len(daily.get('short', []))
-    print(f'Daily YouTube publish audit: long={long_count}/1, short={short_count}/1')
-    if long_count < 1 or short_count < 1:
+    state = load_json(STATE, {})
+    today = time.strftime("%Y-%m-%d")
+    daily = state.get("daily", {}).get(today, {})
+    long_sources = [str(x) for x in daily.get("movie_long_sources", [])]
+    short_sources = [str(x) for x in daily.get("movie_short_sources", [])]
+    long_ok = len(long_sources) >= 1 and bool(daily.get("long_video_id"))
+    short_ok = len(short_sources) >= 1 and bool(daily.get("short_video_id"))
+    distinct = bool(long_sources and short_sources and long_sources[0] != short_sources[0])
+    print(
+        f"Movie YouTube audit: long={int(long_ok)}/1 source={long_sources[:1]}, "
+        f"short={int(short_ok)}/1 source={short_sources[:1]}, distinct={distinct}"
+    )
+    if not long_ok or not short_ok or not distinct:
         raise RuntimeError(
-            'Daily YouTube quota not met. Check current-day fresh news, OAuth credentials, '
-            'and upload logs; refusing to report a green run with zero uploads.'
+            "Movie upload audit failed: need one accepted long video and one accepted Short "
+            "from different authorized source items. No news/voiceover fallback is allowed."
+        )
+
+
+def verify_facebook_quota():
+    if not (CREDS / "facebook_page.json").is_file():
+        raise RuntimeError(
+            "YouTube movie uploads may have completed, but Facebook was NOT published: "
+            "FACEBOOK_PAGE_B64 is missing. Configure the Page access token before claiming full daily success."
+        )
+    state = load_json(STATE, {})
+    today = time.strftime("%Y-%m-%d")
+    daily = state.get("daily", {}).get(today, {})
+    reels = [str(x) for x in daily.get("movie_reel_sources", [])]
+    if not reels:
+        raise RuntimeError(
+            "Facebook Reel audit failed: no separate unused licensed Reel source was published today."
+        )
+    image_posts = [
+        x for x in state.get("image_posts", [])
+        if x.get("date") == today and x.get("asset_type") == "licensed_image_source"
+    ]
+    image_uploaded = [
+        x for x in image_posts
+        if x.get("facebook", {}).get("status") == "uploaded"
+    ]
+    print(f"Facebook audit: reels={len(reels)}/1; separate image cards uploaded={len(image_uploaded)}")
+    if not image_uploaded:
+        raise RuntimeError(
+            "Facebook image audit failed: no separate licensed image-source card was uploaded. "
+            "Add at least one unused item to image_sources.json and provide its licensed local image file."
         )
 
 
 def main():
-    restore_secret('YOUTUBE_CLIENT_SECRET_B64', CREDS / 'client_secret.json')
-    restore_secret('YOUTUBE_TOKEN_B64', CREDS / 'token.json')
-    restore_secret('FACEBOOK_PAGE_B64', CREDS / 'facebook_page.json')
-    restore_secret('INSTAGRAM_ACCESS_TOKEN_B64', CREDS / 'instagram_access_token.txt')
+    restore_secret("YOUTUBE_CLIENT_SECRET_B64", CREDS / "client_secret.json")
+    restore_secret("YOUTUBE_TOKEN_B64", CREDS / "token.json")
+    restore_secret("FACEBOOK_PAGE_B64", CREDS / "facebook_page.json")
+    restore_secret("INSTAGRAM_ACCESS_TOKEN_B64", CREDS / "instagram_access_token.txt")
 
-    # Fail early if the required YouTube OAuth pair is missing. A green run
-    # without upload credentials would misleadingly look like publishing worked.
     missing_youtube = [
         name for name, path in (
-            ('YOUTUBE_CLIENT_SECRET_B64', CREDS / 'client_secret.json'),
-            ('YOUTUBE_TOKEN_B64', CREDS / 'token.json'),
-        ) if not path.exists()
+            ("YOUTUBE_CLIENT_SECRET_B64", CREDS / "client_secret.json"),
+            ("YOUTUBE_TOKEN_B64", CREDS / "token.json"),
+        ) if not path.is_file()
     ]
     if missing_youtube:
-        raise RuntimeError('Missing required YouTube Actions secrets: ' + ', '.join(missing_youtube))
+        raise RuntimeError("Missing required YouTube Actions secrets: " + ", ".join(missing_youtube))
 
-    if not os.getenv('YOUTUBE_API_KEY', '').strip():
-        print('WARNING: YOUTUBE_API_KEY is missing; YouTube trend discovery/performance updates are disabled.')
-    if not (CREDS / 'facebook_page.json').exists():
-        print('WARNING: FACEBOOK_PAGE_B64 is missing; Facebook publishing will be skipped.')
-    if not (CREDS / 'instagram_access_token.txt').exists() or not os.getenv('INSTAGRAM_USER_ID', '').strip():
-        print('WARNING: Instagram trend credentials are incomplete; Instagram trend discovery will be skipped.')
+    if not os.getenv("YOUTUBE_API_KEY", "").strip():
+        print("WARNING: YOUTUBE_API_KEY missing; trend metadata discovery is disabled.")
+    if not (CREDS / "facebook_page.json").is_file():
+        print("WARNING: Facebook Page secret missing; Facebook publishing cannot complete.")
 
-    # 1) Collect fresh trend signals and learn from previous uploads.
-    if os.getenv('YOUTUBE_API_KEY', '').strip():
-        run('trend_engine')
+    # Trends are metadata signals only: never download the popular videos themselves.
+    if os.getenv("YOUTUBE_API_KEY", "").strip():
+        run("trend_engine")
+    if (CREDS / "instagram_access_token.txt").is_file() and os.getenv("INSTAGRAM_USER_ID", "").strip():
+        os.environ["INSTAGRAM_ACCESS_TOKEN"] = (
+            CREDS / "instagram_access_token.txt"
+        ).read_text(encoding="utf-8").strip()
+        run("instagram_trends")
+    if os.getenv("VIRAL_TRACKER_DISABLED", "").strip().lower() != "true":
+        run("viral_tracker", "--update")
+        run("viral_tracker", "--plan")
 
-    if (CREDS / 'instagram_access_token.txt').exists() and os.getenv('INSTAGRAM_USER_ID', '').strip():
-        os.environ['INSTAGRAM_ACCESS_TOKEN'] = (
-            CREDS / 'instagram_access_token.txt'
-        ).read_text(encoding='utf-8').strip()
-        run('instagram_trends')
+    # No generated news replacement: today's content must come from supplied,
+    # rights-cleared movie/series/anime source media.
+    if not has_movie_sources():
+        raise RuntimeError(
+            "No usable authorized movie/series/anime source videos found. metadata.json must point "
+            "to real local files under input/videos and each item must have licensed=true plus a real thumbnail. "
+            "The uploaded ZIP contains the Movie APK but no standalone scene clips; no news/AI-voice fallback will run."
+        )
 
-    if os.getenv('VIRAL_TRACKER_DISABLED', '').strip().lower() != 'true':
-        run('viral_tracker', '--update')
-        run('viral_tracker', '--plan')
+    run("process")
+    # A different licensed short-source may be selected for the Facebook Reel.
+    run("upload_queue", "--social")
+    run("upload_queue", "--daily")
 
-    # 2) Prepare authorized TaskEarn brand assets.
-    if (ROOT / 'input' / 'taskearn.apk').exists() or (ROOT / 'input' / 'brand_assets').exists():
-        run('brand_assets')
+    if (CREDS / "facebook_page.json").is_file():
+        run("upload_queue", "--facebook-movie-reels")
 
-    # 3) Generate original news and any available authorized social/movie content.
-    run('upload_queue', '--social')
-    run('upload_queue', '--news')
-    run('upload_queue', '--daily-images')
-
-    if has_movie_sources():
-        run('process')
-    else:
-        print('No licensed movie/series/anime source configured; original news is the daily long/Short fallback.')
-
-    # 4) Strict viral score gate for optional social clips; fresh news is checked separately.
-    if os.getenv('VIRAL_TRACKER_DISABLED', '').strip().lower() != 'true':
-        run('viral_tracker', '--gate')
-
-    # 5) Publish the daily quotas.
-    run('upload_queue', '--social-upload')
-    if (CREDS / 'facebook_page.json').exists():
-        # Prefer an authorized social Reel; if none exists, the news Short
-        # becomes the single daily Reel fallback.
-        run('upload_queue', '--facebook-social-reels')
-
-    run('upload_queue', '--news-upload')
-    if (CREDS / 'facebook_page.json').exists():
-        run('upload_queue', '--facebook-news-video')
-        run('upload_queue', '--facebook-reels')
-
-    if (CREDS / 'facebook_page.json').exists():
-        run('upload_queue', '--facebook-images')
-
-    if has_movie_sources():
-        run('upload_queue', '--daily')
+    # Photo posts use an independent source manifest so their theme is not the day's video theme.
+    run("upload_queue", "--daily-images")
+    if (CREDS / "facebook_page.json").is_file():
+        run("upload_queue", "--facebook-images")
 
     verify_daily_youtube_quota()
+    verify_facebook_quota()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
