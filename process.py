@@ -481,6 +481,7 @@ def main():
         produced = []
         split_limit = float(cfg.get('max_single_video_hours', 2)) * 3600
         segment_seconds = duration / 2.0 if duration > split_limit and len(raw_parts) > 1 else duration
+        prepared_parts = []
         for part, raw in raw_parts:
             part_offset = (part - 1) * segment_seconds if len(raw_parts) > 1 else 0.0
             part_item = dict(item)
@@ -494,6 +495,24 @@ def main():
                         part_item['_used_windows'].append((
                             max(0.0, local_start), min(part_duration, local_end)
                         ))
+                fresh_windows = analyze_highlights(raw, part_duration, cfg, part_item)
+                if not fresh_windows:
+                    print(f'SKIP part {part}: no fresh scenes in {source_rel}')
+                    continue
+                best_scene_score = max(float(x[2]) for x in fresh_windows)
+                prepared_parts.append((best_scene_score, len(fresh_windows), -part, part, raw, part_offset, part_item))
+            else:
+                prepared_parts.append((0.0, 0, -part, part, raw, part_offset, part_item))
+
+        if args.daily:
+            if not prepared_parts:
+                print(f'SKIP source output with no fresh scene windows: {source_rel}')
+                continue
+            # For a long movie split into parts, process the part with the strongest
+            # unused scene set. Only that selected part becomes a daily queue item.
+            prepared_parts = [max(prepared_parts, key=lambda row: (row[0], row[1], row[2]))]
+
+        for _, _, _, part, raw, part_offset, part_item in prepared_parts:
             try:
                 video, short, banner, title, selected, short_info = process_part(
                     raw, thumb, part_item, part, work / 'final', cfg
