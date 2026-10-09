@@ -93,10 +93,14 @@ def verify_facebook_quota():
     today = time.strftime("%Y-%m-%d")
     daily = state.get("daily", {}).get(today, {})
     reels = [str(x) for x in daily.get("movie_reel_sources", [])]
+    long_sources = {str(x) for x in daily.get("movie_long_sources", [])}
+    short_sources = {str(x) for x in daily.get("movie_short_sources", [])}
     if not reels:
         raise RuntimeError(
             "Facebook Reel audit failed: no separate unused licensed Reel source was published today."
         )
+    if reels and (reels[0] in long_sources or reels[0] in short_sources):
+        raise RuntimeError("Facebook Reel audit failed: Reel reused the long-video or Short source.")
     image_posts = [
         x for x in state.get("image_posts", [])
         if x.get("date") == today and x.get("asset_type") == "licensed_image_source"
@@ -154,7 +158,7 @@ def main():
             "The uploaded ZIP contains the Movie APK but no standalone scene clips; no news/AI-voice fallback will run."
         )
 
-    run("process")
+    run("process", "--daily")
     # A different licensed short-source may be selected for the Facebook Reel.
     run("upload_queue", "--social")
     run("upload_queue", "--daily")
