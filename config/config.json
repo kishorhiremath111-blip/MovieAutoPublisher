@@ -133,5 +133,7 @@
     "editorial": "input/music/cinematic.mp3"
   },
   "music_mix_mode": "dialogue_aware_sidechain_ducking",
-  "scene_effect_policy": "restrained_mood_matched_no_random_flash"
+  "scene_effect_policy": "restrained_mood_matched_no_random_flash",
+  "brand_watermark_enabled": true,
+  "brand_watermark_text": "VYROX-2008"
 }
