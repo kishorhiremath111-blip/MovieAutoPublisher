@@ -8,7 +8,7 @@ The GitHub Actions workflow is scheduled for **7:00 PM India time** (cron: 30 13
 - YouTube: one long highlight compilation and one vertical Short.
 - Facebook Page: one separate vertical Reel and 1–3 separate image cards.
 - Every output should be based on a different source/topic for that day. The long video and Short must use distinct source files. The Reel must not reuse either source, and image-card topics must differ from all three.
-- The editor keeps the original clip audio. No AI voice-over or generated spoken narration is used.
+- Every Short/Reel and movie scene edit uses the same VIBEFRAME overlay: a solid white bar at the top with short black text and no emoji. The editor keeps the original clip audio. No AI voice-over or generated spoken narration is used.
 - Caption text is short, style-matched (anime/action/funny/cinematic/dark/clean), changes by source/day, and is placed in a safe area with restrained color. It must not cover faces or important action deliberately.
 - Trend metadata can inform discovery and prioritization. It cannot guarantee views or virality.
 
