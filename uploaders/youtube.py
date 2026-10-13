@@ -175,6 +175,118 @@ def _check_audio_video(path):
     print(f'Media QA OK: {path.name} duration={seconds:.1f}s audio+video=present')
 
 
+
+def publish_daily_shorts(limit=1):
+    """Publish fresh authorized Shorts without requiring long-form or social posts."""
+    from datetime import date, timedelta
+
+    state_path = ROOT / 'state' / 'state.json'
+    state = load_json(state_path, {'processed': {}, 'queue': [], 'daily': {}})
+    day = time.strftime('%Y-%m-%d')
+    daily = state.setdefault('daily', {}).setdefault(
+        day, {'long': [], 'short': [], 'reel': [], 'images': []}
+    )
+    daily.setdefault('short', [])
+    daily.setdefault('movie_short_sources', [])
+    daily.setdefault('movie_short_topics', [])
+    daily.setdefault('movie_short_item_ids', [])
+    daily.setdefault('short_video_ids', [])
+
+    if daily.get('short_video_id') or daily.get('short_video_ids'):
+        print('A YouTube Short is already recorded for today; skipping duplicate upload.')
+        return
+
+    cfg = load_json(ROOT / 'config' / 'config.json', {})
+    cooldown_days = max(1, int(cfg.get('viral_no_repeat_days', 30)))
+    today = date.fromisoformat(day)
+    cutoff = today - timedelta(days=cooldown_days)
+    used_sources, used_topics = set(), set()
+    for stamp, row in state.get('daily', {}).items():
+        try:
+            row_day = date.fromisoformat(str(stamp)[:10])
+        except ValueError:
+            continue
+        if not (cutoff <= row_day <= today):
+            continue
+        for field in ('movie_long_sources', 'movie_short_sources', 'movie_reel_sources'):
+            used_sources.update(str(x) for x in row.get(field, []) if x)
+        for field in ('movie_long_topics', 'movie_short_topics', 'movie_reel_topics'):
+            used_topics.update(str(x).strip().casefold() for x in row.get(field, []) if x)
+
+    trends = trend_index()
+    tracker = load_json(ROOT / 'state' / 'viral_tracker.json', {})
+    candidates, seen_keys = [], set()
+    for item in state.get('queue', []):
+        key = _item_key(item)
+        if not key or key in seen_keys or item.get('date') != day or item.get('status') != 'ready':
+            continue
+        seen_keys.add(key)
+        if item.get('licensed') is not True:
+            continue
+        source_path = str(item.get('source') or item.get('source_item_id') or key)
+        topic_id = str(item.get('topic_id') or item.get('source_item_id') or key)
+        if source_path in used_sources or topic_id.strip().casefold() in used_topics:
+            continue
+        uploads = item.setdefault('uploads', {}).setdefault('youtube', {})
+        if uploads.get('short_status') == 'uploaded':
+            continue
+        short_path = ROOT / str(item.get('short') or '')
+        if not short_path.is_file():
+            continue
+        score_item = dict(item)
+        score_item['id'] = key
+        score_item['selected_highlight'] = item.get('short_highlight') or {}
+        score, breakdown = score_candidate(score_item, trends, tracker)
+        item['viral_score'] = score
+        item['viral_breakdown'] = breakdown
+        candidates.append((score, key, item, uploads, short_path, source_path, topic_id))
+
+    candidates.sort(key=lambda row: row[0], reverse=True)
+    for score, _, item, _, short_path, _, _ in candidates:
+        print(f"Short candidate: {item.get('title', short_path.name)} score={score:.2f}")
+    if not candidates:
+        raise RuntimeError(
+            "No fresh authorized Short is ready. Add at least one rights-cleared local video, "
+            "thumbnail, and verified Hindi/English audio in metadata.json."
+        )
+
+    wanted = max(1, int(limit))
+    published = 0
+    for _, key, item, uploads, short_path, source_path, topic_id in candidates:
+        if published >= wanted:
+            break
+        _check_audio_video(short_path)
+        pack = item.get('viral_pack') or {}
+        title = pack.get('title') or item.get('title', 'Scene of the Day')
+        if '#Shorts' not in title:
+            title = title[:88].rstrip() + ' #Shorts'
+        description = item.get('description', '')
+        if item.get('caption_text') and item['caption_text'] not in description:
+            description = (description + '\n\n' + item['caption_text']).strip()
+        thumb_path = item.get('original_thumbnail') or item.get('thumbnail')
+        thumb = ROOT / str(thumb_path) if thumb_path else None
+        print(f'Uploading YouTube Short from authorized source {source_path}: {short_path}')
+        video_id = upload_video(
+            short_path, title, description, item.get('tags', []),
+            item.get('privacy_status', 'public'), thumb
+        )
+        record_tracker(video_id, item, 'movie-short')
+        uploads['short_status'] = 'uploaded'
+        uploads['short_video_id'] = video_id
+        uploads['updated_at'] = int(time.time())
+        daily['short'].append(key)
+        daily['movie_short_sources'].append(source_path)
+        daily['movie_short_topics'].append(topic_id)
+        daily['movie_short_item_ids'].append(str(item.get('source_item_id') or key))
+        daily['short_video_ids'].append(video_id)
+        daily['short_video_id'] = video_id
+        save_json(state_path, state)
+        print(f'YouTube Short published: https://youtube.com/shorts/{video_id}')
+        published += 1
+    if published == 0:
+        raise RuntimeError('No authorized Short was published; every candidate was skipped.')
+
+
 def publish_daily(limit_long=1, limit_short=1):
     state_path = ROOT / 'state' / 'state.json'
     state = load_json(state_path, {'processed': {}, 'queue': [], 'daily': {}})
