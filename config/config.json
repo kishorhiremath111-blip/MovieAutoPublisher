@@ -2,7 +2,7 @@
   "max_single_video_hours": 2,
   "split_parts": 2,
   "daily_long_videos": 1,
-  "daily_short_videos": 3,
+  "daily_short_videos": 1,
   "short_duration_seconds": 55,
   "highlight_clip_seconds": 42,
   "highlight_min_clip_seconds": 20,
