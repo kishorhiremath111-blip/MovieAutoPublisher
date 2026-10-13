@@ -51,11 +51,7 @@ jobs:
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          FACEBOOK_PAGE_B64: ${{ secrets.FACEBOOK_PAGE_B64 }}
-          INSTAGRAM_ACCESS_TOKEN_B64: ${{ secrets.INSTAGRAM_ACCESS_TOKEN_B64 }}
-          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
-          INSTAGRAM_GRAPH_API_VERSION: ${{ secrets.INSTAGRAM_GRAPH_API_VERSION }}
-        run: python cloud_runner.py
+        run: python shorts_runner.py
 
       - name: Build daily tracker report
         if: always()
