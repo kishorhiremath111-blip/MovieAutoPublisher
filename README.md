@@ -2,6 +2,10 @@
 
 A scheduled publishing pipeline for **authorized movie, web-series and anime scene files**. It is intended for short, natural scene edits with the original clip audio, restrained on-screen text, and content-matched colors. It does not generate news-anchor videos or synthetic narration.
 
+## Current scheduled mode
+
+The scheduled GitHub Actions workflow currently publishes **one YouTube Short per day only**. It uses the existing video editor and YouTube OAuth uploader, selects a fresh rights-cleared local source, and records the returned YouTube video ID. Long-form publishing, Facebook Reels, and image-post modules remain in the repository but are not run by this scheduled job. The schedule remains 7:00 PM India time (GitHub Actions may start a little later).
+
 ## Daily publishing goal
 
 The GitHub Actions workflow is scheduled for **7:00 PM India time** (cron: 30 13 * * * UTC):
