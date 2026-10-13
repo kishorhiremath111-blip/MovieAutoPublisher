@@ -2,7 +2,7 @@
 """Daily official-API queue controller."""
 import argparse
 from pathlib import Path
-from uploaders.youtube import publish_daily, get_youtube
+from uploaders.youtube import publish_daily, publish_daily_shorts, get_youtube
 import json
 
 ROOT = Path(__file__).resolve().parent
@@ -36,6 +36,7 @@ def main():
     ap.add_argument('--queue', action='store_true')
     ap.add_argument('--authorize', action='store_true')
     ap.add_argument('--daily', action='store_true')
+    ap.add_argument('--daily-shorts', action='store_true', help='Publish only fresh authorized YouTube Shorts')
     ap.add_argument('--daily-images', action='store_true', help='Generate up to 3 separately sourced authorized image posts')
     ap.add_argument('--facebook-images', action='store_true', help='Publish up to 3 separately sourced image cards to a Facebook Page')
     ap.add_argument('--facebook-movie-reels', action='store_true', help='Publish a separate authorized movie/anime scene as a Facebook Reel')
@@ -51,6 +52,9 @@ def main():
     if args.authorize:
         get_youtube()
         print('YouTube authorization complete.')
+        return
+    if args.daily_shorts:
+        publish_daily_shorts(limit=1)
         return
     if args.daily:
         publish_daily()
