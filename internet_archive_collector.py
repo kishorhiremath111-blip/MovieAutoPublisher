@@ -13,6 +13,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from urllib.parse import quote, urlparse
 
 import requests
@@ -314,8 +315,21 @@ def download_approved():
     by_id = {str(row.get("id")): row for row in existing if isinstance(row, dict) and row.get("id")}
     succeeded = 0
     errors = []
+    try:
+        max_items = max(1, min(5, int(os.getenv("IA_MAX_ITEMS_PER_RUN", "1"))))
+    except ValueError:
+        max_items = 1
+    # Keep downloads small: select one allowlisted film per day by default and rotate through
+    # the list using India-local date. Set IA_MAX_ITEMS_PER_RUN only when disk/network allow.
+    today_ist = datetime.now(ZoneInfo("Asia/Kolkata")).date()
+    start_index = today_ist.toordinal() % len(entries)
+    selected_entries = [
+        entries[(start_index + offset) % len(entries)]
+        for offset in range(min(max_items, len(entries)))
+    ]
+    print(f"Selected {len(selected_entries)} approved film(s) for {today_ist.isoformat()} (Asia/Kolkata).")
 
-    for entry in entries:
+    for entry in selected_entries:
         if not isinstance(entry, dict):
             errors.append("allowlist entry must be a JSON object")
             continue
