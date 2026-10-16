@@ -12,6 +12,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 from viral_tracker import score_candidate, trend_index
+from rights_gate import rights_gate
 
 ROOT = Path(__file__).resolve().parents[1]
 CREDS = ROOT / 'credentials'
@@ -243,7 +244,9 @@ def publish_daily_shorts(limit=1):
         if not key or key in seen_keys or item.get('date') != day or item.get('status') != 'ready':
             continue
         seen_keys.add(key)
-        if item.get('licensed') is not True:
+        rights_ok, rights_reason = rights_gate(item)
+        if not rights_ok:
+            print(f"RIGHTS GATE: skip {key}: {rights_reason}")
             continue
         source_path = str(item.get('source') or item.get('source_item_id') or key)
         topic_id = str(item.get('topic_id') or item.get('source_item_id') or key)
