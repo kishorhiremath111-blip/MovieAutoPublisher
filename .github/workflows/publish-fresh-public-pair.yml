@@ -1,0 +1,52 @@
+name: Publish Fresh Licensed Short and Full Video
+
+on:
+  push:
+    paths:
+      - ".github/workflows/publish-fresh-public-pair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: movieautopublisher-fresh-public-pair
+  cancel-in-progress: false
+
+jobs:
+  publish-two-distinct-films:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+      - name: Validate publisher
+        run: python -m py_compile publish_fresh_public_pair.py uploaders/youtube.py
+      - name: Publish new Sintel Short and complete Big Buck Bunny film publicly
+        env:
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+        run: python publish_fresh_public_pair.py
+      - name: Save media and publication report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-public-pair-${{ github.run_number }}
+          path: |
+            output/fresh_public_pair/sintel_fresh_short.mp4
+            output/fresh_public_pair/sintel_short_thumbnail.jpg
+            output/fresh_public_pair/big_buck_bunny_thumbnail.jpg
+            output/fresh_public_pair/publish_report.json
+          if-no-files-found: warn
+          retention-days: 14
