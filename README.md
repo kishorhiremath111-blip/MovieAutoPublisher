@@ -69,7 +69,9 @@ Never commit raw credentials or send them in chat. Do not hardcode secrets into 
 
 ## Local edit checks
 
-The workflow installs FFmpeg, runs Python syntax checks, and collects metadata-only anime, web-series comedy, and dark-comedy trend candidates from the official YouTube Data API. The trend report is saved as a workflow artifact; it is not a downloader and does not copy trending videos. The uploader checks that published files have both audio and video streams and a valid duration. This is a structural media check, not a human review of whether a scene is funny, suitable, or likely to perform well. Review licensed source quality before adding it.
+The workflow installs FFmpeg, runs Python syntax checks, and collects metadata-only anime, web-series comedy, and dark-comedy trend candidates from the official YouTube Data API. The trend report is saved as a workflow artifact; it is not a downloader and does not copy trending videos.
+
+For Shorts, the separate free-text `license` description is not required. The copyright/rights gate is still enforced: rights basis and evidence, human review, explicit upload approval, and verified audio language must be present. The trend report ranks topics only; the editor uses actual local source files and does not download scenes from AnimeSalt or other streaming sites. The uploader checks that published files have both audio and video streams and a valid duration. This is a structural media check, not a human review of whether a scene is funny, suitable, or likely to perform well. Review licensed source quality before adding it.
 
 ## Important limits
 
