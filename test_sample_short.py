@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Download an official Blender open-movie sample, make a polished vertical Short,
-then optionally upload it as PRIVATE for an end-to-end pipeline test.
+then publish the licensed Short publicly with an extracted frame thumbnail.
 
 This test intentionally uses Big Buck Bunny, an openly licensed Blender Foundation
 film, rather than extracting clips from random anime or streaming sites.
@@ -193,7 +193,7 @@ def restore_secret(name, target):
     return True
 
 
-def upload_private():
+def upload_public_short():
     restore_secret("YOUTUBE_CLIENT_SECRET_B64", CREDS / "client_secret.json")
     restore_secret("YOUTUBE_TOKEN_B64", CREDS / "token.json")
     if not (CREDS / "client_secret.json").is_file() or not (CREDS / "token.json").is_file():
@@ -201,9 +201,9 @@ def upload_private():
     sys.path.insert(0, str(ROOT))
     from uploaders.youtube import upload_video
 
-    title = "Big Buck Bunny 🐰 | Open-Movie Vertical Short Test"
+    title = "Big Buck Bunny 🐰 | A Tiny World of Wonder #Shorts"
     description = (
-        "A vertical excerpt prepared as an end-to-end MovieAutoPublisher upload test.\n\n"
+        "A short vertical moment from the open animated film Big Buck Bunny.\n\n"
         "Original film: Big Buck Bunny (2008), Blender Foundation.\n"
         "Source / project information: " + SOURCE_PAGE + "\n"
         "License: Creative Commons Attribution 3.0 (CC BY 3.0): " + LICENSE_URL + "\n"
@@ -215,24 +215,24 @@ def upload_private():
         title=title,
         description=description,
         tags=["Big Buck Bunny", "Blender Open Movie", "Creative Commons", "Shorts", "MovieAutoPublisher Test"],
-        privacy="private",
-        thumbnail=None,
+        privacy="public",
+        thumbnail=THUMB,
     )
     result = {
-        "status": "uploaded_private",
+        "status": "published_public",
         "video_id": video_id,
         "url": "https://youtube.com/watch?v=" + video_id,
-        "privacy": "private",
+        "privacy": "public",
         "source_url": DOWNLOADED_SOURCE_URL,
         "source_page": SOURCE_PAGE,
         "license": LICENSE_URL,
         "short_path": str(SHORT.relative_to(ROOT)),
         "duration_seconds": float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(SHORT)])),
         "created_at": int(time.time()),
-        "note": "Private end-to-end test upload. Review in YouTube Studio; this does not establish copyright-free status for other films.",
+        "note": "Public upload of a CC BY 3.0 licensed Big Buck Bunny excerpt. Thumbnail is an original frame extracted from this rendered video.",
     }
     write_result(result)
-    print("PRIVATE TEST UPLOAD SUCCESS: " + result["url"])
+    print("PUBLIC SHORT UPLOAD SUCCESS: " + result["url"])
     return result
 
 
@@ -260,7 +260,7 @@ def main():
         })
         write_result(result)
         if not args.no_upload:
-            result.update(upload_private())
+            result.update(upload_public_short())
         else:
             result["status"] = "rendered_no_upload"
             write_result(result)
