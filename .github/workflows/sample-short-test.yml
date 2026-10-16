@@ -1,0 +1,69 @@
+name: MovieAutoPublisher Sample Short Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "private = upload a PRIVATE test Short; render-only = download/edit without uploading"
+        required: true
+        type: choice
+        options:
+          - private
+          - render-only
+        default: private
+
+permissions:
+  contents: read
+
+concurrency:
+  group: movieautopublisher-sample-short-test
+  cancel-in-progress: false
+
+jobs:
+  sample-short-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate sample test script
+        run: python -m py_compile test_sample_short.py uploaders/youtube.py
+
+      - name: Download official open-movie and render vertical Short; upload privately if selected
+        env:
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+          TEST_MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$TEST_MODE" = "render-only" ]; then
+            python test_sample_short.py --no-upload
+          else
+            python test_sample_short.py
+          fi
+
+      - name: Save generated Short and result report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sample-short-test-${{ github.run_number }}
+          path: |
+            output/sample_short_test/big_buck_bunny_vertical_short.mp4
+            output/sample_short_test/big_buck_bunny_thumbnail.jpg
+            output/sample_short_test/test_upload_result.json
+          if-no-files-found: warn
+          retention-days: 14
