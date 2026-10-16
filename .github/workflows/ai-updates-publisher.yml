@@ -1,43 +1,43 @@
-name: AI Updates Video Publisher
+name: VYROX DAILY Auto Shorts
 
 on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Upload the generated AI update publicly to YouTube"
+        description: "Publish publicly after rendering (first run should be draft-only)"
         required: true
         type: boolean
         default: false
   schedule:
-    # Separate from the existing movie publisher: 7:30 PM IST daily.
+    # Daily at 7:30 PM IST. Scheduled runs publish publicly.
     - cron: "0 14 * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ai-updates-publisher
+  group: vyrox-daily-auto-shorts
   cancel-in-progress: false
 
 jobs:
-  ai-update:
+  build-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Restore AI news deduplication state
+      - name: Restore story deduplication state
         uses: actions/cache/restore@v4
         with:
           path: state/ai_updates_seen.json
-          key: ai-updates-state-${{ github.run_id }}
-          restore-keys: ai-updates-state-
+          key: vyrox-daily-state-${{ github.run_id }}
+          restore-keys: vyrox-daily-state-
 
-      - name: Install rendering tools
+      - name: Install FFmpeg and fonts
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -48,7 +48,10 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Render original AI news Short
+      - name: Validate Python syntax
+        run: python -m py_compile ai_updates_publisher.py
+
+      - name: Render and optionally publish
         env:
           GITHUB_ACTIONS: "true"
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
@@ -60,18 +63,18 @@ jobs:
             python ai_updates_publisher.py
           fi
 
-      - name: Save AI news deduplication state
+      - name: Save story deduplication state
         if: always()
         uses: actions/cache/save@v4
         with:
           path: state/ai_updates_seen.json
-          key: ai-updates-state-${{ github.run_id }}
+          key: vyrox-daily-state-${{ github.run_id }}
 
-      - name: Upload rendered video and source metadata as artifacts
+      - name: Save generated slides, video and metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai-update-video-${{ github.run_number }}
+          name: vyrox-daily-short-${{ github.run_number }}
           path: output/ai_updates/
           if-no-files-found: warn
           retention-days: 14
