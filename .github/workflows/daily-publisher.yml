@@ -45,6 +45,12 @@ jobs:
       - name: Validate Python syntax
         run: python -m compileall -q .
 
+      - name: Discover popular anime and dark-comedy trend metadata
+        continue-on-error: true
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python pop_culture_trends.py
+
       - name: Discover Internet Archive public-domain candidates (review only)
         continue-on-error: true
         run: python internet_archive_collector.py --discover
@@ -86,6 +92,7 @@ jobs:
             output/image_posts/**
             output/social/**
             output/internet_archive_candidates.json
+            output/pop_culture_trends.json
             state/state.json
             state/viral_tracker.json
             state/daily_tracker.json
