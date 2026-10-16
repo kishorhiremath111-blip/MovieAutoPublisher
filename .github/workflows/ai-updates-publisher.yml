@@ -1,6 +1,9 @@
 name: VYROX DAILY Auto Shorts
 
 on:
+  push:
+    branches:
+      - ai-updates-publisher
   workflow_dispatch:
     inputs:
       publish:
