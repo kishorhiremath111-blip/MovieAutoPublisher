@@ -24,7 +24,7 @@ REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 def clean(v):
- return re.sub(r"\\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", v or ""))).strip()
+ return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", v or ""))).strip()
 
 def parse_feed(category, source, url):
  try:
@@ -156,7 +156,7 @@ def main():
  for i,(p,duration) in enumerate([(hook,2),(detail,18)]):
   seg=OUT/f"segment_{i+1}.mp4"; segments.append(seg)
   run(["ffmpeg","-y","-loop","1","-i",str(p),"-t",str(duration),"-vf",f"scale=720:1280,zoompan=z='min(zoom+0.00045,1.035)':d={duration*25}:s=720x1280:fps=25,format=yuv420p","-r","25","-an","-c:v","libx264","-preset","veryfast","-crf","23",str(seg)])
- concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.resolve()}'\\n" for p in segments))
+ concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.resolve()}'\n" for p in segments))
  silent=OUT/"silent.mp4"
  run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy",str(silent)])
  video=OUT/"vyrox_daily_short.mp4"
