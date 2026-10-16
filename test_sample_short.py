@@ -31,6 +31,7 @@ SOURCE_URLS = [
     "https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4",
     "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
 ]
+DOWNLOADED_SOURCE_URL = SOURCE_URLS[0]
 SOURCE_PAGE = "https://peach.blender.org/download/"
 LICENSE_URL = "https://creativecommons.org/licenses/by/3.0/"
 
@@ -50,6 +51,7 @@ def write_result(data):
 
 
 def download_source():
+    global DOWNLOADED_SOURCE_URL
     OUT.mkdir(parents=True, exist_ok=True)
     if SOURCE.is_file() and SOURCE.stat().st_size > 1_000_000:
         print(f"Using already-downloaded source ({SOURCE.stat().st_size} bytes).")
@@ -85,6 +87,7 @@ def download_source():
             if probe.returncode or float(probe.stdout.strip() or 0) < 45:
                 raise RuntimeError("Downloaded file did not validate as a video of at least 45 seconds.")
             tmp.replace(SOURCE)
+            DOWNLOADED_SOURCE_URL = url
             print(f"Source downloaded and verified: {SOURCE} ({SOURCE.stat().st_size} bytes)")
             return
         except Exception as exc:
@@ -109,8 +112,12 @@ def best_scene_window(duration_seconds=35):
     if not windows:
         raise RuntimeError("No suitable scene window could be found in the open-movie sample.")
     start, end, score = windows[0]
+    # Clamp the chosen window so the complete sample duration is available even if
+    # the highest-scoring scene lies close to the end of the source.
+    start = min(max(0.0, start), max(0.0, probe - duration_seconds))
+    end = min(probe, start + duration_seconds)
     print(f"Selected active scene window: {start:.2f}s-{end:.2f}s, activity score={score:.3f}")
-    return max(0, int(start)), max(8, min(60, int(end - start))), float(score)
+    return int(start), max(8, min(60, int(end - start))), float(score)
 
 
 def render_short(start_seconds=None, duration_seconds=35):
@@ -212,7 +219,7 @@ def upload_private():
         "video_id": video_id,
         "url": "https://youtube.com/watch?v=" + video_id,
         "privacy": "private",
-        "source_url": SOURCE_URLS[0],
+        "source_url": DOWNLOADED_SOURCE_URL,
         "source_page": SOURCE_PAGE,
         "license": LICENSE_URL,
         "short_path": str(SHORT.relative_to(ROOT)),
