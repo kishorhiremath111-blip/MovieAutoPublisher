@@ -1,0 +1,31 @@
+name: Apply fixes (one-time)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply patches
+        run: python apply_fixes.py
+
+      - name: Syntax check
+        run: python -m compileall -q process.py trend_engine.py uploaders demo_style.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add trend_engine.py process.py uploaders/youtube.py demo_style.py
+          git diff --cached --quiet && echo "Nothing to commit" || git commit -m "Apply bug fixes and demo-style Shorts edit"
+          git push
