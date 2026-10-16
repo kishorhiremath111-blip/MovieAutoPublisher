@@ -11,6 +11,7 @@ from pathlib import Path
 from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
 from pro_editor import choose_profile, filters as pro_filters, audio_filters as pro_audio_filters
 from caption_design import caption_line, palette
+from rights_gate import rights_gate
 
 ROOT = Path(__file__).resolve().parent
 CONFIG = ROOT / 'config' / 'config.json'
@@ -82,8 +83,9 @@ def infer_title(source, item):
 
 
 def validate_item(item):
-    if item.get('licensed') is not True:
-        raise RuntimeError(f"{item.get('id','unknown')}: licensed=true is required")
+    approved, reason = rights_gate(item)
+    if not approved:
+        raise RuntimeError(f"{item.get('id','unknown')}: upload blocked by rights gate: {reason}")
     cfg = load_json(CONFIG, {})
     language = str(item.get('audio_language') or '').strip().lower()
     if language not in set(cfg.get('allowed_audio_languages', ['hi', 'en'])):
