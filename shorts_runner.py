@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 import time
+from rights_gate import rights_gate
 
 ROOT = Path(__file__).resolve().parent
 CREDS = ROOT / "credentials"
@@ -42,7 +43,11 @@ def usable_sources():
     valid = []
     seen_sources, seen_topics = set(), set()
     for item in rows:
-        if not isinstance(item, dict) or item.get("licensed") is not True:
+        if not isinstance(item, dict):
+            continue
+        approved, reason = rights_gate(item)
+        if not approved:
+            print(f"RIGHTS GATE: skip {item.get('id', 'unknown')}: {reason}")
             continue
         if str(item.get("type") or "").strip().lower() not in {"movie", "series", "anime"}:
             continue
