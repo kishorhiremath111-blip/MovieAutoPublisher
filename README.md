@@ -80,3 +80,17 @@ For Shorts, the separate free-text `license` description is not required. The co
 - The Facebook Page token must be added before Facebook Reels and image posts can upload.
 - VN Editor is a mobile editor; this GitHub Actions workflow does not control the VN app directly.
 - Daily posting depends on available unique source media, API quotas, platform review and credentials. It cannot be honestly guaranteed to run without interruption if any of those are missing.
+
+
+## End-to-end sample Short upload test
+
+Use the manual **MovieAutoPublisher Sample Short Test** workflow from the GitHub Actions page:
+https://github.com/kishorhiremath111-blip/MovieAutoPublisher/actions/workflows/sample-short-test.yml
+
+Choose one mode:
+- `private`: downloads an official Blender Foundation Big Buck Bunny open-movie file, creates a 35-second vertical 9:16 Short with a blurred background, restrained color treatment, title card, and original audio, checks audio/video streams and duration, then uploads the result to YouTube with **Private** visibility.
+- `render-only`: performs source download, edit, and media QA but does not call YouTube upload.
+
+The sample film is listed by the Blender project under Creative Commons Attribution 3.0 (CC BY 3.0). The generated video description includes source and license attribution. See the official download page: https://peach.blender.org/download/ and license: https://creativecommons.org/licenses/by/3.0/.
+
+This is deliberately a separate, manual test workflow; it does not change the daily publishing schedule. It requires the existing GitHub Actions secrets `YOUTUBE_CLIENT_SECRET_B64` and `YOUTUBE_TOKEN_B64`. A successful GitHub workflow does not by itself prove upload success: check the `test_upload_result.json` artifact for `status: uploaded_private` and the YouTube video ID. Review the private upload in YouTube Studio before making any public.
