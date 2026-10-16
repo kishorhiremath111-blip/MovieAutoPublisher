@@ -1,6 +1,9 @@
 name: MovieAutoPublisher Sample Short Test
 
 on:
+  push:
+    paths:
+      - "test_sample_short.py"
   workflow_dispatch:
     inputs:
       mode:
@@ -48,7 +51,7 @@ jobs:
         env:
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
-          TEST_MODE: ${{ inputs.mode }}
+          TEST_MODE: ${{ inputs.mode || 'private' }}
         run: |
           if [ "$TEST_MODE" = "render-only" ]; then
             python test_sample_short.py --no-upload
