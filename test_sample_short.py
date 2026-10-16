@@ -4,6 +4,7 @@ then optionally upload it as PRIVATE for an end-to-end pipeline test.
 
 This test intentionally uses Big Buck Bunny, an openly licensed Blender Foundation
 film, rather than extracting clips from random anime or streaming sites.
+# Trigger note: source mirrors may provide only a 30-second sample, handled below.
 """
 import argparse
 import base64
