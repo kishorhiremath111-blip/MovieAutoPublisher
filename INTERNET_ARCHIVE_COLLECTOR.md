@@ -2,11 +2,10 @@
 
 This workflow supports both edited Shorts/clips and longer movies or episodes. **Editing does not remove copyright**, and a short duration is not permission. It never downloads or publishes from an arbitrary streaming/piracy site. Use only content you created or have permission/licensing to download, edit, and upload to YouTube, or a specific edition whose public-domain status and soundtrack rights have been checked for the intended territory.
 
-## Fail-closed upload gate
+## Copyright/rights review gate
 
 Before any media is selected for processing or upload, the publisher requires all of these metadata fields:
 
-- `licensed: true`
 - `rights_review_status: "approved"` after a human rights review
 - `upload_approved: true` after a separate, explicit human decision to publish
 - `rights_basis`: one of `public_domain`, `written_permission`, `license`, or `original_content`
@@ -43,7 +42,7 @@ If any requirement is missing, the item is skipped or processing stops before up
 
 The existing media metadata supports `type: "anime"`, `type: "series"`, and `type: "movie"`. A licensed full episode does not automatically grant rights to make derivative clips; confirm the permission covers both the full upload and edited clips/Shorts. Store each source file and thumbnail locally under the expected input folders and give each item a unique `id` and `topic_id`.
 
-For content added directly to `metadata.json`, use the same rights-gate fields listed above. Example (replace all sample values with real evidence):
+For content added directly to `metadata.json`, use the same copyright/rights-gate fields listed above. The redundant `licensed: true` and free-text `license` fields are no longer required; the explicit rights basis, evidence URL, review approval, upload approval, and verified audio check still are. Example (replace all sample values with real evidence):
 
 ```json
 {
@@ -53,8 +52,6 @@ For content added directly to `metadata.json`, use the same rights-gate fields l
   "source": "input/videos/authorized_clip.mp4",
   "thumbnail": "input/thumbnails/authorized_clip.jpg",
   "title": "Authorized anime clip",
-  "licensed": true,
-  "license": "Written permission allows editing and YouTube Shorts distribution; see evidence link.",
   "rights_basis": "written_permission",
   "rights_review_status": "approved",
   "upload_approved": false,
