@@ -4,7 +4,7 @@ A scheduled publishing pipeline for **authorized movie, web-series and anime sce
 
 ## Current scheduled mode
 
-The scheduled GitHub Actions workflow currently publishes **one YouTube Short per day only**. It uses the existing video editor and YouTube OAuth uploader, selects a fresh rights-cleared local source, and records the returned YouTube video ID. Long-form publishing, Facebook Reels, and image-post modules remain in the repository but are not run by this scheduled job. The schedule remains 7:00 PM India time (GitHub Actions may start a little later).
+The scheduled GitHub Actions workflow attempts **one YouTube Short and one long video per day**, using two distinct, rights-cleared sources. It uses the existing video editor and YouTube OAuth uploader, selects a fresh rights-cleared local source, and records the returned YouTube video ID. Long-form publishing, Facebook Reels, and image-post modules remain in the repository but are not run by this scheduled job. The schedule remains 7:00 PM India time (GitHub Actions may start a little later).
 
 ## Daily publishing goal
 
@@ -69,7 +69,7 @@ Never commit raw credentials or send them in chat. Do not hardcode secrets into 
 
 ## Local edit checks
 
-The workflow installs FFmpeg and runs Python syntax checks. The uploader checks that published files have both audio and video streams and a valid duration. This is a structural media check, not a human review of whether a scene is funny, suitable, or likely to perform well. Review licensed source quality before adding it.
+The workflow installs FFmpeg, runs Python syntax checks, and collects metadata-only anime, web-series comedy, and dark-comedy trend candidates from the official YouTube Data API. The trend report is saved as a workflow artifact; it is not a downloader and does not copy trending videos. The uploader checks that published files have both audio and video streams and a valid duration. This is a structural media check, not a human review of whether a scene is funny, suitable, or likely to perform well. Review licensed source quality before adding it.
 
 ## Important limits
 
