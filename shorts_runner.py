@@ -51,9 +51,6 @@ def usable_sources():
             continue
         if str(item.get("type") or "").strip().lower() not in {"movie", "series", "anime"}:
             continue
-        license_note = str(item.get("license") or "").strip()
-        if not license_note or any(word in license_note.casefold() for word in ("replace", "placeholder", "todo")):
-            continue
         language = str(item.get("audio_language") or "").strip().lower()
         if language not in {"hi", "en"} or item.get("audio_language_verified") is not True:
             continue
