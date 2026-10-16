@@ -84,8 +84,8 @@ def download_source():
                  "-of", "default=noprint_wrappers=1:nokey=1", str(tmp)],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             )
-            if probe.returncode or float(probe.stdout.strip() or 0) < 45:
-                raise RuntimeError("Downloaded file did not validate as a video of at least 45 seconds.")
+            if probe.returncode or float(probe.stdout.strip() or 0) < 20:
+                raise RuntimeError("Downloaded file did not validate as a video of at least 20 seconds.")
             tmp.replace(SOURCE)
             DOWNLOADED_SOURCE_URL = url
             print(f"Source downloaded and verified: {SOURCE} ({SOURCE.stat().st_size} bytes)")
@@ -103,6 +103,9 @@ def best_scene_window(duration_seconds=35):
         "-of", "default=noprint_wrappers=1:nokey=1", str(SOURCE),
     ]))
     print("Analyzing source for active scene moments; this ranks scene/audio activity, not virality.")
+    # Some mirrors provide a 30-second sample rather than the full 10-minute film.
+    # Adapt the target clip length to the actual source duration instead of failing.
+    duration_seconds = min(duration_seconds, max(8, int(probe) - 1))
     scene_times = detect_scene_times(SOURCE, threshold=0.30)
     silence_ranges = detect_silence_ranges(SOURCE, noise_db=-35.0)
     windows = rank_highlight_windows(
@@ -223,7 +226,7 @@ def upload_private():
         "source_page": SOURCE_PAGE,
         "license": LICENSE_URL,
         "short_path": str(SHORT.relative_to(ROOT)),
-        "duration_seconds": 35,
+        "duration_seconds": float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(SHORT)])),
         "created_at": int(time.time()),
         "note": "Private end-to-end test upload. Review in YouTube Studio; this does not establish copyright-free status for other films.",
     }
