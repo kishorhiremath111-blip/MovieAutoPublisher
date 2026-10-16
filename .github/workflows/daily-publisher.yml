@@ -55,6 +55,10 @@ jobs:
         continue-on-error: true
         run: python internet_archive_collector.py --discover
 
+      - name: Build trend-to-source intake queue (review only)
+        continue-on-error: true
+        run: python source_intake.py
+
       - name: Download only manually approved public-domain sources
         run: python internet_archive_collector.py --download-approved
 
@@ -82,7 +86,7 @@ jobs:
             state/viral_tracker.json
           key: movieautopublisher-state-${{ github.run_id }}
 
-      - name: Save logs, tracker, and generated cards
+      - name: Save logs, tracker, source intake, and generated cards
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -93,6 +97,7 @@ jobs:
             output/social/**
             output/internet_archive_candidates.json
             output/pop_culture_trends.json
+            output/source_intake_queue.json
             state/state.json
             state/viral_tracker.json
             state/daily_tracker.json
