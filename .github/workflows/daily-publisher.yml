@@ -45,6 +45,13 @@ jobs:
       - name: Validate Python syntax
         run: python -m compileall -q .
 
+      - name: Discover Internet Archive public-domain candidates (review only)
+        continue-on-error: true
+        run: python internet_archive_collector.py --discover
+
+      - name: Download only manually approved public-domain sources
+        run: python internet_archive_collector.py --download-approved
+
       - name: Run daily publisher
         env:
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
@@ -78,6 +85,7 @@ jobs:
             output/*/final/**
             output/image_posts/**
             output/social/**
+            output/internet_archive_candidates.json
             state/state.json
             state/viral_tracker.json
             state/daily_tracker.json
