@@ -88,6 +88,14 @@ def run(*args):
 
 
 def main():
+    sources = usable_sources()
+    if not sources:
+        print(
+            "SAFE SKIP: no media passed the rights-review and explicit upload-approval gate. "
+            "No YouTube credentials were restored and no upload was attempted."
+        )
+        return
+
     for name, path in (
         ("YOUTUBE_CLIENT_SECRET_B64", CREDS / "client_secret.json"),
         ("YOUTUBE_TOKEN_B64", CREDS / "token.json"),
@@ -95,15 +103,6 @@ def main():
         restore_secret(name, path)
         if not path.is_file():
             raise RuntimeError(f"Missing required YouTube Actions secret: {name}")
-
-    if not usable_sources():
-        raise RuntimeError(
-            "No usable authorized source found. Add at least one real video under input/videos "
-            "and its thumbnail, then configure metadata.json with licensed=true, a real license "
-            "or written-permission note, a unique topic_id, audio_language='hi' or 'en', and "
-            "audio_language_verified=true after checking the actual audio track. An APK/API URL "
-            "is not a substitute for licensed source-media files."
-        )
 
     if os.getenv("YOUTUBE_API_KEY", "").strip():
         run("trend_engine")
