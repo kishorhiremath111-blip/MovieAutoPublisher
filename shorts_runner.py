@@ -111,13 +111,16 @@ def main():
         run("viral_tracker", "--plan")
 
     run("process", "--daily")
-    run("upload_queue", "--daily-shorts")
+    run("upload_queue", "--daily")
 
     today = time.strftime("%Y-%m-%d")
     daily = load_json(STATE, {}).get("daily", {}).get(today, {})
     if not daily.get("short_video_id") or not daily.get("movie_short_sources"):
         raise RuntimeError("Shorts audit failed: YouTube upload ID/source was not recorded.")
+    if not daily.get("long_video_id") or not daily.get("movie_long_sources"):
+        raise RuntimeError("Long-video audit failed: YouTube upload ID/source was not recorded.")
     print("SHORTS SUCCESS: https://youtube.com/shorts/" + str(daily["short_video_id"]))
+    print("LONG VIDEO SUCCESS: https://youtube.com/watch?v=" + str(daily["long_video_id"]))
 
 
 if __name__ == "__main__":
