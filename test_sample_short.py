@@ -16,6 +16,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from scene_tools import detect_scene_times, detect_silence_ranges, rank_highlight_windows
+
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "output" / "sample_short_test"
 SOURCE = OUT / "big_buck_bunny_source.mp4"
@@ -92,8 +94,28 @@ def download_source():
     raise RuntimeError("Could not download the official Blender sample. " + " | ".join(errors))
 
 
-def render_short(start_seconds=42, duration_seconds=35):
+def best_scene_window(duration_seconds=35):
+    probe = float(run([
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(SOURCE),
+    ]))
+    print("Analyzing source for active scene moments; this ranks scene/audio activity, not virality.")
+    scene_times = detect_scene_times(SOURCE, threshold=0.30)
+    silence_ranges = detect_silence_ranges(SOURCE, noise_db=-35.0)
+    windows = rank_highlight_windows(
+        probe, scene_times, count=1, clip_seconds=duration_seconds,
+        silence_ranges=silence_ranges, min_gap_seconds=10,
+    )
+    if not windows:
+        raise RuntimeError("No suitable scene window could be found in the open-movie sample.")
+    start, end, score = windows[0]
+    print(f"Selected active scene window: {start:.2f}s-{end:.2f}s, activity score={score:.3f}")
+    return max(0, int(start)), max(8, min(60, int(end - start))), float(score)
+
+
+def render_short(start_seconds=None, duration_seconds=35):
     OUT.mkdir(parents=True, exist_ok=True)
+    start_seconds, duration_seconds, scene_score = best_scene_window(duration_seconds)
     # Premium 9:16 layout: blurred, color-matched background; clean centered footage;
     # subtle top title card and a restrained grade. Original source audio is preserved.
     filters = (
@@ -138,6 +160,7 @@ def render_short(start_seconds=42, duration_seconds=35):
     if not 8 <= duration <= 60:
         raise RuntimeError(f"Output quality gate failed: Short duration {duration:.2f}s is outside 8-60s.")
     print(f"SHORT QA PASS: {duration:.2f}s, 1080x1920 vertical, audio+video, {SHORT.stat().st_size} bytes")
+    print(f"Scene activity score (heuristic, not a virality prediction): {scene_score:.3f}")
     return duration
 
 
