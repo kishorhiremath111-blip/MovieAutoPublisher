@@ -156,7 +156,7 @@ def main():
  for i,p in enumerate(slides):
   seg=OUT/f"segment_{i+1}.mp4"; segments.append(seg)
   run(["ffmpeg","-y","-loop","1","-i",str(p),"-t","7","-vf","scale=720:1280,zoompan=z='min(zoom+0.0007,1.05)':d=175:s=720x1280:fps=25,format=yuv420p","-r","25","-an","-c:v","libx264","-preset","veryfast","-crf","23",str(seg)])
- concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.name}'\n" for p in segments))
+ concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.resolve()}\\n" for p in segments))
  silent=OUT/"silent.mp4"
  run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy",str(silent)])
  video=OUT/"vyrox_daily_short.mp4"
