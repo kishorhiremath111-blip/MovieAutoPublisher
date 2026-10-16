@@ -136,9 +136,6 @@ def make_slide(story, image, index, total):
  d.text((42,1200),"FACTS. PHOTOS. QUICK UPDATES.",font=font(BOLD,17),fill=(0,220,255,255))
  return image.convert("RGB")
 
-def wrap(draw,text,f,maxw): return wrap_lines(text,f,maxw)
-def wrap_lines(text,f,maxw):
- tmp=ImageDraw.Draw(Image.new("RGB",(1,1))); return wrap(tmp,text,f,maxw)
 
 def run(cmd): print("+"," ".join(map(str,cmd))); subprocess.run(cmd,check=True)
 
