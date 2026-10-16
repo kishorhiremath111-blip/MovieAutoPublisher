@@ -1,200 +1,186 @@
 #!/usr/bin/env python3
-"""Create a short original AI-news explainer from official RSS feeds.
-
-This uses an original graphic layout and local TTS, not copied publisher video.
-The source links are included in the output metadata and YouTube description.
-"""
-import argparse
-import html
-import json
-import os
-import re
-import subprocess
-import sys
-import textwrap
-import xml.etree.ElementTree as ET
+"""VYROX DAILY: image-led, no-voice news Shorts with source attribution."""
+import argparse, html, json, os, re, subprocess, sys, time, xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
-
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "output" / "ai_updates"
 STATE = ROOT / "state" / "ai_updates_seen.json"
+W, H = 720, 1280
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; VYROXDaily/1.0)"}
 FEEDS = [
-    ("OpenAI News", "https://openai.com/news/rss.xml"),
-    ("Google DeepMind", "https://deepmind.google/blog/rss.xml"),
-    ("Google AI Blog", "https://blog.google/innovation-and-ai/technology/ai/rss/"),
+ ("TECH", "Google AI Blog", "https://blog.google/technology/ai/rss/"),
+ ("AI", "OpenAI News", "https://openai.com/news/rss.xml"),
+ ("SCIENCE", "NASA News", "https://www.nasa.gov/feed/"),
+ ("HEALTH", "WHO News", "https://www.who.int/rss-feeds/news-english.xml"),
+ ("WORLD", "UN News", "https://news.un.org/feed/subscribe/en/news/all/rss.xml"),
+ ("TECH", "Android Developers Blog", "https://android-developers.googleblog.com/feeds/posts/default?alt=rss"),
 ]
-WIDTH, HEIGHT = 720, 1280
-FONT_REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-FONT_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+REG = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
+def clean(v):
+ return re.sub(r"\\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", v or ""))).strip()
 
-def clean(value):
-    value = html.unescape(re.sub(r"<[^>]+>", " ", value or ""))
-    return re.sub(r"\s+", " ", value).strip()
+def parse_feed(category, source, url):
+ try:
+  r=requests.get(url,headers=HEADERS,timeout=20); r.raise_for_status()
+  root=ET.fromstring(r.content); rows=[]
+  for item in root.findall(".//item")[:25]:
+   title=clean(item.findtext("title")); link=clean(item.findtext("link")); desc=clean(item.findtext("description")); pub=clean(item.findtext("pubDate"))
+   if title and link.startswith("https://"):
+    rows.append({"category":category,"source":source,"title":title,"link":link,"summary":desc[:800],"published":pub})
+  ns={"a":"http://www.w3.org/2005/Atom"}
+  for e in root.findall(".//a:entry",ns)[:25]:
+   title=clean(e.findtext("a:title",default="",namespaces=ns)); le=e.find("a:link",ns); link=le.attrib.get("href","") if le is not None else ""
+   de=e.find("a:summary",ns)
+   if de is None: de=e.find("a:content",ns)
+   desc=clean(" ".join(de.itertext())) if de is not None else ""
+   pub=clean(e.findtext("a:updated",default="",namespaces=ns))
+   if title and link.startswith("https://"):
+    rows.append({"category":category,"source":source,"title":title,"link":link,"summary":desc[:800],"published":pub})
+  return rows
+ except Exception as e:
+  print(f"Feed unavailable {source}: {e}"); return []
 
+def seen_links():
+ try: return set(json.loads(STATE.read_text()).get("links",[]))
+ except Exception: return set()
 
-def parse_feed(name, url):
-    try:
-        response = requests.get(url, timeout=20, headers={"User-Agent": "AIUpdatesPublisher/1.0"})
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-        rows = []
-        for item in root.findall(".//item")[:30]:
-            title = clean(item.findtext("title"))
-            link = clean(item.findtext("link"))
-            desc = clean(item.findtext("description"))
-            pub = clean(item.findtext("pubDate"))
-            if title and link and urlparse(link).scheme == "https":
-                rows.append({"source": name, "title": title, "link": link,
-                             "summary": desc[:700], "published": pub})
-        # Atom support for feeds that use it.
-        ns = {"a": "http://www.w3.org/2005/Atom"}
-        for entry in root.findall(".//a:entry", ns)[:30]:
-            title = clean(entry.findtext("a:title", default="", namespaces=ns))
-            link_el = entry.find("a:link", ns)
-            link = link_el.attrib.get("href", "") if link_el is not None else ""
-            desc_el = entry.find("a:summary", ns) or entry.find("a:content", ns)
-            desc = clean("".join(desc_el.itertext())) if desc_el is not None else ""
-            pub = clean(entry.findtext("a:updated", default="", namespaces=ns))
-            if title and link and urlparse(link).scheme == "https":
-                rows.append({"source": name, "title": title, "link": link,
-                             "summary": desc[:700], "published": pub})
-        return rows
-    except Exception as exc:
-        print(f"Feed skipped ({name}): {exc}")
-        return []
+def choose():
+ all_rows=[]
+ for c,s,u in FEEDS: all_rows += parse_feed(c,s,u)
+ seen=seen_links()
+ # feed order is usually newest-first; don't invent facts or reuse a story
+ fresh=[x for x in all_rows if x["link"] not in seen]
+ if not fresh: raise RuntimeError("No unseen source story found. Skipping safely rather than reposting.")
+ return fresh[0]
 
+def font(path,size): return ImageFont.truetype(path,size)
+def wrap(draw,text,f,maxw):
+ out=[]; line=""
+ for word in text.split():
+  cand=(line+" "+word).strip()
+  if draw.textbbox((0,0),cand,font=f)[2] <= maxw: line=cand
+  else:
+   if line: out.append(line)
+   line=word
+ if line: out.append(line)
+ return out
 
-def load_seen():
-    try:
-        return json.loads(STATE.read_text(encoding="utf-8")).get("links", [])
-    except Exception:
-        return []
+def get_image(url):
+ try:
+  r=requests.get(url,headers=HEADERS,timeout=20); r.raise_for_status()
+  if "image" not in r.headers.get("content-type","").lower(): return None
+  p=OUT/"source_photo.jpg"; p.write_bytes(r.content)
+  im=Image.open(p).convert("RGB")
+  if im.width<320 or im.height<220: return None
+  return im
+ except Exception as e:
+  print("Article photo unavailable:",e); return None
 
+def article_image(url):
+ try:
+  r=requests.get(url,headers=HEADERS,timeout=20); r.raise_for_status()
+  from html.parser import HTMLParser
+  class Meta(HTMLParser):
+   def __init__(self): super().__init__(); self.img=None
+   def handle_starttag(self,tag,attrs):
+    a=dict(attrs)
+    if tag.lower()=="meta" and a.get("property") in ("og:image","twitter:image") and a.get("content","").startswith("https://") and not self.img: self.img=a["content"]
+  p=Meta(); p.feed(r.text); return p.img
+ except Exception as e:
+  print("Image metadata unavailable:",e); return None
 
-def choose_story():
-    seen = set(load_seen())
-    stories = []
-    for name, url in FEEDS:
-        stories.extend(parse_feed(name, url))
-    fresh = [x for x in stories if x["link"] not in seen]
-    if not fresh:
-        raise RuntimeError("No new official AI news found. Safe stop; no duplicate upload.")
-    # RSS feed order is generally newest first. Prefer the first unseen official item.
-    return fresh[0]
+def fit_crop(im,size):
+ tw,th=size; ratio=max(tw/im.width,th/im.height)
+ im=im.resize((int(im.width*ratio),int(im.height*ratio)),Image.Resampling.LANCZOS)
+ x=(im.width-tw)//2; y=(im.height-th)//2
+ return im.crop((x,y,x+tw,y+th))
 
+def make_slide(story, image, index, total):
+ if image is None:
+  image=Image.new("RGB",(W,H),(8,18,42))
+  d=ImageDraw.Draw(image)
+  for y in range(H):
+   t=y/H; d.line((0,y,W,y),fill=(int(8+5*t),int(20+16*t),int(45+45*t)))
+  d.ellipse((380,-100,850,380),fill=(15,67,130))
+ else: image=fit_crop(image,(W,H)).filter(ImageFilter.GaussianBlur(0.3))
+ # cinematic dark gradient for readable text
+ overlay=Image.new("RGBA",(W,H),(0,0,0,0)); od=ImageDraw.Draw(overlay)
+ for y in range(240,H):
+  alpha=int(20+190*((y-240)/(H-240))**1.5)
+  od.line((0,y,W,y),fill=(2,8,22,alpha))
+ image=image.convert("RGBA"); image.alpha_composite(overlay); d=ImageDraw.Draw(image)
+ d.rounded_rectangle((34,38,380,95),radius=18,fill=(0,14,34,225),outline=(0,211,255,255),width=2)
+ d.text((52,51),"VYROX DAILY  /  "+story["category"],font=font(BOLD,21),fill=(255,255,255,255))
+ if index==0:
+  d.rounded_rectangle((36,760,684,1110),radius=24,fill=(4,12,28,225),outline=(0,207,255,240),width=3)
+  d.text((62,790),"THE UPDATE",font=font(BOLD,22),fill=(0,220,255,255))
+  lines=wrap(d,story["title"].upper(),font(BOLD,38),580)[:5]; y=838
+  for line in lines: d.text((62,y),line,font=font(BOLD,38),fill="white",stroke_width=1,stroke_fill=(0,0,0)); y+=48
+ else:
+  d.rounded_rectangle((36,790,684,1110),radius=24,fill=(4,12,28,228),outline=(0,207,255,240),width=3)
+  label=["WHY IT MATTERS","WHAT TO KNOW","THE BIG PICTURE","STAY INFORMED"][min(index-1,3)]
+  d.text((62,820),label,font=font(BOLD,24),fill=(0,220,255,255))
+  txt=story["summary"] or "Read the original report for the full details."
+  txt=re.sub(r"\\s+"," ",txt)[:260]
+  y=870
+  for line in wrap(d,txt,font(REG,25),580)[:6]:
+   d.text((62,y),line,font=font(REG,25),fill=(240,245,255,255)); y+=36
+ d.text((42,1160),f"PHOTO + TEXT  •  {index+1}/{total}",font=font(BOLD,19),fill=(225,240,255,255))
+ d.text((42,1200),"FACTS. PHOTOS. QUICK UPDATES.",font=font(BOLD,17),fill=(0,220,255,255))
+ return image.convert("RGB")
 
-def wrap_lines(draw, text, font, max_width):
-    words, lines, line = text.split(), [], ""
-    for word in words:
-        candidate = (line + " " + word).strip()
-        if draw.textbbox((0, 0), candidate, font=font)[2] <= max_width:
-            line = candidate
-        else:
-            if line:
-                lines.append(line)
-            line = word
-    if line:
-        lines.append(line)
-    return lines
+def wrap(draw,text,f,maxw): return wrap_lines(text,f,maxw)
+def wrap_lines(text,f,maxw):
+ tmp=ImageDraw.Draw(Image.new("RGB",(1,1))); return wrap(tmp,text,f,maxw)
 
-
-def make_card(story, path):
-    im = Image.new("RGB", (WIDTH, HEIGHT), (10, 18, 38))
-    d = ImageDraw.Draw(im)
-    # Original abstract background shapes; no publisher images are copied.
-    d.ellipse((430, -130, 850, 290), fill=(25, 62, 117))
-    d.ellipse((-210, 900, 330, 1450), fill=(31, 45, 94))
-    d.rounded_rectangle((42, 55, 678, 1225), radius=34, fill=(16, 29, 56), outline=(58, 102, 180), width=3)
-    small = ImageFont.truetype(FONT_BOLD, 26)
-    title_font = ImageFont.truetype(FONT_BOLD, 43)
-    body_font = ImageFont.truetype(FONT_REG, 28)
-    foot_font = ImageFont.truetype(FONT_REG, 19)
-    d.rounded_rectangle((72, 86, 390, 142), radius=20, fill=(40, 101, 211))
-    d.text((91, 98), "AI UPDATE  •  VERIFIED SOURCE", font=ImageFont.truetype(FONT_BOLD, 17), fill="white")
-    d.text((78, 184), "WHAT'S NEW IN AI", font=small, fill=(110, 190, 255))
-    y = 248
-    for line in wrap_lines(d, story["title"], title_font, 560)[:8]:
-        d.text((78, y), line, font=title_font, fill=(255, 255, 255))
-        y += 57
-    y += 28
-    summary = story["summary"] or "A new update has been published by an official AI research or product team. Open the source link for the full details."
-    summary = summary[:430]
-    for line in wrap_lines(d, summary, body_font, 555)[:8]:
-        d.text((80, y), line, font=body_font, fill=(210, 222, 242))
-        y += 41
-    d.line((78, 1040, 640, 1040), fill=(64, 95, 145), width=2)
-    d.text((80, 1064), "SOURCE", font=small, fill=(110, 190, 255))
-    d.text((80, 1105), story["source"][:46], font=body_font, fill=(255, 255, 255))
-    d.text((80, 1162), "Full source link in video description", font=foot_font, fill=(170, 190, 220))
-    im.save(path, quality=95)
-
-
-def run(cmd):
-    print("+", " ".join(map(str, cmd)))
-    subprocess.run(cmd, check=True)
-
+def run(cmd): print("+"," ".join(map(str,cmd))); subprocess.run(cmd,check=True)
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--publish", action="store_true", help="Upload publicly to YouTube after rendering")
-    args = ap.parse_args()
-    OUT.mkdir(parents=True, exist_ok=True)
-    story = choose_story()
-    date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    title = "AI Update: " + story["title"]
-    title = title[:95]
-    summary = story["summary"] or "Check the official source for the full announcement."
-    narration = f"Here is your AI update. {story['title']}. {summary[:420]}. This update is from {story['source']}. Read the original source link in the description."
-    (OUT / "narration.txt").write_text(narration, encoding="utf-8")
-    (OUT / "story.json").write_text(json.dumps(story, indent=2, ensure_ascii=False), encoding="utf-8")
-    card = OUT / "ai_update_card.png"
-    wav = OUT / "narration.wav"
-    mp3 = OUT / "narration.mp3"
-    video = OUT / "ai_update_short.mp4"
-    make_card(story, card)
-    run(["espeak-ng", "-v", "en-us", "-s", "150", "-w", str(wav), "-f", str(OUT / "narration.txt")])
-    run(["ffmpeg", "-y", "-loop", "1", "-i", str(card), "-i", str(wav),
-         "-vf", "scale=720:1280,format=yuv420p", "-c:v", "libx264", "-tune", "stillimage",
-         "-r", "25", "-c:a", "aac", "-b:a", "128k", "-shortest", "-movflags", "+faststart", str(video)])
-    description = (
-        f"{summary[:900]}\n\nOriginal AI-news summary with synthetic narration and original graphics. "
-        f"Please check the primary source for full context.\n\nSource: {story['source']}\n{story['link']}\n\n"
-        "#AI #ArtificialIntelligence #TechNews #Shorts"
-    )
-    metadata = {"title": title, "description": description, "source": story["link"], "video": str(video)}
-    (OUT / "upload_metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8")
-    print("DRAFT_READY:", video)
-    if args.publish:
-        if os.getenv("GITHUB_ACTIONS") == "true":
-            import base64
-            creds = ROOT / "credentials"
-            creds.mkdir(exist_ok=True)
-            for secret, target in [
-                ("YOUTUBE_CLIENT_SECRET_B64", creds / "client_secret.json"),
-                ("YOUTUBE_TOKEN_B64", creds / "token.json"),
-            ]:
-                value = os.getenv(secret, "").strip()
-                if not value:
-                    raise RuntimeError(f"Missing GitHub Actions secret: {secret}")
-                target.write_bytes(base64.b64decode(value, validate=True))
-                target.chmod(0o600)
-        sys.path.insert(0, str(ROOT))
-        from uploaders.youtube import upload_video
-        video_id = upload_video(str(video), title, description, tags=["AI", "Artificial Intelligence", "Tech News", "Shorts"], privacy="public")
-        print("YOUTUBE_UPLOAD_SUCCESS: https://youtube.com/shorts/" + video_id)
-        seen = load_seen()
-        seen.append(story["link"])
-        STATE.parent.mkdir(parents=True, exist_ok=True)
-        STATE.write_text(json.dumps({"links": seen[-500:]}, indent=2), encoding="utf-8")
-    else:
-        print("DRAFT_ONLY: no upload attempted; inspect the video artifact first.")
-
-
-if __name__ == "__main__":
-    main()
+ ap=argparse.ArgumentParser(); ap.add_argument("--publish",action="store_true"); args=ap.parse_args()
+ OUT.mkdir(parents=True,exist_ok=True)
+ story=choose()
+ photo_url=article_image(story["link"]); photo=get_image(photo_url) if photo_url else None
+ # Three distinct editorial slides: hook, context, takeaway. All are image + text, no narration.
+ slides=[]
+ for i in range(3):
+  p=OUT/f"slide_{i+1}.png"; make_slide(story,photo,i,3).save(p); slides.append(p)
+ # Build 21-second vertical Short with slow cinematic zoom; no voice. Generate a simple original synth bed locally.
+ segments=[]
+ for i,p in enumerate(slides):
+  seg=OUT/f"segment_{i+1}.mp4"; segments.append(seg)
+  run(["ffmpeg","-y","-loop","1","-i",str(p),"-t","7","-vf","scale=720:1280,zoompan=z='min(zoom+0.0007,1.05)':d=175:s=720x1280:fps=25,format=yuv420p","-r","25","-an","-c:v","libx264","-preset","veryfast","-crf","23",str(seg)])
+ concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.name}'\n" for p in segments))
+ silent=OUT/"silent.mp4"
+ run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy",str(silent)])
+ video=OUT/"vyrox_daily_short.mp4"
+ # Original, locally generated ambient electronic backing; no external copyrighted track.
+ run(["ffmpeg","-y","-i",str(silent),"-f","lavfi","-i","sine=frequency=110:duration=21:sample_rate=44100","-f","lavfi","-i","sine=frequency=164.81:duration=21:sample_rate=44100","-filter_complex","[1:a]volume=0.035,afade=t=in:st=0:d=1,afade=t=out:st=19:d=2[a1];[2:a]volume=0.02,afade=t=in:st=0:d=1,afade=t=out:st=19:d=2[a2];[a1][a2]amix=inputs=2:duration=longest,lowpass=f=900[a]","-map","0:v","-map","[a]","-c:v","copy","-c:a","aac","-b:a","96k","-shortest","-movflags","+faststart",str(video)])
+ date=datetime.now(timezone.utc).strftime("%Y-%m-%d")
+ title=(story["title"][:75].rstrip()+" | VYROX DAILY #Shorts")
+ description=(f"{story['category']} update from {story['source']}.\n\nSummary: {story['summary'][:900]}\n\nOriginal source (read for full context): {story['link']}\n\nImages and text edited by VYROX DAILY. Background sound is generated for this video.\n#Shorts #TechNews #AI #WorldNews #Science")
+ meta={"title":title,"description":description,"source":story["link"],"category":story["category"],"date":date,"video":str(video)}
+ (OUT/"upload_metadata.json").write_text(json.dumps(meta,indent=2,ensure_ascii=False))
+ print("DRAFT_READY:",video)
+ if args.publish:
+  if os.getenv("GITHUB_ACTIONS")=="true":
+   import base64
+   creds=ROOT/"credentials"; creds.mkdir(exist_ok=True)
+   for secret,target in [("YOUTUBE_CLIENT_SECRET_B64",creds/"client_secret.json"),("YOUTUBE_TOKEN_B64",creds/"token.json")]:
+    value=os.getenv(secret,"").strip()
+    if not value: raise RuntimeError(f"Missing GitHub Actions secret: {secret}")
+    target.write_bytes(base64.b64decode(value,validate=True)); target.chmod(0o600)
+  sys.path.insert(0,str(ROOT))
+  from uploaders.youtube import upload_video
+  video_id=upload_video(str(video),title,description,tags=["VYROX DAILY",story["category"],"Tech News","AI","Shorts"],privacy="public")
+  print("YOUTUBE_UPLOAD_SUCCESS: https://youtube.com/shorts/"+video_id)
+  seen=list(seen_links()); seen.append(story["link"]); STATE.parent.mkdir(parents=True,exist_ok=True)
+  STATE.write_text(json.dumps({"links":seen[-500:]},indent=2),encoding="utf-8")
+ else: print("DRAFT_ONLY: no upload attempted.")
+if __name__=="__main__": main()
