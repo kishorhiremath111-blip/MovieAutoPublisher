@@ -28,8 +28,8 @@ CREDS = ROOT / "credentials"
 
 # Primary modern Blender demo asset and historical official download fallback.
 SOURCE_URLS = [
-    "https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4",
-    "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4",
+    "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_30fps_normal.mp4",
+    "https://raw.githubusercontent.com/chintan9/Big-Buck-Bunny/master/BigBuckBunny480p30s.mp4",
 ]
 DOWNLOADED_SOURCE_URL = SOURCE_URLS[0]
 SOURCE_PAGE = "https://peach.blender.org/download/"
