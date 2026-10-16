@@ -147,21 +147,21 @@ def main():
  OUT.mkdir(parents=True,exist_ok=True)
  story=choose()
  photo_url=article_image(story["link"]); photo=get_image(photo_url) if photo_url else None
- # Three distinct editorial slides: hook, context, takeaway. All are image + text, no narration.
- slides=[]
- for i in range(3):
-  p=OUT/f"slide_{i+1}.png"; make_slide(story,photo,i,3).save(p); slides.append(p)
- # Build 21-second vertical Short with slow cinematic zoom; no voice. Generate a simple original synth bed locally.
+ # One natural article photo per Short. The same photo is used throughout;
+ # only the headline/detail overlay changes after the opening hook.
+ hook=OUT/"hook.png"; detail=OUT/"detail.png"
+ make_slide(story,photo,0,2).save(hook)
+ make_slide(story,photo,1,2).save(detail)
  segments=[]
- for i,p in enumerate(slides):
+ for i,(p,duration) in enumerate([(hook,2),(detail,18)]):
   seg=OUT/f"segment_{i+1}.mp4"; segments.append(seg)
-  run(["ffmpeg","-y","-loop","1","-i",str(p),"-t","7","-vf","scale=720:1280,zoompan=z='min(zoom+0.0007,1.05)':d=175:s=720x1280:fps=25,format=yuv420p","-r","25","-an","-c:v","libx264","-preset","veryfast","-crf","23",str(seg)])
- concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.resolve()}'\n" for p in segments))
+  run(["ffmpeg","-y","-loop","1","-i",str(p),"-t",str(duration),"-vf",f"scale=720:1280,zoompan=z='min(zoom+0.00045,1.035)':d={duration*25}:s=720x1280:fps=25,format=yuv420p","-r","25","-an","-c:v","libx264","-preset","veryfast","-crf","23",str(seg)])
+ concat=OUT/"concat.txt"; concat.write_text("".join(f"file '{p.resolve()}'\\n" for p in segments))
  silent=OUT/"silent.mp4"
  run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy",str(silent)])
  video=OUT/"vyrox_daily_short.mp4"
- # Original, locally generated ambient electronic backing; no external copyrighted track.
- run(["ffmpeg","-y","-i",str(silent),"-f","lavfi","-i","sine=frequency=110:duration=21:sample_rate=44100","-f","lavfi","-i","sine=frequency=164.81:duration=21:sample_rate=44100","-filter_complex","[1:a]volume=0.035,afade=t=in:st=0:d=1,afade=t=out:st=19:d=2[a1];[2:a]volume=0.02,afade=t=in:st=0:d=1,afade=t=out:st=19:d=2[a2];[a1][a2]amix=inputs=2:duration=longest,lowpass=f=900[a]","-map","0:v","-map","[a]","-c:v","copy","-c:a","aac","-b:a","96k","-shortest","-movflags","+faststart",str(video)])
+ # Original subtle synthesized background audio; no voice and no downloaded song.
+ run(["ffmpeg","-y","-i",str(silent),"-f","lavfi","-i","sine=frequency=110:duration=20:sample_rate=44100","-f","lavfi","-i","sine=frequency=164.81:duration=20:sample_rate=44100","-filter_complex","[1:a]volume=0.035,afade=t=in:st=0:d=1,afade=t=out:st=18:d=2[a1];[2:a]volume=0.02,afade=t=in:st=0:d=1,afade=t=out:st=18:d=2[a2];[a1][a2]amix=inputs=2:duration=longest,lowpass=f=900[a]","-map","0:v","-map","[a]","-c:v","copy","-c:a","aac","-b:a","96k","-shortest","-movflags","+faststart",str(video)])
  date=datetime.now(timezone.utc).strftime("%Y-%m-%d")
  title=(story["title"][:75].rstrip()+" | VYROX DAILY #Shorts")
  description=(f"{story['category']} update from {story['source']}.\n\nSummary: {story['summary'][:900]}\n\nOriginal source (read for full context): {story['link']}\n\nImages and text edited by VYROX DAILY. Background sound is generated for this video.\n#Shorts #TechNews #AI #WorldNews #Science")
