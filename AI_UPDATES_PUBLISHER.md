@@ -3,14 +3,14 @@
 This is a separate workflow and does not modify the existing MovieAutoPublisher workflow.
 
 ## Format
-- Vertical 9:16, 720x1280, around 21 seconds.
+- Vertical 9:16, 720x1280, around 20 seconds. One natural article photo per Short; first 2 seconds show the hook, then the same photo darkens behind concise details.
 - Three photo-led slides: a 1–3 second visual hook, why-it-matters context, and a quick takeaway.
 - No voiceover. Uses a small, locally generated electronic sound bed; no external music file is downloaded.
 - Pulls news from official feeds (AI/tech, science, health and international affairs), links the original source in the YouTube description, and skips previously published source URLs.
 - Attempts to use the article's Open Graph image. If none is available, it creates a branded graphic background instead. Only use source images where the source's reuse terms permit it; automated metadata extraction is not a license grant.
 
 ## GitHub Actions
-Workflow: **VYROX DAILY Auto Shorts**. Manual dispatch defaults to draft-only; set `publish=true` to publish. Scheduled runs publish publicly daily at 7:30 PM India time, after this branch is merged to the default branch and Actions are enabled.
+Workflow: **VYROX DAILY Auto Shorts**. Manual dispatch defaults to draft-only; set `publish=true` to publish. Scheduled runs publish publicly twice daily at 1:30 PM and 7:30 PM India time, after this branch is merged to the default branch and Actions are enabled.
 
 Required repository secrets:
 - `YOUTUBE_CLIENT_SECRET_B64`
