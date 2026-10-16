@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Official YouTube Data API uploader for licensed/reusable content."""
 import json
+import os
+import sys
 import time
 import subprocess
 from pathlib import Path
@@ -45,8 +47,20 @@ def get_youtube():
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             from google.auth.transport.requests import Request
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except Exception as exc:
+                raise RuntimeError(
+                    f'YouTube token refresh failed ({exc}). Re-authorize and update the '
+                    'YOUTUBE_TOKEN_B64 secret. If the Google OAuth app is in Testing mode, '
+                    'refresh tokens expire after 7 days: publish the app to Production.'
+                ) from exc
         else:
+            if os.getenv('GITHUB_ACTIONS') == 'true' or not sys.stdin.isatty():
+                raise RuntimeError(
+                    'YouTube token is invalid and cannot be refreshed in CI. '
+                    'Re-authorize locally and update the YOUTUBE_TOKEN_B64 secret.'
+                )
             flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET), SCOPES)
             creds = flow.run_local_server(port=0, access_type='offline', prompt='consent')
         TOKEN.write_text(creds.to_json(), encoding='utf-8')
@@ -71,8 +85,16 @@ def upload_video(video_path, title, description='', tags=None, privacy='private'
         media_body=media
     )
     response = None
+    retries = 0
     while response is None:
-        _, response = request.next_chunk()
+        try:
+            _, response = request.next_chunk()
+        except HttpError as exc:
+            if exc.resp.status in (500, 502, 503, 504) and retries < 5:
+                retries += 1
+                time.sleep(2 ** retries)
+                continue
+            raise
     video_id = response['id']
     if thumbnail and Path(thumbnail).exists():
         try:

@@ -291,7 +291,7 @@ def extract_clip(video, start, end, out, width, height, item, style='clean', ove
     apply_manual_censors(vf, item)
     if overlay_text and cfg.get('show_scene_captions', False):
         # Optional VIBEFRAME banner; disabled by default when show_scene_captions=false.
-        clean_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(overlay_text)).strip()[:54]
+        clean_text = re.sub("[\U0001F300-\U0001FAFF\U00002600-\U000027BF]", "", str(overlay_text)).strip()[:54]
         vf.append('drawbox=x=0:y=34:w=iw:h=88:color=white@1.0:t=fill')
         vf.append(f"drawtext=text='{escape_drawtext(clean_text)}':x=(w-text_w)/2:y=58:fontsize=32:fontcolor=black:fix_bounds=true")
     run([
@@ -434,6 +434,12 @@ def make_short(video, item, part, out_dir, cfg):
         end = min(duration, start + target_len)
     else:
         target_len = end - start
+    if cfg.get('demo_style_enabled', True):
+        from demo_style import build_edit
+        demo_caption = item.get('_daily_caption') or caption_line(item, 'short')
+        build_edit(video, out, [(start, start + target_len)], demo_caption, root=ROOT)
+        mix_short_music(out, item, cfg)
+        return out, {'start': start, 'end': start + target_len, 'score': score}
     if cfg.get('pro_edit_enabled', True):
         profile = choose_profile(item, duration=target_len, short=True)
         vf = pro_filters(profile, 1080, 1920)
@@ -448,7 +454,7 @@ def make_short(video, item, part, out_dir, cfg):
     # Scene captions are disabled by default; keep the source dialogue/audio clean.
     if cfg.get('show_scene_captions', False):
         hook_text = item.get('_daily_caption') or caption_line(item, 'short')
-        hook_text = re.sub(r"[\\U0001F300-\\U0001FAFF\\U00002600-\\U000027BF]", "", str(hook_text)).strip()[:54]
+        hook_text = re.sub("[\U0001F300-\U0001FAFF\U00002600-\U000027BF]", "", str(hook_text)).strip()[:54]
         vf.append('drawbox=x=0:y=72:w=iw:h=100:color=white@1.0:t=fill')
         vf.append(f"drawtext=text='{escape_drawtext(hook_text)}':x=(w-text_w)/2:y=101:fontsize=36:fontcolor=black:fix_bounds=true")
     if cfg.get('brand_watermark_enabled', True):
@@ -499,7 +505,11 @@ def main():
         if not source_id:
             print('SKIP source with no id')
             continue
-        source, thumb = validate_item(item)
+        try:
+            source, thumb = validate_item(item)
+        except (RuntimeError, FileNotFoundError, KeyError) as exc:
+            print(f'SKIP {source_id}: {exc}')
+            continue
         source_rel = str(source.relative_to(ROOT))
         if source_rel in seen_sources:
             print(f'SKIP duplicate source file in metadata: {source_rel}')

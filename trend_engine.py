@@ -51,26 +51,33 @@ def fetch_chart(api_key, region, category=None, max_results=50):
 
 
 def channel_stats(api_key, channel_ids):
-    if not channel_ids:
-        return {}
-    url = 'https://www.googleapis.com/youtube/v3/channels?' + urllib.parse.urlencode({
-        'part': 'statistics,snippet',
-        'id': ','.join(sorted(channel_ids))[:8000],
-        'key': api_key,
-    })
-    req = urllib.request.Request(
-        url,
-        headers={'User-Agent': 'MovieAutoPublisher/Trend-Discovery/1.0'}
-    )
-    with urllib.request.urlopen(req, timeout=30) as response:
-        data = json.loads(response.read().decode('utf-8'))
-    return {
-        item['id']: {
-            'title': item.get('snippet', {}).get('title', ''),
-            'subscribers': int(item.get('statistics', {}).get('subscriberCount', 0) or 0),
-        }
-        for item in data.get('items', [])
-    }
+    """Fetch channel subscriber counts in batches of 50 ids (API limit; more gives HTTP 400)."""
+    ids = sorted(str(x) for x in channel_ids if x)
+    result = {}
+    for start in range(0, len(ids), 50):
+        batch = ids[start:start + 50]
+        url = 'https://www.googleapis.com/youtube/v3/channels?' + urllib.parse.urlencode({
+            'part': 'statistics,snippet',
+            'id': ','.join(batch),
+            'maxResults': 50,
+            'key': api_key,
+        })
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'MovieAutoPublisher/Trend-Discovery/1.0'}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+        except Exception as exc:
+            print(f'Channel stats batch {start // 50 + 1} failed: {exc}')
+            continue
+        for item in data.get('items', []):
+            result[item['id']] = {
+                'title': item.get('snippet', {}).get('title', ''),
+                'subscribers': int(item.get('statistics', {}).get('subscriberCount', 0) or 0),
+            }
+    return result
 
 
 def normalize(items, channel_map, source):
