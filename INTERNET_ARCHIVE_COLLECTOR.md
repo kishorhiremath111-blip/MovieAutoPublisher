@@ -4,10 +4,10 @@ This collector is intentionally **review-first**. It never treats an Internet Ar
 
 ## How it works
 
-1. `python internet_archive_collector.py --discover` searches Internet Archive for movie items whose metadata advertises a public-domain license and writes `output/internet_archive_candidates.json`. This report is for review only.
+1. `python internet_archive_collector.py --discover` searches Internet Archive for movie items whose metadata advertises a public-domain license and writes `output/internet_archive_candidates.json`. This report is for review only. You can also run Actions → Internet Archive Candidate Scan → Run workflow to generate and download this report without running the YouTube publisher.
 2. Review the exact edition, publication/copyright history, soundtrack, restoration/version rights, and whether reuse is permitted in India. Use independent evidence such as an official rights record or a reliable public-domain reference.
 3. Add only reviewed items to `config/internet_archive_public_domain.json` using the schema below.
-4. `python internet_archive_collector.py --download-approved` rechecks Internet Archive metadata, downloads a supported video file plus thumbnail, verifies size/MD5 where available, and merges a licensed item into the local `metadata.json`. The source is marked private for first-pass review.
+4. `python internet_archive_collector.py --download-approved` rechecks Internet Archive metadata, downloads a supported video file plus thumbnail, verifies size/MD5 where available, and merges a licensed item into the local `metadata.json`. By default it downloads one allowlisted film per run and rotates through the list by India-local date to limit bandwidth and disk use. Set `IA_MAX_ITEMS_PER_RUN` to 2–5 only if needed. The source is marked private for first-pass review.
 5. The daily GitHub Actions workflow runs discovery and approved downloads before the existing publisher. The schedule, OAuth secrets, and upload commands are not changed. The candidate report is included in the run artifact.
 
 ## Allowlist schema
