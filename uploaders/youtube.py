@@ -351,6 +351,10 @@ def publish_daily(limit_long=1, limit_short=1):
     tracker = load_json(ROOT / 'state' / 'viral_tracker.json', {})
     candidate_scores = {}
     for key, item in by_source.items():
+        rights_ok, rights_reason = rights_gate(item)
+        if not rights_ok:
+            print(f"RIGHTS GATE: skip {key}: {rights_reason}")
+            continue
         if key in used_recent:
             continue
         source_path = str(item.get('source') or item.get('source_item_id') or key)
