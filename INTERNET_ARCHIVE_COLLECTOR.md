@@ -1,6 +1,6 @@
 # MovieAutoPublisher: rights-cleared movies, series, anime and Shorts
 
-This workflow supports both edited Shorts/clips and longer movies or episodes. **Editing does not remove copyright**, and a short duration is not permission. It never downloads or publishes from an arbitrary streaming/piracy site. Use only content you created or have permission/licensing to download, edit, and upload to YouTube, or a specific edition whose public-domain status and soundtrack rights have been checked for the intended territory.
+The daily publisher aims to upload **one long video and one Short per day**, using two different approved sources/topics. It ranks eligible items for trend fit, but no score can guarantee virality; if a rights-cleared candidate is available, low trend score alone does not block upload. This workflow supports both edited Shorts/clips and longer movies or episodes. **Editing does not remove copyright**, and a short duration is not permission. It never downloads or publishes from an arbitrary streaming/piracy site. Use only content you created or have permission/licensing to download, edit, and upload to YouTube, or a specific edition whose public-domain status and soundtrack rights have been checked for the intended territory.
 
 ## Copyright/rights review gate
 
@@ -36,11 +36,11 @@ If any requirement is missing, the item is skipped or processing stops before up
    }
    ```
 4. The collector downloads only allowlisted entries with valid review evidence. The downloaded metadata remains blocked from publication unless `upload_approved` is explicitly set to `true` in that allowlist after you have decided to publish.
-5. By default, at most one approved film is downloaded per run. The daily workflow keeps the existing schedule, YouTube secrets, and publisher command; the new rights gate runs before processing/upload.
+5. By default, at most one approved film is downloaded per collector run. The daily workflow keeps the existing 7 PM IST schedule and YouTube secrets. The daily runner now attempts one long video and one Short; they must use different approved sources/topics. If two eligible sources are not ready, the run fails safely rather than reusing one source or uploading unreviewed media.
 
 ## Anime, series, full episodes and clips
 
-The existing media metadata supports `type: "anime"`, `type: "series"`, and `type: "movie"`. A licensed full episode does not automatically grant rights to make derivative clips; confirm the permission covers both the full upload and edited clips/Shorts. Store each source file and thumbnail locally under the expected input folders and give each item a unique `id` and `topic_id`.
+The existing media metadata supports `type: "anime"`, `type: "series"`, and `type: "movie"`. A licensed full episode does not automatically grant rights to make derivative clips; confirm the permission covers both the full upload and edited clips/Shorts. Store each source file and thumbnail locally under the expected input folders and give each item a unique `id` and `topic_id`. For the daily one-long-plus-one-Short goal, prepare at least two distinct approved source items each day.
 
 For content added directly to `metadata.json`, use the same copyright/rights-gate fields listed above. The redundant `licensed: true` and free-text `license` fields are no longer required; the explicit rights basis, evidence URL, review approval, upload approval, and verified audio check still are. Example (replace all sample values with real evidence):
 
