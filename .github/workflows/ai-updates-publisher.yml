@@ -1,0 +1,77 @@
+name: AI Updates Video Publisher
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Upload the generated AI update publicly to YouTube"
+        required: true
+        type: boolean
+        default: false
+  schedule:
+    # Separate from the existing movie publisher: 7:30 PM IST daily.
+    - cron: "0 14 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-updates-publisher
+  cancel-in-progress: false
+
+jobs:
+  ai-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore AI news deduplication state
+        uses: actions/cache/restore@v4
+        with:
+          path: state/ai_updates_seen.json
+          key: ai-updates-state-${{ github.run_id }}
+          restore-keys: ai-updates-state-
+
+      - name: Install rendering tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng fonts-dejavu-core
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Render original AI news Short
+        env:
+          GITHUB_ACTIONS: "true"
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.publish }}" = "true" ]; then
+            python ai_updates_publisher.py --publish
+          else
+            python ai_updates_publisher.py
+          fi
+
+      - name: Save AI news deduplication state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state/ai_updates_seen.json
+          key: ai-updates-state-${{ github.run_id }}
+
+      - name: Upload rendered video and source metadata as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-update-video-${{ github.run_number }}
+          path: output/ai_updates/
+          if-no-files-found: warn
+          retention-days: 14
