@@ -1,22 +1,20 @@
 name: VYROX DAILY Auto Shorts
 
 on:
-  push:
-    branches:
-      - ai-updates-publisher
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish publicly after rendering (first run should be draft-only)"
+        description: "Upload to YouTube after rendering (off = draft only)"
         required: true
         type: boolean
         default: false
   schedule:
     # Two Shorts per day: 1:30 PM IST and 7:30 PM IST.
+    # Scheduled runs only fire from the default branch (main).
     - cron: "0 8,14 * * *"
 
 permissions:
-  contents: read
+  contents: write   # lets the run commit state/ai_updates_seen.json so stories never repeat
 
 concurrency:
   group: vyrox-daily-auto-shorts
@@ -25,17 +23,10 @@ concurrency:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Restore story deduplication state
-        uses: actions/cache/restore@v4
-        with:
-          path: state/ai_updates_seen.json
-          key: vyrox-daily-state-${{ github.run_id }}
-          restore-keys: vyrox-daily-state-
 
       - name: Install FFmpeg and fonts
         run: |
@@ -57,6 +48,8 @@ jobs:
       - name: Render and optionally publish
         env:
           GITHUB_ACTIONS: "true"
+          # Uploads stay PRIVATE until you create a repo variable VYROX_PRIVACY = public
+          VYROX_PRIVACY: ${{ vars.VYROX_PRIVACY || 'private' }}
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: |
@@ -66,18 +59,22 @@ jobs:
             python ai_updates_publisher.py
           fi
 
-      - name: Save story deduplication state
+      - name: Remember used stories (no repeats)
         if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: state/ai_updates_seen.json
-          key: vyrox-daily-state-${{ github.run_id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/ai_updates_seen.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "Update VYROX DAILY used stories" && git push)
 
-      - name: Save generated slides, video and metadata
+      - name: Save generated video and metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vyrox-daily-short-${{ github.run_number }}
-          path: output/ai_updates/
+          path: |
+            output/ai_updates/vyrox_daily_short.mp4
+            output/ai_updates/upload_metadata.json
+            output/ai_updates/preview_hook_overlay.png
           if-no-files-found: warn
           retention-days: 14
