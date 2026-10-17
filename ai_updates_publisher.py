@@ -184,10 +184,10 @@ def main():
  run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat),"-c","copy",str(silent)])
  video=OUT/"vyrox_daily_short.mp4"
  # Original subtle synthesized background audio; no voice and no downloaded song.
- run(["ffmpeg","-y","-i",str(silent),"-f","lavfi","-i","sine=frequency=110:duration=35:sample_rate=44100","-f","lavfi","-i","sine=frequency=164.81:duration=35:sample_rate=44100","-filter_complex","[1:a]volume=0.035,afade=t=in:st=0:d=1,afade=t=out:st=32:d=3[a1];[2:a]volume=0.02,afade=t=in:st=0:d=1,afade=t=out:st=18:d=2[a2];[a1][a2]amix=inputs=2:duration=longest,lowpass=f=900[a]","-map","0:v","-map","[a]","-c:v","copy","-c:a","aac","-b:a","96k","-shortest","-movflags","+faststart",str(video)])
+ run(["ffmpeg","-y","-i",str(silent),"-f","lavfi","-i","sine=frequency=110:duration=35:sample_rate=44100","-f","lavfi","-i","sine=frequency=164.81:duration=35:sample_rate=44100","-filter_complex","[1:a]volume=0.035,afade=t=in:st=0:d=1,afade=t=out:st=32:d=3[a1];[2:a]volume=0.02,afade=t=in:st=0:d=1,afade=t=out:st=32:d=3[a2];[a1][a2]amix=inputs=2:duration=longest,lowpass=f=900[a]","-map","0:v","-map","[a]","-c:v","copy","-c:a","aac","-b:a","96k","-shortest","-movflags","+faststart",str(video)])
  date=datetime.now(timezone.utc).strftime("%Y-%m-%d")
  title=(story["title"][:75].rstrip()+" | VYROX DAILY #Shorts")
- description=(f"{story['category']} update from {story['source']}.\n\nSummary: {story['summary'][:900]}\n\nOriginal source (read for full context): {story['link']}\n\nImages and text edited by VYROX DAILY. {image_credit}\nText edited by VYROX DAILY. Background sound is generated for this video.\n#Shorts #TechNews #AI #WorldNews #Science")
+ description=(f"{story['category']} update from {story['source']}.\n\nSummary: {story['summary'][:900]}\n\nOriginal source (read for full context): {story['link']}\n\n{image_credit}\nText edited by VYROX DAILY. Background sound is generated for this video.\n#Shorts #TechNews #AI #WorldNews #Science")
  meta={"title":title,"description":description,"source":story["link"],"category":story["category"],"date":date,"video":str(video),"image_credit":image_credit,"image_license":commons if commons else None,"duration_seconds":35}
  (OUT/"upload_metadata.json").write_text(json.dumps(meta,indent=2,ensure_ascii=False))
  print("DRAFT_READY:",video)
