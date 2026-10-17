@@ -37,8 +37,8 @@ SERIF_B = ["assets/fonts/PlayfairDisplay-Bold.ttf", "/usr/share/fonts/truetype/d
 SANS_B = ["assets/fonts/Montserrat-ExtraBold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
 SANS = ["assets/fonts/Montserrat-Medium.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 
-# Order = what gets posted next. Anime and series come around often because they are requested.
-ROTATION = ["AI", "SCIENCE", "HEALTH", "WORLD", "SPACE", "TECH", "ANIME", "AI", "SCIENCE", "HEALTH", "ANIME", "WORLD"]
+# Rotate through useful news, history and light entertainment; one fresh story per run.
+ROTATION = ["AI", "FUNNY", "SCIENCE", "HISTORY", "HEALTH", "WORLD", "SPACE", "TECH", "ANIME", "FUNNY", "HISTORY", "AI"]
 
 CATS = {
     "AI": dict(top=(5, 9, 28), bot=(18, 42, 100), accent=(0, 210, 255), label="AI UPDATE",
@@ -74,11 +74,16 @@ CATS = {
                   kickers=["ANIME UPDATE", "ANIME FANS, LISTEN UP", "NEW ANIME NEWS"],
                   feeds=[("Anime News Network", "https://www.animenewsnetwork.com/news/rss.xml", "press"),
                          ("MyAnimeList News", "https://myanimelist.net/rss/news.xml", "press")]),
-    "SERIES": dict(top=(20, 6, 6), bot=(96, 22, 22), accent=(255, 96, 76), label="SERIES UPDATE",
-                   tags="#WebSeries #TVShows #Streaming #Shorts",
-                   kickers=["SERIES UPDATE", "STREAMING NEWS", "BINGE ALERT"],
-                   feeds=[("Deadline TV", "https://deadline.com/category/tv/feed/", "press"),
-                          ("Variety TV", "https://variety.com/v/tv/feed/", "press")]),
+    "HISTORY": dict(top=(22, 14, 7), bot=(88, 49, 20), accent=(255, 196, 88), label="HISTORY",
+                    tags="#History #DidYouKnow #Facts #Shorts",
+                    kickers=["HISTORY THEY DIDN'T TEACH YOU", "A MOMENT FROM HISTORY", "DID YOU KNOW?"],
+                    feeds=[("History Extra", "https://www.historyextra.com/feed/", "press"),
+                           ("Smithsonian Magazine", "https://www.smithsonianmag.com/rss/latest_articles/", "press")]),
+    "FUNNY": dict(top=(22, 5, 18), bot=(100, 22, 52), accent=(255, 190, 60), label="FUNNY FACTS",
+                  tags="#Funny #FunFacts #DidYouKnow #Shorts",
+                  kickers=["THIS IS WILD", "WAIT FOR IT", "YOU CAN'T MAKE THIS UP"],
+                  feeds=[("Reddit Funny", "https://www.reddit.com/r/funny/.rss", "press"),
+                         ("Reddit Today I Learned", "https://www.reddit.com/r/todayilearned/.rss", "press")]),
 }
 
 DEMO = {
@@ -459,7 +464,7 @@ def fg_hook(cat, kicker, title, idx, total):
     y = 650
     for line in lines:
         w = d.textlength(line, font=f)
-        shadow_text(d, ((W - w) / 2, y), line, f)
+        shadow_text(d, ((W - w) / 2, y), line, f, GOLD + (255,))
         y += int(size * 1.22)
     spaced(d, (W / 2, 1420), "WATCH TILL THE END", font(SANS_B, 28), GOLD + (255,), gap=6, anchor="m")
     return img
