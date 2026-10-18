@@ -8,6 +8,22 @@ on:
         required: true
         type: boolean
         default: false
+      category:
+        description: "Topic category for this run (SPACE is recommended for real NASA photos)"
+        required: true
+        type: choice
+        options:
+          - SPACE
+          - SCIENCE
+          - AI
+          - TECH
+          - ANIMALS
+          - WORLD
+          - HEALTH
+          - HISTORY
+          - FUNNY
+          - ANIME
+        default: SPACE
   schedule:
     # Two Shorts per day: 1:30 PM IST and 7:30 PM IST.
     # Scheduled runs only fire from the default branch (main).
@@ -53,10 +69,12 @@ jobs:
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: |
+          CATEGORY="${{ inputs.category }}"
+          if [ -z "$CATEGORY" ]; then CATEGORY="SPACE"; fi
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.publish }}" = "true" ]; then
-            python ai_updates_publisher.py --publish
+            python ai_updates_publisher.py --category "$CATEGORY" --publish
           else
-            python ai_updates_publisher.py
+            python ai_updates_publisher.py --category "$CATEGORY"
           fi
 
       - name: Remember used stories (no repeats)
