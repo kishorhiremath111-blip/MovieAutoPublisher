@@ -300,71 +300,79 @@ def pick_story(forced=None):
 
 # --------------------------------------------------------------------------- sourced real photos
 def fetch_story_photo(story):
-    """Fetch a real, reusable image from Wikimedia Commons; NASA library is a fallback for space/science.
-    Returns (local_path, credit_text). Fails closed to original graphics if no reusable photo is found.
-    """
+    """Find real, reusable images relevant to the story; never substitute abstract art."""
     OUT.mkdir(parents=True, exist_ok=True)
     title = re.sub(r"[^A-Za-z0-9 ]", " ", story.get("title", ""))[:100].strip()
     cat = story.get("category", "")
-    candidates = []
-    try:
-        params = {
-            "action": "query", "format": "json", "generator": "search",
-            "gsrsearch": f"filetype:bitmap {title}", "gsrnamespace": 6, "gsrlimit": 8,
-            "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": 1600,
-        }
-        r = requests.get("https://commons.wikimedia.org/w/api.php", params=params,
-                         headers={**HEADERS, "User-Agent": "VYROXDaily/1.0 (shorts project)"},
-                         timeout=18)
-        r.raise_for_status()
-        pages = r.json().get("query", {}).get("pages", {})
-        for page in pages.values():
-            info = (page.get("imageinfo") or [{}])[0]
-            url = info.get("thumburl") or info.get("url", "")
-            meta = info.get("extmetadata", {})
-            license_name = clean(meta.get("LicenseShortName", {}).get("value", ""))
-            artist = clean(meta.get("Artist", {}).get("value", ""))
-            if url.startswith("https://") and license_name and license_name.lower() not in {"fair use", "copyrighted"}:
-                candidates.append((url, f"Wikimedia Commons: {page.get('title','image')}; creator: {artist or 'see source page'}; license: {license_name}"))
-    except Exception as exc:
-        print(f"Wikimedia image lookup unavailable: {exc}")
-    # NASA public image library is an additional source for relevant science/space stories.
-    if not candidates and cat in {"SPACE", "SCIENCE", "AI"}:
+    category_queries = {
+        "SPACE": ["NASA deep space nebula galaxy", "NASA Sun solar surface", "NASA Moon lunar surface"],
+        "SCIENCE": ["scientific research laboratory", "scientists laboratory experiment"],
+        "AI": ["robot artificial intelligence technology"],
+        "HEALTH": ["public health medical research hospital"],
+        "WORLD": ["world landmarks environment people"],
+        "TECH": ["smartphone technology electronics"],
+        "HISTORY": ["historical artefact museum", "historical building archive"],
+        "ANIMALS": ["wild animals wildlife nature"],
+        "FUNNY": ["funny animal", "humorous situation"],
+        "ANIME": ["anime illustration"], 
+    }
+    queries = [title] + category_queries.get(cat, [])
+    candidates, seen_urls = [], set()
+    # Search Wikimedia Commons with the story title first, then relevant topic terms.
+    for query in queries:
         try:
-            nasa_queries = {
-                "SPACE": [title, "deep space nebula galaxy NASA", "Sun solar surface NASA", "Moon lunar surface NASA"],
-                "SCIENCE": [title, "NASA science research laboratory"],
-                "AI": [title, "NASA artificial intelligence robotics"],
+            params = {
+                "action": "query", "format": "json", "generator": "search",
+                "gsrsearch": f"filetype:bitmap {query}", "gsrnamespace": 6, "gsrlimit": 8,
+                "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": 1600,
             }
-            queries = [q for q in nasa_queries.get(cat, [title]) if q]
-            nasa_items = []
-            for q in queries:
-                try:
-                    nr = requests.get("https://images-api.nasa.gov/search",
-                                      params={"q": q, "media_type": "image", "page_size": 10},
-                                      headers=HEADERS, timeout=18)
-                    nr.raise_for_status()
-                    nasa_items.extend(nr.json().get("collection", {}).get("items", []))
-                except Exception as exc:
-                    print(f"NASA query unavailable ({q}): {exc}")
-            for item in nasa_items:
-                data = (item.get("data") or [{}])[0]
-                links = item.get("links") or []
-                url = next((x.get("href", "") for x in links if x.get("render") == "image"), "")
-                if url.startswith("https://") and data.get("nasa_id"):
-                    candidates.append((url, f"NASA Image and Video Library: {data.get('title','NASA image')} (NASA ID {data['nasa_id']}; verify item-specific credit)"))
-            # Keep source-image downloads below shared with Wikimedia candidates.
-
+            r = requests.get("https://commons.wikimedia.org/w/api.php", params=params,
+                             headers={**HEADERS, "User-Agent": "VYROXDaily/1.0 (shorts project)"},
+                             timeout=18)
+            r.raise_for_status()
+            pages = r.json().get("query", {}).get("pages", {})
+            for page in pages.values():
+                info = (page.get("imageinfo") or [{}])[0]
+                url = info.get("thumburl") or info.get("url", "")
+                meta = info.get("extmetadata", {})
+                license_name = clean(meta.get("LicenseShortName", {}).get("value", ""))
+                artist = clean(meta.get("Artist", {}).get("value", ""))
+                if (url.startswith("https://") and url not in seen_urls and license_name
+                        and license_name.lower() not in {"fair use", "copyrighted"}):
+                    seen_urls.add(url)
+                    candidates.append((url, f"Wikimedia Commons: {page.get('title','image')}; creator: {artist or 'see source page'}; license: {license_name}"))
+            if len(candidates) >= 5:
+                break
         except Exception as exc:
-            print(f"NASA image lookup unavailable: {exc}")
+            print(f"Wikimedia lookup unavailable ({query}): {exc}")
+    # NASA image library is especially useful for space stories; NASA imagery is public-domain in many cases,
+    # but item-specific credit and restrictions must still be checked.
+    if cat == "SPACE" and len(candidates) < 2:
+        for query in [title, "deep space galaxy nebula NASA", "Sun solar surface NASA", "Moon lunar surface NASA"]:
+            try:
+                nr = requests.get("https://images-api.nasa.gov/search",
+                                  params={"q": query, "media_type": "image", "page_size": 10},
+                                  headers=HEADERS, timeout=18)
+                nr.raise_for_status()
+                for item in nr.json().get("collection", {}).get("items", []):
+                    data = (item.get("data") or [{}])[0]
+                    links = item.get("links") or []
+                    url = next((x.get("href", "") for x in links if x.get("render") == "image"), "")
+                    if url.startswith("https://") and url not in seen_urls and data.get("nasa_id"):
+                        seen_urls.add(url)
+                        candidates.append((url, f"NASA Image and Video Library: {data.get('title','NASA image')} (NASA ID {data['nasa_id']}; verify item-specific credit)"))
+            except Exception as exc:
+                print(f"NASA lookup unavailable ({query}): {exc}")
+            if len(candidates) >= 8:
+                break
     downloaded = []
+    from io import BytesIO
     for url, credit in candidates:
         try:
             r = requests.get(url, headers=HEADERS, timeout=25)
             r.raise_for_status()
-            if not r.headers.get("content-type", "").startswith("image/") or len(r.content) < 12000:
+            if not r.headers.get("content-type", "").startswith("image/") or len(r.content) < 5000:
                 continue
-            from io import BytesIO
             im = Image.open(BytesIO(r.content))
             im.verify()
             path = OUT / f"source_photo_{len(downloaded):02d}.jpg"
@@ -377,8 +385,8 @@ def fetch_story_photo(story):
             continue
     if downloaded:
         return [item[0] for item in downloaded], "; ".join(item[1] for item in downloaded)
-    print("No reusable source photo found; using original category graphics.")
-    return [], "Visuals: original VYROX DAILY graphics (no reusable source photo found)"
+    print("No reusable source photo found; refusing to render a substitute.")
+    return [], "No reusable source photo found"
 
 
 # --------------------------------------------------------------------------- visuals
