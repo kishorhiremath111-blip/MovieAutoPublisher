@@ -339,6 +339,7 @@ def fetch_story_photo(story):
                     candidates.append((url, f"NASA Image and Video Library: {data.get('title','NASA image')} (NASA ID {data['nasa_id']}; verify item-specific credit)"))
         except Exception as exc:
             print(f"NASA image lookup unavailable: {exc}")
+    downloaded = []
     for url, credit in candidates:
         try:
             r = requests.get(url, headers=HEADERS, timeout=25)
@@ -348,14 +349,18 @@ def fetch_story_photo(story):
             from io import BytesIO
             im = Image.open(BytesIO(r.content))
             im.verify()
-            path = OUT / "source_photo.jpg"
+            path = OUT / f"source_photo_{len(downloaded):02d}.jpg"
             path.write_bytes(r.content)
+            downloaded.append((path, credit))
             print(f"Using real source image: {credit}")
-            return path, credit
+            if len(downloaded) >= 5:
+                break
         except Exception:
             continue
+    if downloaded:
+        return [item[0] for item in downloaded], "; ".join(item[1] for item in downloaded)
     print("No reusable source photo found; using original category graphics.")
-    return None, "Visuals: original VYROX DAILY graphics (no reusable source photo found)"
+    return [], "Visuals: original VYROX DAILY graphics (no reusable source photo found)"
 
 
 # --------------------------------------------------------------------------- visuals
@@ -363,6 +368,8 @@ def make_bg(cat, seed, variant, photo_path=None):
     c = CATS[cat]
     rng = random.Random(f"{seed}-{variant}")
     top, bot, ac = c["top"], c["bot"], c["accent"]
+    if photo_path and isinstance(photo_path, (list, tuple)) and len(photo_path):
+        photo_path = photo_path[variant % len(photo_path)]
     if photo_path and Path(photo_path).exists():
         photo = Image.open(photo_path).convert("RGB")
         # Different vertical crops make the sourced photo feel less static across scenes.
