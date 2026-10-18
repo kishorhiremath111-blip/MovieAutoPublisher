@@ -38,7 +38,7 @@ SANS_B = ["assets/fonts/Montserrat-ExtraBold.ttf", "/usr/share/fonts/truetype/de
 SANS = ["assets/fonts/Montserrat-Medium.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 
 # Rotate through useful news, history and light entertainment; one fresh story per run.
-ROTATION = ["AI", "FUNNY", "SCIENCE", "HISTORY", "HEALTH", "WORLD", "SPACE", "TECH", "ANIME", "FUNNY", "HISTORY", "AI"]
+ROTATION = ["AI", "ANIMALS", "FUNNY", "SCIENCE", "HISTORY", "HEALTH", "WORLD", "SPACE", "TECH", "ANIME", "ANIMALS", "FUNNY", "HISTORY", "SPACE", "AI"]
 
 CATS = {
     "AI": dict(top=(5, 9, 28), bot=(18, 42, 100), accent=(0, 210, 255), label="AI UPDATE",
@@ -84,6 +84,11 @@ CATS = {
                   kickers=["THIS IS WILD", "WAIT FOR IT", "YOU CAN'T MAKE THIS UP"],
                   feeds=[("Reddit Funny", "https://www.reddit.com/r/funny/.rss", "press"),
                          ("Reddit Today I Learned", "https://www.reddit.com/r/todayilearned/.rss", "press")]),
+    "ANIMALS": dict(top=(5, 22, 12), bot=(18, 92, 44), accent=(160, 255, 120), label="ANIMAL WORLD",
+                    tags="#Animals #Wildlife #Nature #Shorts",
+                    kickers=["WILDLIFE UPDATE", "NATURE IS WILD", "ANIMAL FACT YOU NEED TO SEE"],
+                    feeds=[("ScienceDaily Animals & Plants", "https://www.sciencedaily.com/rss/plants_animals.xml", "press"),
+                           ("Smithsonian Magazine", "https://www.smithsonianmag.com/rss/latest_articles/", "press")]),
 }
 
 DEMO = {
@@ -326,17 +331,30 @@ def fetch_story_photo(story):
     # NASA public image library is an additional source for relevant science/space stories.
     if not candidates and cat in {"SPACE", "SCIENCE", "AI"}:
         try:
-            q = "Moon Sun NASA space" if cat == "SPACE" else title
-            r = requests.get("https://images-api.nasa.gov/search",
-                             params={"q": q, "media_type": "image", "page_size": 10},
-                             headers=HEADERS, timeout=18)
-            r.raise_for_status()
-            for item in r.json().get("collection", {}).get("items", []):
+            nasa_queries = {
+                "SPACE": [title, "deep space nebula galaxy NASA", "Sun solar surface NASA", "Moon lunar surface NASA"],
+                "SCIENCE": [title, "NASA science research laboratory"],
+                "AI": [title, "NASA artificial intelligence robotics"],
+            }
+            queries = [q for q in nasa_queries.get(cat, [title]) if q]
+            nasa_items = []
+            for q in queries:
+                try:
+                    nr = requests.get("https://images-api.nasa.gov/search",
+                                      params={"q": q, "media_type": "image", "page_size": 10},
+                                      headers=HEADERS, timeout=18)
+                    nr.raise_for_status()
+                    nasa_items.extend(nr.json().get("collection", {}).get("items", []))
+                except Exception as exc:
+                    print(f"NASA query unavailable ({q}): {exc}")
+            for item in nasa_items:
                 data = (item.get("data") or [{}])[0]
                 links = item.get("links") or []
                 url = next((x.get("href", "") for x in links if x.get("render") == "image"), "")
                 if url.startswith("https://") and data.get("nasa_id"):
                     candidates.append((url, f"NASA Image and Video Library: {data.get('title','NASA image')} (NASA ID {data['nasa_id']}; verify item-specific credit)"))
+            # Keep source-image downloads below shared with Wikimedia candidates.
+
         except Exception as exc:
             print(f"NASA image lookup unavailable: {exc}")
     downloaded = []
@@ -757,7 +775,7 @@ def pick_music(cat, seed):
     mood = {
         "AI": "tech", "TECH": "tech", "SCIENCE": "cinematic",
         "SPACE": "ambient", "HEALTH": "calm", "WORLD": "news",
-        "HISTORY": "cinematic", "ANIME": "anime", "FUNNY": "funny",
+        "HISTORY": "cinematic", "ANIME": "anime", "FUNNY": "funny", "ANIMALS": "nature",
     }.get(cat, "cinematic")
     for folder in (ROOT / "input" / "music" / cat.lower(),
                    ROOT / "input" / "music" / mood,
