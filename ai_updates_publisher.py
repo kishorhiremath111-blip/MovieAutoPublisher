@@ -368,11 +368,32 @@ def make_bg(cat, seed, variant, photo_path=None):
     c = CATS[cat]
     rng = random.Random(f"{seed}-{variant}")
     top, bot, ac = c["top"], c["bot"], c["accent"]
-    if photo_path and isinstance(photo_path, (list, tuple)) and len(photo_path):
-        photo_path = photo_path[variant % len(photo_path)]
-    if photo_path and Path(photo_path).exists():
-        photo = Image.open(photo_path).convert("RGB")
-        # Different vertical crops make the sourced photo feel less static across scenes.
+    photo_list = list(photo_path) if isinstance(photo_path, (list, tuple)) else ([photo_path] if photo_path else [])
+    photo_list = [Path(p) for p in photo_list if p and Path(p).exists()]
+
+    def crop_cover(path, size):
+        photo = Image.open(path).convert("RGB")
+        sw, sh = size
+        scale = max(sw / photo.width, sh / photo.height)
+        nw, nh = int(photo.width * scale), int(photo.height * scale)
+        photo = photo.resize((nw, nh), Image.Resampling.LANCZOS)
+        left, topy = max(0, (nw - sw) // 2), max(0, (nh - sh) // 2)
+        return photo.crop((left, topy, left + sw, topy + sh))
+
+    # Funny/anime meme-style shorts use four distinct sourced images in a 2x2 grid.
+    # The images remain separate panels; captions/branding are composited above them.
+    if cat in {"FUNNY", "ANIME"} and len(photo_list) >= 4:
+        cell_w, cell_h, gutter = (W - 3 * 18) // 2, (H - 3 * 18) // 2, 18
+        img = Image.new("RGB", (W, H), (0, 0, 0))
+        chosen = [photo_list[(variant + j) % len(photo_list)] for j in range(4)]
+        for j, path in enumerate(chosen):
+            x, y = gutter + (j % 2) * (cell_w + gutter), gutter + (j // 2) * (cell_h + gutter)
+            img.paste(crop_cover(path, (cell_w, cell_h)), (x, y))
+        img = Image.blend(img, Image.new("RGB", (W, H), (0, 0, 0)), 0.18)
+    elif photo_list:
+        # Cycle through distinct real photos across scenes and use varied crops.
+        path = photo_list[variant % len(photo_list)]
+        photo = Image.open(path).convert("RGB")
         target_ratio = W / H
         pw, ph = photo.size
         crop_h = ph
@@ -731,8 +752,16 @@ def combine(segs, durs, rng):
 
 
 def pick_music(cat, seed):
+    """Pick a properly licensed local track by topic/mood; never scrape copyrighted chart songs."""
     exts = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
-    for folder in (ROOT / "input" / "music" / cat.lower(), ROOT / "input" / "music"):
+    mood = {
+        "AI": "tech", "TECH": "tech", "SCIENCE": "cinematic",
+        "SPACE": "ambient", "HEALTH": "calm", "WORLD": "news",
+        "HISTORY": "cinematic", "ANIME": "anime", "FUNNY": "funny",
+    }.get(cat, "cinematic")
+    for folder in (ROOT / "input" / "music" / cat.lower(),
+                   ROOT / "input" / "music" / mood,
+                   ROOT / "input" / "music"):
         if folder.is_dir():
             files = sorted(p for p in folder.iterdir() if p.suffix.lower() in exts)
             if files:
@@ -789,6 +818,13 @@ def build(story, publish):
     plan, short_title = plan_slides(story, rng)
     total_slides = len(plan)
     photo_path, photo_credit = fetch_story_photo(story)
+    if not photo_path:
+        raise RuntimeError(
+            f"No real reusable photo found for {cat}: refusing to render a fake/abstract substitute. "
+            "Retry later or add a properly licensed image to the project."
+        )
+    if cat in {"FUNNY", "ANIME"} and len(photo_path) < 4:
+        print(f"NOTE: {cat} has only {len(photo_path)} reusable image(s); 4-panel collage needs 4.")
     segs, durs = [], []
     for i, s in enumerate(plan):
         bg = OUT / f"bg_{i:02d}.png"
@@ -821,7 +857,7 @@ def build(story, publish):
     title = shorten(short_title, 78) + " | VYROX DAILY #Shorts"
     description = (f"{CATS[cat]['label']} from {story['source']}.\n\n{shorten(story['summary'], 600) if story['summary'] else short_title}\n\n"
                    f"Original source (read the full story): {story['link']}\n\n"
-                   f"Visuals: original VYROX DAILY graphics (no third-party photos).\n{music_credit}\n"
+                   f"Visual credits: {photo_credit}.\n{music_credit}\n"
                    f"Facts come from the source above; this Short is a quick summary.\n\n{CATS[cat]['tags']}")
     meta = {"title": title, "description": description, "source": story["link"], "category": cat,
             "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "video": str(video),
