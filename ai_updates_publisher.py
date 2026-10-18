@@ -4,7 +4,7 @@
 What changed vs the first version
   * a new story every run (category rotation + dedupe that also counts drafts)
   * 7-9 slides per Short instead of one static photo: hook, details, key terms, source, follow
-  * original generated visuals per category (no scraped og:image photos)
+  * real source photos when a suitable Wikimedia Commons or NASA image is available; original graphics remain the fallback
   * Ken Burns motion, crossfade/xfade transitions, fade-in text, sound-design whooshes
   * licensed music from input/music/<category>/ when present, otherwise generated ambient bed
   * uploads are PRIVATE unless VYROX_PRIVACY=public is set
@@ -293,16 +293,96 @@ def pick_story(forced=None):
     raise RuntimeError("No unseen source story found in any category. Skipping rather than reposting.")
 
 
+# --------------------------------------------------------------------------- sourced real photos
+def fetch_story_photo(story):
+    """Fetch a real, reusable image from Wikimedia Commons; NASA library is a fallback for space/science.
+    Returns (local_path, credit_text). Fails closed to original graphics if no reusable photo is found.
+    """
+    OUT.mkdir(parents=True, exist_ok=True)
+    title = re.sub(r"[^A-Za-z0-9 ]", " ", story.get("title", ""))[:100].strip()
+    cat = story.get("category", "")
+    candidates = []
+    try:
+        params = {
+            "action": "query", "format": "json", "generator": "search",
+            "gsrsearch": f"filetype:bitmap {title}", "gsrnamespace": 6, "gsrlimit": 8,
+            "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": 1600,
+        }
+        r = requests.get("https://commons.wikimedia.org/w/api.php", params=params,
+                         headers={**HEADERS, "User-Agent": "VYROXDaily/1.0 (shorts project)"},
+                         timeout=18)
+        r.raise_for_status()
+        pages = r.json().get("query", {}).get("pages", {})
+        for page in pages.values():
+            info = (page.get("imageinfo") or [{}])[0]
+            url = info.get("thumburl") or info.get("url", "")
+            meta = info.get("extmetadata", {})
+            license_name = clean(meta.get("LicenseShortName", {}).get("value", ""))
+            artist = clean(meta.get("Artist", {}).get("value", ""))
+            if url.startswith("https://") and license_name and license_name.lower() not in {"fair use", "copyrighted"}:
+                candidates.append((url, f"Wikimedia Commons: {page.get('title','image')}; creator: {artist or 'see source page'}; license: {license_name}"))
+    except Exception as exc:
+        print(f"Wikimedia image lookup unavailable: {exc}")
+    # NASA public image library is an additional source for relevant science/space stories.
+    if not candidates and cat in {"SPACE", "SCIENCE", "AI"}:
+        try:
+            q = "Moon Sun NASA space" if cat == "SPACE" else title
+            r = requests.get("https://images-api.nasa.gov/search",
+                             params={"q": q, "media_type": "image", "page_size": 10},
+                             headers=HEADERS, timeout=18)
+            r.raise_for_status()
+            for item in r.json().get("collection", {}).get("items", []):
+                data = (item.get("data") or [{}])[0]
+                links = item.get("links") or []
+                url = next((x.get("href", "") for x in links if x.get("render") == "image"), "")
+                if url.startswith("https://") and data.get("nasa_id"):
+                    candidates.append((url, f"NASA Image and Video Library: {data.get('title','NASA image')} (NASA ID {data['nasa_id']}; verify item-specific credit)"))
+        except Exception as exc:
+            print(f"NASA image lookup unavailable: {exc}")
+    for url, credit in candidates:
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=25)
+            r.raise_for_status()
+            if not r.headers.get("content-type", "").startswith("image/") or len(r.content) < 12000:
+                continue
+            from io import BytesIO
+            im = Image.open(BytesIO(r.content))
+            im.verify()
+            path = OUT / "source_photo.jpg"
+            path.write_bytes(r.content)
+            print(f"Using real source image: {credit}")
+            return path, credit
+        except Exception:
+            continue
+    print("No reusable source photo found; using original category graphics.")
+    return None, "Visuals: original VYROX DAILY graphics (no reusable source photo found)"
+
+
 # --------------------------------------------------------------------------- visuals
-def make_bg(cat, seed, variant):
+def make_bg(cat, seed, variant, photo_path=None):
     c = CATS[cat]
     rng = random.Random(f"{seed}-{variant}")
     top, bot, ac = c["top"], c["bot"], c["accent"]
-    img = Image.new("RGB", (W, H))
-    d = ImageDraw.Draw(img)
-    for y in range(H):
-        t = y / H
-        d.line((0, y, W, y), fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
+    if photo_path and Path(photo_path).exists():
+        photo = Image.open(photo_path).convert("RGB")
+        # Different vertical crops make the sourced photo feel less static across scenes.
+        target_ratio = W / H
+        pw, ph = photo.size
+        crop_h = ph
+        crop_w = min(pw, int(crop_h * target_ratio))
+        if crop_w > pw:
+            crop_w, crop_h = pw, int(pw / target_ratio)
+        max_x, max_y = max(0, pw - crop_w), max(0, ph - crop_h)
+        x = int(max_x * ((variant % 5) / 4)) if max_x else 0
+        y = int(max_y * ((variant % 3) / 2)) if max_y else 0
+        img = photo.crop((x, y, x + crop_w, y + crop_h)).resize((W, H), Image.Resampling.LANCZOS)
+        img = Image.blend(img, Image.new("RGB", (W, H), (0, 0, 0)), 0.28)
+    else:
+        img = Image.new("RGB", (W, H))
+        d = ImageDraw.Draw(img)
+        for y in range(H):
+            t = y / H
+            d.line((0, y, W, y), fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
     blobs = Image.new("RGB", (W // 4, H // 4), (0, 0, 0))
     bd = ImageDraw.Draw(blobs)
     for _ in range(4):
@@ -701,11 +781,12 @@ def build(story, publish):
     OUT.mkdir(parents=True)
     plan, short_title = plan_slides(story, rng)
     total_slides = len(plan)
+    photo_path, photo_credit = fetch_story_photo(story)
     segs, durs = [], []
     for i, s in enumerate(plan):
         bg = OUT / f"bg_{i:02d}.png"
         fg = OUT / f"fg_{i:02d}.png"
-        make_bg(cat, seed, i).save(bg)
+        make_bg(cat, seed, i, photo_path).save(bg)
         if s["kind"] == "hook":
             img = fg_hook(cat, s["kicker"], s["title"], i, total_slides)
         elif s["kind"] == "detail":
@@ -713,7 +794,7 @@ def build(story, publish):
         elif s["kind"] == "terms":
             img = fg_terms(cat, s["terms"], i, total_slides)
         elif s["kind"] == "source":
-            img = fg_source(cat, story["source"], story["link"], ["Visuals: original VYROX DAILY graphics"], i, total_slides)
+            img = fg_source(cat, story["source"], story["link"], [photo_credit], i, total_slides)
         else:
             img = fg_cta(cat, i, total_slides)
         img.save(fg)
