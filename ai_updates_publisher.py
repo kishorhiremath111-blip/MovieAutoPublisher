@@ -38,7 +38,7 @@ SANS_B = ["assets/fonts/Montserrat-ExtraBold.ttf", "/usr/share/fonts/truetype/de
 SANS = ["assets/fonts/Montserrat-Medium.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 
 # Rotate through useful news, history and light entertainment; one fresh story per run.
-ROTATION = ["WORLD", "SPORTS", "INDIA", "HEALTH", "TECH", "AI", "SCIENCE", "BUSINESS", "WORLD", "SPORTS", "INDIA", "HEALTH", "TECH", "BUSINESS", "SCIENCE"]
+ROTATION = ["AI", "SCIENCE", "SPACE", "ANIMALS", "TECH", "SCIENCE", "AI", "SPACE", "ANIMALS", "WORLD", "BUSINESS", "SCIENCE", "TECH", "AI", "SPACE"]
 
 CATS = {
     "AI": dict(top=(5, 9, 28), bot=(18, 42, 100), accent=(0, 210, 255), label="AI UPDATE",
