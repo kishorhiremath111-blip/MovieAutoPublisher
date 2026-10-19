@@ -813,6 +813,88 @@ def pick_music(cat, seed):
     return None
 
 
+def make_voiceover(story):
+    """Generate a clear professional English narration from source-backed text."""
+    text = clean(story.get("title", ""))
+    summary = clean(story.get("summary", ""))
+    # Keep the spoken copy concise and source-faithful; do not add unsupported claims.
+    spoken = (text + ". " + " ".join(sentences(summary)[:4])).strip()
+    spoken = shorten(spoken, 720)
+    if len(spoken.split()) < 8:
+        raise RuntimeError("Voiceover QA failed: not enough source-backed text to narrate.")
+    voice_path = OUT / "voiceover.mp3"
+    cmd = [
+        "edge-tts", "--voice", "en-US-GuyNeural", "--rate=-5%",
+        "--text", spoken, "--write-media", str(voice_path)
+    ]
+    try:
+        run(cmd)
+    except Exception as exc:
+        raise RuntimeError(f"Professional English voiceover generation failed; refusing silent/music-only draft: {exc}") from exc
+    if not voice_path.is_file() or voice_path.stat().st_size < 10000:
+        raise RuntimeError("Voiceover QA failed: generated narration file is missing or too small.")
+    print(f"VOICEOVER_READY: en-US-GuyNeural ({len(spoken.split())} words)")
+    return voice_path, spoken
+
+
+def mix_voice_and_music(bed_path, voice_path, total):
+    """Duck the music under narration and produce the final audible mix."""
+    mixed = OUT / "final_audio.m4a"
+    filter_complex = (
+        "[0:a]volume=0.22[music];"
+        "[1:a]aresample=44100,highpass=f=80,lowpass=f=12000,"
+        "loudnorm=I=-16:TP=-1.5:LRA=7,volume=1.0[voice];"
+        "[music][voice]sidechaincompress=threshold=0.025:ratio=8:attack=20:release=280[ducked];"
+        f"[ducked][voice]amix=inputs=2:duration=first:normalize=0,atrim=0:{total:.3f},"
+        f"afade=t=in:st=0:d=0.25,afade=t=out:st={max(0.1,total-1.0):.3f}:d=0.8,"
+        "alimiter=limit=0.95[a]"
+    )
+    run(["ffmpeg", "-y", "-i", str(bed_path), "-i", str(voice_path),
+         "-filter_complex", filter_complex, "-map", "[a]", "-t", f"{total:.3f}",
+         "-c:a", "aac", "-b:a", "192k", str(mixed)])
+    return mixed
+
+
+def media_quality_report(video_path, expected_duration, voice_path):
+    """Fail closed unless final video/audio streams and audible narration are measurable."""
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries",
+         "stream=codec_type,width,height,sample_rate", "-show_entries", "format=duration,size",
+         "-of", "json", str(video_path)], capture_output=True, text=True
+    )
+    if probe.returncode:
+        raise RuntimeError("Media QA failed: ffprobe could not inspect the rendered video.")
+    info = json.loads(probe.stdout or "{}")
+    streams = info.get("streams", [])
+    if not any(s.get("codec_type") == "video" and s.get("width") == W and s.get("height") == H for s in streams):
+        raise RuntimeError("Media QA failed: expected 1080x1920 vertical video stream is missing.")
+    if not any(s.get("codec_type") == "audio" for s in streams):
+        raise RuntimeError("Media QA failed: final audio stream is missing.")
+    duration = float((info.get("format") or {}).get("duration") or 0)
+    if duration < 8 or abs(duration - expected_duration) > 2.0:
+        raise RuntimeError(f"Media QA failed: unexpected duration {duration:.2f}s.")
+    if not voice_path.is_file() or voice_path.stat().st_size < 10000:
+        raise RuntimeError("Media QA failed: professional voiceover is absent.")
+    vol = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-i", str(video_path), "-vn", "-af", "volumedetect",
+         "-f", "null", "-"], capture_output=True, text=True
+    )
+    audio_log = (vol.stderr or "")[-12000:]
+    match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", audio_log)
+    if vol.returncode or not match:
+        raise RuntimeError("Media QA failed: could not measure final audio level.")
+    mean_db = float(match.group(1))
+    if mean_db < -35.0:
+        raise RuntimeError(f"Media QA failed: final audio is too quiet (mean {mean_db:.1f} dB).")
+    report = {
+        "passed": True, "video_width": W, "video_height": H,
+        "duration_seconds": round(duration, 2), "audio_stream_present": True,
+        "voiceover_present": True, "mean_audio_db": round(mean_db, 2),
+    }
+    print(f"MEDIA_QA_PASS: {json.dumps(report)}")
+    return report
+
+
 def make_audio(total, cat, seed, times):
     wav = OUT / "audio.m4a"
     music = pick_music(cat, seed)
@@ -888,10 +970,30 @@ def build(story, publish):
         segs.append(render_segment(bg, fg, s["dur"], i, rng))
         durs.append(s["dur"])
     silent, total, times = combine(segs, durs, rng)
-    audio, music_credit = make_audio(total, cat, seed, times)
+    bed_audio, music_credit = make_audio(total, cat, seed, times)
+    voice_path, spoken_text = make_voiceover(story)
+    final_audio = mix_voice_and_music(bed_audio, voice_path, total)
     video = OUT / "vyrox_daily_short.mp4"
-    run(["ffmpeg", "-y", "-i", str(silent), "-i", str(audio), "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+    run(["ffmpeg", "-y", "-i", str(silent), "-i", str(final_audio), "-map", "0:v", "-map", "1:a", "-c:v", "copy",
          "-c:a", "copy", "-shortest", "-movflags", "+faststart", str(video)])
+    quality_report = media_quality_report(video, total, voice_path)
+    try:
+        from viral_tracker import score_candidate, trend_index
+        tracker_path = ROOT / "state" / "viral_tracker.json"
+        tracker = json.loads(tracker_path.read_text(encoding="utf-8")) if tracker_path.exists() else {}
+        score_item = {
+            "id": norm_key(story["title"]), "title": story["title"],
+            "description": story.get("summary", ""), "category": story.get("category", "WORLD").lower(),
+            "published_at": story.get("published", ""), "created_at": int(time.time()),
+            "tags": CATS[cat]["tags"].split(),
+        }
+        viral_score, score_breakdown = score_candidate(score_item, trend_index(), tracker)
+    except Exception as exc:
+        raise RuntimeError(f"Viral scoring failed; draft cannot be approved without a measured score: {exc}") from exc
+    score_threshold = 75.0
+    approval_status = "pending_human_review" if quality_report["passed"] and viral_score >= score_threshold else "rejected_by_pre_publish_gate"
+    if viral_score < score_threshold:
+        print(f"PRE_PUBLISH_GATE_FAIL: viral_score={viral_score:.2f} required={score_threshold:.2f}; review only, do not upload.")
     shutil.copy(OUT / "fg_00.png", OUT / "preview_hook_overlay.png")
     for p in OUT.glob("seg_*.mp4"):
         p.unlink()
@@ -905,7 +1007,13 @@ def build(story, publish):
                    f"Facts come from the source above; this Short is a quick summary.\n\n{CATS[cat]['tags']}")
     meta = {"title": title, "description": description, "source": story["link"], "category": cat,
             "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "video": str(video),
-            "duration_seconds": round(total, 1), "slides": total_slides, "music": music_credit}
+            "duration_seconds": round(total, 1), "slides": total_slides, "music": music_credit,
+            "voiceover": {"provider": "Microsoft Edge TTS", "voice": "en-US-GuyNeural",
+                          "text": spoken_text, "verified_file": voice_path.name},
+            "viral_score": round(viral_score, 2), "viral_score_breakdown": score_breakdown,
+            "viral_score_threshold": score_threshold, "quality_report": quality_report,
+            "approval_required": True, "approval_status": approval_status,
+            "upload_allowed": approval_status == "pending_human_review"}
     (OUT / "upload_metadata.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"DRAFT_READY: {video} ({total:.1f}s, {total_slides} slides, {cat})")
     return video, title, description, meta
@@ -953,9 +1061,14 @@ def main():
     keys.add(norm_key(story["title"]))
     save_state(links, keys)
     if args.publish:
+        if meta.get("approval_status") != "pending_human_review" or not meta.get("quality_report", {}).get("passed"):
+            raise RuntimeError("Upload blocked: viral score or media QA did not pass. Review upload_metadata.json.")
+        if meta.get("viral_score", 0) < meta.get("viral_score_threshold", 75):
+            raise RuntimeError("Upload blocked: viral score is below the configured minimum.")
+        print("APPROVAL_GATE: workflow_dispatch --publish is the explicit human approval; score and media QA passed.")
         upload(video, title, description, story)
     else:
-        print("DRAFT_ONLY: no upload attempted.")
+        print(f"DRAFT_ONLY: score={meta.get('viral_score')} status={meta.get('approval_status')}; no upload attempted.")
 
 
 if __name__ == "__main__":
