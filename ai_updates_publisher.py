@@ -694,13 +694,13 @@ def fg_cta(cat, idx, total):
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     chrome(img, cat, idx, total)
-    spaced(d, (W / 2, 640), "FOLLOW", font(SANS_B, 44), CATS[cat]["accent"] + (255,), gap=10, anchor="m")
+    spaced(d, (W / 2, 640), "SUBSCRIBE", font(SANS_B, 44), CATS[cat]["accent"] + (255,), gap=10, anchor="m")
     f = font(SERIF_B, 150)
     w = d.textlength("VYROX", font=f)
     shadow_text(d, ((W - w) / 2, 720), "VYROX", f, GOLD + (255,))
     spaced(d, (W / 2, 930), "DAILY", font(SANS_B, 64), (255, 255, 255, 255), gap=24, anchor="m")
     d.rectangle((W / 2 - 90, 1040, W / 2 + 90, 1046), fill=GOLD + (255,))
-    spaced(d, (W / 2, 1100), "A NEW UPDATE EVERY DAY", font(SANS_B, 32), (235, 240, 250, 255), gap=5, anchor="m")
+    spaced(d, (W / 2, 1100), "SUBSCRIBE FOR DAILY UPDATES", font(SANS_B, 30), (235, 240, 250, 255), gap=5, anchor="m")
     return img
 
 
@@ -820,7 +820,7 @@ def make_voiceover(story):
     text = clean(story.get("title", ""))
     summary = clean(story.get("summary", ""))
     # Keep the spoken copy concise and source-faithful; do not add unsupported claims.
-    spoken = (text + ". " + " ".join(sentences(summary)[:4])).strip()
+    spoken = (text + ". " + " ".join(sentences(summary)[:4]) + " For more clear, reliable updates, subscribe to VYROX DAILY and turn on notifications.").strip()
     spoken = shorten(spoken, 430)
     if len(spoken.split()) < 8:
         raise RuntimeError("Voiceover QA failed: not enough source-backed text to narrate.")
