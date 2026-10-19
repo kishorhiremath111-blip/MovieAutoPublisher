@@ -612,7 +612,9 @@ def fg_hook(cat, kicker, title, idx, total):
     d = ImageDraw.Draw(img)
     chrome(img, cat, idx, total)
     ac = CATS[cat]["accent"]
-    spaced(d, (W / 2, 520), kicker, font(SANS_B, 40), ac + (255,), gap=5, anchor="m")
+    hook_line = {"ANIMALS": "DID YOU KNOW THIS ANIMAL?", "SCIENCE": "A DISCOVERY THAT CHANGES PERSPECTIVE", "SPACE": "WHAT IS OUT THERE?", "AI": "THE NEXT BIG AI BREAKTHROUGH?", "TECH": "THE FUTURE IS HERE", "WORLD": "HERE IS WHY IT MATTERS", "INDIA": "THE DETAIL YOU SHOULD KNOW", "BUSINESS": "WHY THIS MATTERS", "SPORTS": "THE MOMENT TO WATCH", "HEALTH": "WHAT THE EVIDENCE SAYS"}.get(cat, "DID YOU KNOW THIS?")
+    spaced(d, (W / 2, 500), hook_line, font(SANS_B, 30), GOLD + (255,), gap=4, anchor="m")
+    spaced(d, (W / 2, 550), kicker, font(SANS_B, 30), ac + (255,), gap=5, anchor="m")
     d.rectangle((W / 2 - 70, 590, W / 2 + 70, 598), fill=GOLD + (255,))
     f, lines, size = fit_lines(d, title.upper(), SERIF_B, W - 150, 640, 96, 54, spacing=1.22, max_lines=7)
     y = 650
@@ -821,7 +823,7 @@ def make_voiceover(story):
     text = clean(story.get("title", ""))
     summary = clean(story.get("summary", ""))
     # Keep the spoken copy concise and source-faithful; do not add unsupported claims.
-    spoken = (text + ". " + " ".join(sentences(summary)[:4]) + " For more clear, reliable updates, subscribe to VYROX DAILY and turn on notifications.").strip()
+    spoken = (text + ". " + " ".join(sentences(summary)[:4]) + " For more discoveries like this, subscribe to VYROX-2008 and turn on notifications.").strip()
     spoken = shorten(spoken, 430)
     if len(spoken.split()) < 8:
         raise RuntimeError("Voiceover QA failed: not enough source-backed text to narrate.")
