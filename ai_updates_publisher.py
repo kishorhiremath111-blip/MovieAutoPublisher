@@ -819,7 +819,7 @@ def make_voiceover(story):
     summary = clean(story.get("summary", ""))
     # Keep the spoken copy concise and source-faithful; do not add unsupported claims.
     spoken = (text + ". " + " ".join(sentences(summary)[:4])).strip()
-    spoken = shorten(spoken, 720)
+    spoken = shorten(spoken, 430)
     if len(spoken.split()) < 8:
         raise RuntimeError("Voiceover QA failed: not enough source-backed text to narrate.")
     voice_path = OUT / "voiceover.mp3"
@@ -977,6 +977,23 @@ def build(story, publish):
     run(["ffmpeg", "-y", "-i", str(silent), "-i", str(final_audio), "-map", "0:v", "-map", "1:a", "-c:v", "copy",
          "-c:a", "copy", "-shortest", "-movflags", "+faststart", str(video)])
     quality_report = media_quality_report(video, total, voice_path)
+    source_url_ok = str(story.get("link", "")).startswith("https://")
+    if not source_url_ok:
+        raise RuntimeError("Source QA failed: source URL must use HTTPS.")
+    license_match = re.search(r"license:\s*([^;]+)", photo_credit, flags=re.IGNORECASE)
+    license_name = license_match.group(1).strip() if license_match else ""
+    license_normalized = license_name.lower()
+    recognized_reuse_license = any(token in license_normalized for token in (
+        "cc0", "cc by", "cc-by", "cc by-sa", "cc-by-sa", "public domain", "pdm"
+    ))
+    rights_report = {
+        "source_url_https": source_url_ok,
+        "photo_credit_present": bool(photo_credit and "creator:" in photo_credit.lower()),
+        "photo_license_name": license_name or "not extracted",
+        "recognized_reuse_license": recognized_reuse_license,
+        "human_review_required": True,
+        "note": "A recognizable license is a screening signal, not a substitute for checking the exact asset page and license terms."
+    }
     try:
         from viral_tracker import score_candidate, trend_index
         tracker_path = ROOT / "state" / "viral_tracker.json"
@@ -991,7 +1008,13 @@ def build(story, publish):
     except Exception as exc:
         raise RuntimeError(f"Viral scoring failed; draft cannot be approved without a measured score: {exc}") from exc
     score_threshold = 75.0
-    approval_status = "pending_human_review" if quality_report["passed"] and viral_score >= score_threshold else "rejected_by_pre_publish_gate"
+    approval_status = (
+        "pending_human_review"
+        if quality_report["passed"] and viral_score >= score_threshold and recognized_reuse_license
+        else "rejected_by_pre_publish_gate"
+    )
+    if not recognized_reuse_license:
+        print(f"RIGHTS_GATE_FAIL: photo license was not confidently recognized ({license_name or 'missing'}); review only, do not upload.")
     if viral_score < score_threshold:
         print(f"PRE_PUBLISH_GATE_FAIL: viral_score={viral_score:.2f} required={score_threshold:.2f}; review only, do not upload.")
     shutil.copy(OUT / "fg_00.png", OUT / "preview_hook_overlay.png")
@@ -1013,7 +1036,7 @@ def build(story, publish):
             "viral_score": round(viral_score, 2), "viral_score_breakdown": score_breakdown,
             "viral_score_threshold": score_threshold, "quality_report": quality_report,
             "approval_required": True, "approval_status": approval_status,
-            "upload_allowed": approval_status == "pending_human_review"}
+            "upload_allowed": approval_status == "pending_human_review", "rights_report": rights_report, "factual_review_status": "source_attributed_single_source; independent corroboration pending"}
     (OUT / "upload_metadata.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"DRAFT_READY: {video} ({total:.1f}s, {total_slides} slides, {cat})")
     return video, title, description, meta
@@ -1061,8 +1084,10 @@ def main():
     keys.add(norm_key(story["title"]))
     save_state(links, keys)
     if args.publish:
-        if meta.get("approval_status") != "pending_human_review" or not meta.get("quality_report", {}).get("passed"):
-            raise RuntimeError("Upload blocked: viral score or media QA did not pass. Review upload_metadata.json.")
+        if (meta.get("approval_status") != "pending_human_review"
+                or not meta.get("quality_report", {}).get("passed")
+                or not meta.get("rights_report", {}).get("recognized_reuse_license")):
+            raise RuntimeError("Upload blocked: viral score, media QA or photo-rights screen did not pass. Review upload_metadata.json and exact asset license.")
         if meta.get("viral_score", 0) < meta.get("viral_score_threshold", 75):
             raise RuntimeError("Upload blocked: viral score is below the configured minimum.")
         print("APPROVAL_GATE: workflow_dispatch --publish is the explicit human approval; score and media QA passed.")
