@@ -38,7 +38,7 @@ SANS_B = ["assets/fonts/Montserrat-ExtraBold.ttf", "/usr/share/fonts/truetype/de
 SANS = ["assets/fonts/Montserrat-Medium.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 
 # Rotate through useful news, history and light entertainment; one fresh story per run.
-ROTATION = ["AI", "ANIMALS", "FUNNY", "SCIENCE", "HISTORY", "HEALTH", "WORLD", "SPACE", "TECH", "ANIME", "ANIMALS", "FUNNY", "HISTORY", "SPACE", "AI"]
+ROTATION = ["WORLD", "SPORTS", "INDIA", "HEALTH", "TECH", "AI", "SCIENCE", "BUSINESS", "WORLD", "SPORTS", "INDIA", "HEALTH", "TECH", "BUSINESS", "SCIENCE"]
 
 CATS = {
     "AI": dict(top=(5, 9, 28), bot=(18, 42, 100), accent=(0, 210, 255), label="AI UPDATE",
@@ -60,6 +60,21 @@ CATS = {
                    tags="#Health #Wellness #Science #Shorts",
                    kickers=["HEALTH UPDATE", "WHAT HEALTH EXPERTS SAY", "KNOW THIS TODAY"],
                    feeds=[("World Health Organization", "https://www.who.int/rss-feeds/news-english.xml", "official")]),
+    "SPORTS": dict(top=(6, 18, 38), bot=(12, 70, 125), accent=(80, 220, 170), label="SPORTS",
+                   tags="#Sports #SportsNews #Football #Cricket #Shorts",
+                   kickers=["THE SPORTS STORY EVERYONE NEEDS", "HERE IS THE BIG SPORTS UPDATE", "THIS RESULT MATTERS"],
+                   feeds=[("ESPN", "https://www.espn.com/espn/rss/news", "press"),
+                          ("BBC Sport", "https://feeds.bbci.co.uk/sport/rss.xml", "press")]),
+    "INDIA": dict(top=(24, 12, 7), bot=(120, 48, 18), accent=(255, 190, 70), label="INDIA",
+                  tags="#IndiaNews #India #News #Shorts",
+                  kickers=["IMPORTANT INDIA UPDATE", "HERE IS WHAT CHANGED", "THE INDIA STORY TO KNOW"],
+                  feeds=[("The Hindu", "https://www.thehindu.com/news/national/feeder/default.rss", "press"),
+                         ("PIB India", "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3", "official")]),
+    "BUSINESS": dict(top=(8, 20, 28), bot=(16, 84, 74), accent=(120, 240, 190), label="BUSINESS",
+                     tags="#Business #Markets #Economy #Shorts",
+                     kickers=["THE BUSINESS UPDATE", "WHY THIS MATTERS", "A BIG ECONOMIC SHIFT"],
+                     feeds=[("Reuters Business", "https://feeds.reuters.com/reuters/businessNews", "press"),
+                            ("World Bank News", "https://www.worldbank.org/en/news/all?format=rss", "official")]),
     "WORLD": dict(top=(8, 16, 36), bot=(20, 62, 112), accent=(96, 190, 255), label="WORLD",
                   tags="#WorldNews #News #Global #Shorts",
                   kickers=["WORLD UPDATE", "WHAT JUST HAPPENED", "IMPORTANT TODAY"],
@@ -309,6 +324,9 @@ def fetch_story_photo(story):
         "SCIENCE": ["scientific research laboratory", "scientists laboratory experiment"],
         "AI": ["robot artificial intelligence technology"],
         "HEALTH": ["public health medical research hospital"],
+        "SPORTS": ["football match sports stadium athlete", "cricket match stadium"],
+        "INDIA": ["India city public infrastructure people"],
+        "BUSINESS": ["global business economy finance"],
         "WORLD": ["world landmarks environment people"],
         "TECH": ["smartphone technology electronics"],
         "HISTORY": ["historical artefact museum", "historical building archive"],
@@ -805,7 +823,7 @@ def make_audio(total, cat, seed, times):
         return wav, f"Music: {music.name} (licensed local library)"
     minor = cat in ("AI", "SCIENCE", "SPACE", "SERIES", "ANIME", "TECH")
     root = {"AI": 110.0, "SCIENCE": 98.0, "SPACE": 87.31, "HEALTH": 130.81, "WORLD": 110.0,
-            "TECH": 98.0, "ANIME": 130.81, "SERIES": 82.41}[cat]
+            "TECH": 98.0, "ANIME": 130.81, "SERIES": 82.41, "SPORTS": 146.83, "INDIA": 110.0, "BUSINESS": 98.0}[cat]
     ratios = (1, 1.189, 1.498, 2.0) if minor else (1, 1.26, 1.498, 2.0)
     cmd = ["ffmpeg", "-y"]
     labels = []
