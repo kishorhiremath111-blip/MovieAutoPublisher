@@ -71,9 +71,11 @@ jobs:
           VYROX_PRIVACY: ${{ vars.VYROX_PRIVACY || 'private' }}
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           python -m py_compile approve_publish_draft.py
           python approve_publish_draft.py approved_draft/upload_metadata.json approved_draft/vyrox_daily_short.mp4
+          python viral_tracker.py update
 
       - name: Save tracker updates
         if: success()
