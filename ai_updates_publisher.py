@@ -572,7 +572,7 @@ def draw_motif(cat, ov, rng, ac):
 def chrome(img, cat, idx, total):
     d = ImageDraw.Draw(img)
     c = CATS[cat]
-    spaced(d, (64, 70), "VYROX", font(SERIF_B, 54), GOLD + (255,), gap=12)
+    spaced(d, (64, 70), "VYROX-2008", font(SERIF_B, 46), GOLD + (255,), gap=12)
     spaced(d, (66, 138), "D A I L Y", font(SANS_B, 20), c["accent"] + (255,), gap=2)
     d.line((64, 178, W - 64, 178), fill=GOLD + (150,), width=2)
     chip = font(SANS_B, 24)
@@ -701,6 +701,7 @@ def fg_cta(cat, idx, total):
     spaced(d, (W / 2, 930), "DAILY", font(SANS_B, 64), (255, 255, 255, 255), gap=24, anchor="m")
     d.rectangle((W / 2 - 90, 1040, W / 2 + 90, 1046), fill=GOLD + (255,))
     spaced(d, (W / 2, 1100), "SUBSCRIBE FOR DAILY UPDATES", font(SANS_B, 30), (235, 240, 250, 255), gap=5, anchor="m")
+    spaced(d, (W / 2, 1190), "VYROX-2008", font(SANS_B, 28), GOLD + (255,), gap=4, anchor="m")
     return img
 
 
