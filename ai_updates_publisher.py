@@ -308,7 +308,22 @@ def pick_story(forced=None):
             rows += parse_feed(cat, source, url, trust)
         fresh = [r for r in rows if r["link"] not in links and norm_key(r["title"]) not in keys]
         if fresh:
-            return rng.choice(fresh[:6])
+            # Prefer newest feed items; avoid random selection among older headlines.
+            def recency(item):
+                raw = item.get("published", "")
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(raw)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    return dt.timestamp()
+                except Exception:
+                    try:
+                        return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+                    except Exception:
+                        return 0
+            fresh.sort(key=recency, reverse=True)
+            return fresh[0]
         print(f"No unseen story in {cat}; trying next category.")
     raise RuntimeError("No unseen source story found in any category. Skipping rather than reposting.")
 
@@ -822,8 +837,23 @@ def make_voiceover(story):
     """Generate a clear professional English narration from source-backed text."""
     text = clean(story.get("title", ""))
     summary = clean(story.get("summary", ""))
-    # Keep the spoken copy concise and source-faithful; do not add unsupported claims.
-    spoken = (text + ". " + " ".join(sentences(summary)[:4]) + " For more discoveries like this, subscribe to VYROX-2008 and turn on notifications.").strip()
+    # Topic-specific curiosity opener, followed by source-backed facts and exact channel CTA.
+    cat = str(story.get("category", "WORLD")).upper()
+    hooks = {
+        "ANIMALS": "Did you know an animal like this exists? The real details are fascinating.",
+        "SCIENCE": "What if one discovery changed how we see the world? Here is what researchers reported.",
+        "SPACE": "What is happening beyond our planet? Here is the latest discovery.",
+        "AI": "Could this change the future of artificial intelligence? Here is what the source actually says.",
+        "TECH": "The next technology shift may be closer than you think. Here is the key detail.",
+        "WORLD": "Here is the detail behind this major world update—and why it matters.",
+        "INDIA": "Here is the key detail behind this India update, explained clearly.",
+        "BUSINESS": "Why does this business development matter? Here are the facts.",
+        "SPORTS": "Here is the moment sports fans should know about.",
+        "HEALTH": "What does the health report actually say? Let us separate the facts from the noise."
+    }
+    hook = hooks.get(cat, "Ready for a surprising discovery? Here are the verified details.")
+    body = " ".join(sentences(summary)[:4])
+    spoken = f"{hook} {text}. {body} For more discoveries like this, subscribe to VYROX-2008."
     spoken = shorten(spoken, 430)
     if len(spoken.split()) < 8:
         raise RuntimeError("Voiceover QA failed: not enough source-backed text to narrate.")
