@@ -1,0 +1,84 @@
+name: Approve VYROX Draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      draft_run_id:
+        description: "GitHub Actions run ID that created the reviewed draft"
+        required: true
+        type: string
+      artifact_name:
+        description: "Exact artifact name, e.g. vyrox-daily-short-123"
+        required: true
+        type: string
+      approve_upload:
+        description: "I reviewed this exact draft and approve upload"
+        required: true
+        type: boolean
+        default: false
+      confirm_facts:
+        description: "I checked the claims against reliable sources"
+        required: true
+        type: boolean
+        default: false
+      confirm_rights:
+        description: "I checked the exact image license and intended use"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  approve-and-upload:
+    if: inputs.approve_upload == true && inputs.confirm_facts == true && inputs.confirm_rights == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ai-updates-publisher
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies and FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install -r requirements.txt
+
+      - name: Download the exact reviewed draft artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "${{ inputs.draft_run_id }}" --repo "${{ github.repository }}" --name "${{ inputs.artifact_name }}" --dir approved_draft
+          test -s approved_draft/output/ai_updates/vyrox_daily_short.mp4
+          test -s approved_draft/output/ai_updates/upload_metadata.json
+
+      - name: Validate review confirmations and upload exact artifact
+        env:
+          GITHUB_ACTIONS: "true"
+          HUMAN_UPLOAD_APPROVED: ${{ inputs.approve_upload }}
+          HUMAN_FACT_CHECK_CONFIRMED: ${{ inputs.confirm_facts }}
+          HUMAN_RIGHTS_CONFIRMED: ${{ inputs.confirm_rights }}
+          VYROX_PRIVACY: ${{ vars.VYROX_PRIVACY || 'private' }}
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+        run: |
+          python -m py_compile approve_publish_draft.py
+          python approve_publish_draft.py approved_draft/output/ai_updates/upload_metadata.json approved_draft/output/ai_updates/vyrox_daily_short.mp4
+
+      - name: Save tracker updates
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/viral_tracker.json
+          git diff --cached --quiet || (git commit -m "Record approved VYROX news Short" && git push)
