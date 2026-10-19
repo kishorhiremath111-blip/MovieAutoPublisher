@@ -19,7 +19,7 @@ import argparse, hashlib, html, json, math, os, random, re, shutil, subprocess, 
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
@@ -358,7 +358,9 @@ def fetch_story_photo(story):
                 if (url.startswith("https://") and url not in seen_urls and license_name
                         and license_name.lower() not in {"fair use", "copyrighted"}):
                     seen_urls.add(url)
-                    candidates.append((url, f"Wikimedia Commons: {page.get('title','image')}; creator: {artist or 'see source page'}; license: {license_name}"))
+                    page_title = str(page.get("title", "image"))
+                    asset_page = "https://commons.wikimedia.org/wiki/" + quote(page_title.replace(" ", "_"), safe=":/()")
+                    candidates.append((url, f"Wikimedia Commons: {page_title}; asset page: {asset_page}; creator: {artist or 'see asset page'}; license: {license_name}; illustrative context image, not necessarily the exact event photo"))
             if len(candidates) >= 5:
                 break
         except Exception as exc:
