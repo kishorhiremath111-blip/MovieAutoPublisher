@@ -59,8 +59,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh run download "${{ inputs.draft_run_id }}" --repo "${{ github.repository }}" --name "${{ inputs.artifact_name }}" --dir approved_draft
-          test -s approved_draft/output/ai_updates/vyrox_daily_short.mp4
-          test -s approved_draft/output/ai_updates/upload_metadata.json
+          test -s approved_draft/vyrox_daily_short.mp4
+          test -s approved_draft/upload_metadata.json
 
       - name: Validate review confirmations and upload exact artifact
         env:
@@ -73,7 +73,7 @@ jobs:
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: |
           python -m py_compile approve_publish_draft.py
-          python approve_publish_draft.py approved_draft/output/ai_updates/upload_metadata.json approved_draft/output/ai_updates/vyrox_daily_short.mp4
+          python approve_publish_draft.py approved_draft/upload_metadata.json approved_draft/vyrox_daily_short.mp4
 
       - name: Save tracker updates
         if: success()
