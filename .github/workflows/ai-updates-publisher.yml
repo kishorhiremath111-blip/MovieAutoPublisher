@@ -76,12 +76,9 @@ jobs:
         run: |
           CATEGORY="${{ inputs.category }}"
           if [ -z "$CATEGORY" ]; then CATEGORY="HEALTH"; fi
-          # Default is draft-only. A manual workflow_dispatch with publish=true is explicit approval.
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.publish }}" = "true" ]; then
-            python ai_updates_publisher.py --category "$CATEGORY" --publish
-          else
-            python ai_updates_publisher.py --category "$CATEGORY"
-          fi
+          # This workflow only generates a reviewable draft. Exact-artifact approval/upload
+          # is handled by the separate approve-vyrox-draft workflow.
+          python ai_updates_publisher.py --category "$CATEGORY"
 
       - name: Remember used stories (no repeats)
         if: always()
