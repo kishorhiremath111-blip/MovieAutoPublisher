@@ -840,15 +840,18 @@ def make_voiceover(story):
 
 
 def mix_voice_and_music(bed_path, voice_path, total):
-    """Duck the music under narration and produce the final audible mix."""
+    """Mix clear narration over a quiet music bed using broadly supported FFmpeg filters."""
     mixed = OUT / "final_audio.m4a"
+    # Keep the voice and music on separate inputs, normalize the narration, and mix
+    # with a conservative music level. Avoid sidechaincompress because FFmpeg builds
+    # differ in how they negotiate short voice tracks and this previously failed CI.
     filter_complex = (
-        "[0:a]volume=0.22[music];"
+        "[0:a]aresample=44100,volume=0.16[music];"
         "[1:a]aresample=44100,highpass=f=80,lowpass=f=12000,"
         "loudnorm=I=-16:TP=-1.5:LRA=7,volume=1.0[voice];"
-        "[music][voice]sidechaincompress=threshold=0.025:ratio=8:attack=20:release=280[ducked];"
-        f"[ducked][voice]amix=inputs=2:duration=first:normalize=0,atrim=0:{total:.3f},"
-        f"afade=t=in:st=0:d=0.25,afade=t=out:st={max(0.1,total-1.0):.3f}:d=0.8,"
+        "[music][voice]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+        f"atrim=0:{total:.3f},afade=t=in:st=0:d=0.25,"
+        f"afade=t=out:st={max(0.1,total-1.0):.3f}:d=0.8,"
         "alimiter=limit=0.95[a]"
     )
     run(["ffmpeg", "-y", "-i", str(bed_path), "-i", str(voice_path),
