@@ -483,7 +483,7 @@ def make_bg(cat, seed, variant, photo_path=None):
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw_motif(cat, ov, rng, ac)
     r_, g_, b_, a_ = ov.split()
-    ov = Image.merge("RGBA", (r_, g_, b_, a_.point(lambda v: min(255, int(v * 1.6)))))
+    ov = Image.merge("RGBA", (r_, g_, b_, a_.point(lambda v: min(255, int(v * 0.45)))))
     img.alpha_composite(ov.filter(ImageFilter.GaussianBlur(1.1)))
     g = Image.radial_gradient("L").resize((W, H)).point(lambda v: int(max(0, v - 95) * 1.25))
     img.paste((0, 0, 0), mask=g)
@@ -704,6 +704,30 @@ def fg_source(cat, source, link, credits, idx, total):
     for i, line in enumerate(["Full story: link in the description"] + credits):
         w = d.textlength(line, font=f2)
         d.text(((W - w) / 2, y + 130 + i * 52), line, font=f2, fill=(235, 240, 250, 235))
+    return img
+
+
+def add_lower_subtitle(img, text):
+    """Render a restrained, premium gold/silver lower-third subtitle."""
+    text = shorten(clean(text), 100)
+    if not text:
+        return img
+    d = ImageDraw.Draw(img, "RGBA")
+    max_w = W - 150
+    f, lines, size = fit_lines(d, text, SANS_B, max_w - 48, 150, 38, 28, spacing=1.2, max_lines=3)
+    line_h = int(size * 1.2)
+    box_h = len(lines) * line_h + 38
+    y0 = 1430
+    d.rounded_rectangle((64, y0, W - 64, y0 + box_h), radius=22,
+                        fill=(4, 8, 16, 205), outline=GOLD + (220,), width=2)
+    y = y0 + 18
+    for i, line in enumerate(lines):
+        tw = d.textlength(line, font=f)
+        x = (W - tw) / 2
+        d.text((x + 2, y + 2), line, font=f, fill=(0, 0, 0, 220))
+        color = GOLD + (255,) if i == 0 else (225, 230, 238, 255)
+        d.text((x, y), line, font=f, fill=color)
+        y += line_h
     return img
 
 
@@ -1004,6 +1028,23 @@ def build(story, publish):
             img = fg_source(cat, story["source"], story["link"], [photo_credit], i, total_slides)
         else:
             img = fg_cta(cat, i, total_slides)
+        # Captions stay in a consistent lower-third safe area, never in the centre.
+        if s["kind"] == "detail":
+            img = add_lower_subtitle(img, s["text"])
+        elif s["kind"] == "hook":
+            hook_captions = {
+                "ANIMALS": "Did you know an animal like this exists?",
+                "SCIENCE": "What if one discovery changed how we see the world?",
+                "SPACE": "What is happening beyond our planet?",
+                "AI": "Could this change the future of AI?",
+                "TECH": "The next technology shift may surprise you.",
+                "WORLD": "Here is why this update matters.",
+                "INDIA": "Here is the key detail you should know.",
+                "BUSINESS": "Why does this development matter?",
+                "SPORTS": "Here is the moment fans should know.",
+                "HEALTH": "What does the report actually say?"
+            }
+            img = add_lower_subtitle(img, hook_captions.get(cat, "A discovery worth knowing."))
         img.save(fg)
         segs.append(render_segment(bg, fg, s["dur"], i, rng))
         durs.append(s["dur"])
