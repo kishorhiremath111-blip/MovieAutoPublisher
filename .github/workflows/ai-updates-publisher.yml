@@ -1,6 +1,9 @@
 name: VYROX DAILY Auto Shorts
 
 on:
+  push:
+    branches:
+      - ai-updates-publisher
   workflow_dispatch:
     inputs:
       publish:
@@ -30,7 +33,7 @@ on:
     - cron: "0 8,14 * * *"
 
 permissions:
-  contents: write   # lets the run commit state/ai_updates_seen.json so stories never repeat
+  contents: write
 
 concurrency:
   group: vyrox-daily-auto-shorts
@@ -64,7 +67,6 @@ jobs:
       - name: Render and optionally publish
         env:
           GITHUB_ACTIONS: "true"
-          # Uploads stay PRIVATE until you create a repo variable VYROX_PRIVACY = public
           VYROX_PRIVACY: ${{ vars.VYROX_PRIVACY || 'private' }}
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
