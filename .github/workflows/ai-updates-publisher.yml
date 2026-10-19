@@ -76,9 +76,12 @@ jobs:
         run: |
           CATEGORY="${{ inputs.category }}"
           if [ -z "$CATEGORY" ]; then CATEGORY="HEALTH"; fi
-          # Safety-first mode: this workflow only creates a draft artifact.
-          # Publishing must happen only after a human reviews the source, score and quality report.
-          python ai_updates_publisher.py --category "$CATEGORY"
+          # Default is draft-only. A manual workflow_dispatch with publish=true is explicit approval.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.publish }}" = "true" ]; then
+            python ai_updates_publisher.py --category "$CATEGORY" --publish
+          else
+            python ai_updates_publisher.py --category "$CATEGORY"
+          fi
 
       - name: Remember used stories (no repeats)
         if: always()
