@@ -1916,8 +1916,7 @@ FILES = {
 
 root = Path.cwd()
 if not (root / "ai_updates_publisher.py").is_file():
-    sys.exit("Run this from the MovieAutoPublisher repo root on branch ai-updates-
-publisher (ai_updates_publisher.py not found).")
+    sys.exit("Run this from the MovieAutoPublisher repo root on branch ai-updates-publisher (ai_updates_publisher.py not found).")
 for rel, b64 in FILES.items():
     p = root / rel
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -1926,7 +1925,5 @@ for rel, b64 in FILES.items():
 py_compile.compile(str(root / "vyrox_pro.py"), doraise=True)
 r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests"],
 cwd=root)
-print("self-check:", "OK" if r.returncode == 0 else "FAILED - send the output above
-to Claude")
-print("Next: git add -A && git commit -m 'VYROX Pro: per-slide voice, bottom
-subtitles, colour photos' && git push")
+print("self-check:", "OK" if r.returncode == 0 else "FAILED - send the output aboveto Claude")
+print("Next: git add -A && git commit -m 'VYROX Pro: per-slide voice, bottomsubtitles, colour photos' && git push")
