@@ -1928,4 +1928,5 @@ r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", "tests"]
 cwd=root)
 print("self-check:", "OK" if r.returncode == 0 else "FAILED - send the output above
 to Claude")
-print("Next: git add -A && git commit -m 'VYROX Pro: per-slide voice, bottomsubtitles, colour photos' && git push")
+print("Next: git add -A && git commit -m 'VYROX Pro: per-slide voice, bottom
+subtitles, colour photos' && git push")
