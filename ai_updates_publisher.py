@@ -1190,7 +1190,7 @@ def build(story, publish):
     if not source_url_ok:
         raise RuntimeError("Source QA failed: source URL must use HTTPS.")
     is_original_visual = "original vyrox gen x visual" in photo_credit.lower()
-    license_match = re.search(r"license:\\s*([^;]+)", photo_credit, flags=re.IGNORECASE)
+    license_match = re.search(r"license:\s*([^;]+)", photo_credit, flags=re.IGNORECASE)
     license_name = license_match.group(1).strip() if license_match else ("Original in-project visual" if is_original_visual else "")
     license_normalized = license_name.lower()
     recognized_reuse_license = is_original_visual or any(token in license_normalized for token in (
