@@ -72,7 +72,7 @@ jobs:
       - name: Test freshness, topic ranking and spoken hooks
         run: python -m unittest discover -s tests -v
 
-      - name: Render and optionally publish
+      - name: Render reviewable draft (no upload)
         env:
           GITHUB_ACTIONS: "true"
           VYROX_PRIVACY: ${{ vars.VYROX_PRIVACY || 'private' }}
