@@ -1,4 +1,4 @@
-name: VYROX DAILY Auto Shorts
+name: VYROX GEN X — AI Science Anime Shorts
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Leave false: this workflow only creates a reviewable draft and never publishes publicly"
+        description: "Set true to attempt YouTube upload after all quality and rights gates pass; default is draft only"
         required: true
         type: boolean
         default: false
@@ -19,22 +19,10 @@ on:
         required: true
         type: choice
         options:
-          - SPACE
-          - SCIENCE
           - AI
-          - TECH
-          - ANIMALS
-          - MYSTERIES
-          - FACTS
-          - WORLD
-          - HEALTH
-          - SPORTS
-          - INDIA
-          - BUSINESS
-          - HISTORY
-          - FUNNY
+          - SCIENCE
           - ANIME
-        default: WORLD
+        default: AI
   schedule:
     # Two Shorts per day: 1:30 PM IST and 7:30 PM IST.
     # Scheduled runs only fire from the default branch (main).
@@ -75,7 +63,7 @@ jobs:
       - name: Test freshness, topic ranking and spoken hooks
         run: python -m unittest discover -s tests -v
 
-      - name: Render reviewable draft (no upload)
+      - name: Render draft or upload after explicit manual approval
         env:
           GITHUB_ACTIONS: "true"
           VYROX_PRIVACY: ${{ vars.VYROX_PRIVACY || 'private' }}
@@ -83,13 +71,18 @@ jobs:
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: |
           CATEGORY="${{ inputs.category }}"
-          # Scheduled and push-triggered runs use the topic rotation. A manual category
-          # only overrides that rotation for the requested draft. This workflow never uploads.
+          PUBLISH="${{ inputs.publish }}"
+          ARGS=()
           if [ -n "$CATEGORY" ]; then
-            python ai_updates_publisher.py --category "$CATEGORY"
-          else
-            python ai_updates_publisher.py
+            ARGS+=(--category "$CATEGORY")
           fi
+          if [ "$PUBLISH" = "true" ]; then
+            echo "Manual publish requested; script will still enforce quality, freshness, viral-score and visual-rights gates."
+            ARGS+=(--publish)
+          else
+            echo "Draft-only run; no YouTube upload will be attempted."
+          fi
+          python ai_updates_publisher.py "${ARGS[@]}"
 
       - name: Remember used stories (no repeats)
         if: always()
@@ -97,13 +90,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add state/ai_updates_seen.json 2>/dev/null || true
-          git diff --cached --quiet || (git commit -m "Update VYROX DAILY used stories" && git push)
+          git diff --cached --quiet || (git commit -m "Update VYROX GEN X used stories" && git push)
 
       - name: Save generated video and metadata
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vyrox-daily-short-${{ github.run_number }}
+          name: vyrox-gen-x-short-${{ github.run_number }}
           path: |
             output/ai_updates/vyrox_daily_short.mp4
             output/ai_updates/upload_metadata.json
