@@ -38,7 +38,7 @@ SANS_B = ["assets/fonts/Montserrat-ExtraBold.ttf", "/usr/share/fonts/truetype/de
 SANS = ["assets/fonts/Montserrat-Medium.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 
 # Rotate through useful news, history and light entertainment; one fresh story per run.
-ROTATION = ["AI", "SCIENCE", "SPACE", "ANIMALS", "TECH", "SCIENCE", "AI", "SPACE", "ANIMALS", "WORLD", "BUSINESS", "SCIENCE", "TECH", "AI", "SPACE"]
+ROTATION = ["SPACE", "MYSTERIES", "FACTS", "SCIENCE", "ANIMALS", "AI", "SPACE", "FACTS", "TECH", "MYSTERIES", "SCIENCE", "ANIMALS", "SPACE", "FACTS", "AI", "TECH", "MYSTERIES", "SCIENCE", "SPACE", "WORLD", "BUSINESS"]
 
 CATS = {
     "AI": dict(top=(5, 9, 28), bot=(18, 42, 100), accent=(0, 210, 255), label="AI UPDATE",
@@ -104,6 +104,16 @@ CATS = {
                     kickers=["WILDLIFE UPDATE", "NATURE IS WILD", "ANIMAL FACT YOU NEED TO SEE"],
                     feeds=[("ScienceDaily Animals & Plants", "https://www.sciencedaily.com/rss/plants_animals.xml", "press"),
                            ("Smithsonian Magazine", "https://www.smithsonianmag.com/rss/latest_articles/", "press")]),
+    "MYSTERIES": dict(top=(14, 8, 26), bot=(54, 24, 92), accent=(205, 165, 255), label="MYSTERIES",
+                      tags="#Mystery #Unexplained #History #Shorts",
+                      kickers=["A CLUE WORTH A LOOK", "THE DETAIL CHANGES THINGS", "WHAT DOES THE EVIDENCE SAY?"],
+                      feeds=[("Smithsonian Magazine", "https://www.smithsonianmag.com/rss/latest_articles/", "press"),
+                             ("ScienceDaily", "https://www.sciencedaily.com/rss/top/science.xml", "press")]),
+    "FACTS": dict(top=(18, 14, 4), bot=(92, 54, 14), accent=(255, 210, 95), label="SURPRISING FACTS",
+                  tags="#Facts #DidYouKnow #Discovery #Shorts",
+                  kickers=["THE FACT BEHIND THE STORY", "LOOK CLOSER", "WHAT THE SOURCE FOUND"],
+                  feeds=[("ScienceDaily", "https://www.sciencedaily.com/rss/top/science.xml", "press"),
+                         ("NASA", "https://www.nasa.gov/feed/", "official")]),
 }
 
 DEMO = {
@@ -295,37 +305,107 @@ def save_state(links, keys):
     STATE.write_text(json.dumps({"links": sorted(links)[-800:], "keys": sorted(keys)[-800:]}, indent=2), encoding="utf-8")
 
 
+def published_timestamp(raw):
+    """Parse common RSS/Atom publication dates into an aware UTC datetime."""
+    raw = str(raw or "").strip()
+    if not raw:
+        return None
+    try:
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        pass
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def is_fresh_story(item, now=None, max_age_days=14):
+    """Reject undated/stale RSS items rather than disguising them as current."""
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    published = published_timestamp(item.get("published", ""))
+    if published is None:
+        return False
+    age_days = (now.astimezone(timezone.utc) - published).total_seconds() / 86400
+    return -1.0 <= age_days <= max_age_days
+
+
+def story_interest_score(item):
+    """Rank curiosity-led headlines without inventing popularity or trend metrics."""
+    title = clean(item.get("title", "")).lower()
+    summary = clean(item.get("summary", "")).lower()
+    score = 0.0
+    title_signals = (
+        "mystery", "mysterious", "unexplained", "rare", "hidden", "discovery",
+        "reveals", "revealed", "found", "first ever", "ancient", "black hole",
+        "exoplanet", "deep sea", "new species", "breakthrough", "strange",
+        "surprising", "evidence", "asteroid", "moon", "mars", "ocean", "why",
+        "how", "scientists discover", "researchers find"
+    )
+    for phrase in title_signals:
+        if phrase in title:
+            score += 2.5
+        elif phrase in summary:
+            score += 0.7
+    words = title.split()
+    if 6 <= len(words) <= 15:
+        score += 1.5
+    if "?" in str(item.get("title", "")):
+        score += 0.8
+    category = str(item.get("category", "")).upper()
+    if category in {"MYSTERIES", "FACTS", "SPACE", "SCIENCE", "ANIMALS"}:
+        score += 1.0
+    return score
+
+
 def pick_story(forced=None):
     links, keys = load_state()
     now = datetime.now(timezone.utc)
     slot = 0 if now.hour < 11 else 1
     start = (now.date().toordinal() * 2 + slot) % len(ROTATION)
     order = [forced] if forced else [ROTATION[(start + k) % len(ROTATION)] for k in range(len(ROTATION))]
-    rng = random.SystemRandom()
     for cat in order:
         rows = []
         for source, url, trust in CATS[cat]["feeds"]:
             rows += parse_feed(cat, source, url, trust)
-        fresh = [r for r in rows if r["link"] not in links and norm_key(r["title"]) not in keys]
+        fresh = []
+        for item in rows:
+            if item["link"] in links or norm_key(item["title"]) in keys:
+                continue
+            if not is_fresh_story(item, now=now, max_age_days=14):
+                continue
+            published = published_timestamp(item.get("published", ""))
+            age_days = max(0.0, (now - published).total_seconds() / 86400)
+            item["_published_ts"] = published.timestamp()
+            item["_freshness_score"] = max(0.0, 14.0 - age_days) * 0.12
+            item["_interest_score"] = story_interest_score(item)
+            fresh.append(item)
         if fresh:
-            # Prefer newest feed items; avoid random selection among older headlines.
-            def recency(item):
-                raw = item.get("published", "")
-                try:
-                    from email.utils import parsedate_to_datetime
-                    dt = parsedate_to_datetime(raw)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    return dt.timestamp()
-                except Exception:
-                    try:
-                        return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
-                    except Exception:
-                        return 0
-            fresh.sort(key=recency, reverse=True)
-            return fresh[0]
-        print(f"No unseen story in {cat}; trying next category.")
-    raise RuntimeError("No unseen source story found in any category. Skipping rather than reposting.")
+            fresh.sort(
+                key=lambda item: (item["_interest_score"] + item["_freshness_score"], item["_published_ts"]),
+                reverse=True,
+            )
+            chosen = fresh[0]
+            print(
+                f"STORY_SELECTION: category={cat}; age_days="
+                f"{max(0.0, (now.timestamp() - chosen['_published_ts']) / 86400):.1f}; "
+                f"interest_score={chosen['_interest_score']:.1f}; source={chosen['source']}"
+            )
+            return chosen
+        print(f"No unseen, dated story within 14 days in {cat}; trying next category.")
+    raise RuntimeError(
+        "No unseen, dated story within the last 14 days was found in the configured feeds. "
+        "Skipping rather than posting stale or undated content."
+    )
 
 
 # --------------------------------------------------------------------------- sourced real photos
@@ -414,7 +494,7 @@ def fetch_story_photo(story):
             path.write_bytes(r.content)
             downloaded.append((path, credit))
             print(f"Using real source image: {credit}")
-            if len(downloaded) >= 5:
+            if len(downloaded) >= 1:
                 break
         except Exception:
             continue
@@ -572,7 +652,21 @@ def draw_motif(cat, ov, rng, ac):
         for _ in range(26):
             x, y, s = rng.randint(0, W), rng.randint(0, H), rng.randint(10, 24)
             d.ellipse((x, y, x + s * 1.6, y + s), fill=(255, 190, 225, rng.randint(90, 190)))
-    else:  # SERIES
+    elif cat == "MYSTERIES":
+        cx, cy = rng.randint(430, 650), rng.randint(760, 1120)
+        for r, alpha in ((360, 42), (270, 70), (180, 95), (90, 135)):
+            d.ellipse((cx-r, cy-r, cx+r, cy+r), outline=(*ac, alpha), width=5)
+        for _ in range(24):
+            x, y = rng.randint(50, W-50), rng.randint(220, H-220)
+            d.ellipse((x-3, y-3, x+3, y+3), fill=(255, 255, 255, rng.randint(80, 180)))
+    elif cat == "FACTS":
+        pts = [(x, rng.randint(700, 1250) + int(65 * math.sin(x / 90))) for x in range(-40, W+80, 70)]
+        d.line(pts, fill=(*ac, 115), width=5)
+        for x, y in pts:
+            d.ellipse((x-8, y-8, x+8, y+8), fill=(*ac, 190))
+        for x in range(80, W, 160):
+            d.line((x, 300, x, H-260), fill=(*ac, 28), width=2)
+    else:  # SERIES-style fallback
         cx = rng.randint(440, 640)
         d.polygon([(cx - 40, -40), (cx + 40, -40), (cx + 520, H), (cx - 520, H)], fill=(*ac, 34))
         for x0 in (0, W - 96):
@@ -746,12 +840,47 @@ def fg_cta(cat, idx, total):
     return img
 
 
+def make_hook(story):
+    """Create a story-specific spoken opener without unsupported sensational claims."""
+    cat = str(story.get("category", "WORLD")).upper()
+    title = clean(story.get("title", "")).rstrip(" .!?")
+    templates = {
+        "SPACE": "Here's the space detail worth a closer look: {title}.",
+        "MYSTERIES": "There's a curious detail in this story: {title}.",
+        "FACTS": "This finding deserves a closer look: {title}.",
+        "SCIENCE": "Researchers have reported something worth checking: {title}.",
+        "ANIMALS": "Nature has a story worth a closer look: {title}.",
+        "AI": "Here's the AI detail that matters in this story: {title}.",
+        "TECH": "Here's the technology detail worth knowing: {title}.",
+        "HISTORY": "This piece of history has a detail worth knowing: {title}.",
+        "HEALTH": "Here's what the health report actually says: {title}.",
+    }
+    return templates.get(cat, "Here's the key detail behind this story: {title}.").format(title=title)
+
+
+def hook_kicker(story):
+    """Short visual hook label; the actual story headline remains the main focal point."""
+    cat = str(story.get("category", "WORLD")).upper()
+    labels = {
+        "SPACE": "LOOK BEYOND EARTH",
+        "MYSTERIES": "FOLLOW THE CLUES",
+        "FACTS": "THE FACTS, CLEARLY",
+        "SCIENCE": "WHAT THE EVIDENCE SAYS",
+        "ANIMALS": "NATURE'S SURPRISE",
+        "AI": "THE AI DETAIL",
+        "TECH": "THE TECH DETAIL",
+        "HISTORY": "A DETAIL FROM HISTORY",
+        "HEALTH": "CHECK THE EVIDENCE",
+    }
+    return labels.get(cat, "THE DETAIL THAT MATTERS")
+
+
 # --------------------------------------------------------------------------- planning
 def plan_slides(story, rng):
     cat = story["category"]
     title = re.split(r"\s+[\|\u2013\u2014-]\s+", story["title"])[0]
     title = shorten(title if len(title) >= 25 else story["title"], 92)
-    kicker = rng.choice(CATS[cat]["kickers"])
+    kicker = hook_kicker(story)
     pieces = []
     for s in sentences(story["summary"]):
         pieces += split_long(s)
@@ -858,41 +987,30 @@ def pick_music(cat, seed):
 
 
 def make_voiceover(story):
-    """Generate a clear professional English narration from source-backed text."""
-    text = clean(story.get("title", ""))
+    """Generate a natural Indian-English narration with a story-specific opening."""
     summary = clean(story.get("summary", ""))
-    # Topic-specific curiosity opener, followed by source-backed facts and exact channel CTA.
-    cat = str(story.get("category", "WORLD")).upper()
-    hooks = {
-        "ANIMALS": "Did you know an animal like this exists? The real details are fascinating.",
-        "SCIENCE": "What if one discovery changed how we see the world? Here is what researchers reported.",
-        "SPACE": "What is happening beyond our planet? Here is the latest discovery.",
-        "AI": "Could this change the future of artificial intelligence? Here is what the source actually says.",
-        "TECH": "The next technology shift may be closer than you think. Here is the key detail.",
-        "WORLD": "Here is the detail behind this major world update—and why it matters.",
-        "INDIA": "Here is the key detail behind this India update, explained clearly.",
-        "BUSINESS": "Why does this business development matter? Here are the facts.",
-        "SPORTS": "Here is the moment sports fans should know about.",
-        "HEALTH": "What does the health report actually say? Let us separate the facts from the noise."
-    }
-    hook = hooks.get(cat, "Ready for a surprising discovery? Here are the verified details.")
-    body = " ".join(sentences(summary)[:4])
-    spoken = f"{hook} {text}. {body} For more discoveries like this, subscribe to VYROX-2008."
+    hook = make_hook(story)
+    body_sentences = sentences(summary)[:3]
+    body = " ".join(body_sentences)
+    if len(body.split()) < 8:
+        raise RuntimeError("Voiceover QA failed: source summary has too little usable detail.")
+    spoken = f"{hook} {body} The original source is linked in the description. Follow VYROX DAILY for more."
     spoken = shorten(spoken, 430)
-    if len(spoken.split()) < 8:
-        raise RuntimeError("Voiceover QA failed: not enough source-backed text to narrate.")
+    if len(spoken.split()) < 12:
+        raise RuntimeError("Voiceover QA failed: narration is too short to tell a complete mini-story.")
     voice_path = OUT / "voiceover.mp3"
+    voice_name = os.getenv("VYROX_TTS_VOICE", "en-IN-PrabhatNeural").strip() or "en-IN-PrabhatNeural"
     cmd = [
-        "edge-tts", "--voice", "en-US-GuyNeural", "--rate=-5%",
+        "edge-tts", "--voice", voice_name, "--rate=-3%",
         "--text", spoken, "--write-media", str(voice_path)
     ]
     try:
         run(cmd)
     except Exception as exc:
-        raise RuntimeError(f"Professional English voiceover generation failed; refusing silent/music-only draft: {exc}") from exc
+        raise RuntimeError(f"Professional voiceover generation failed; refusing silent/music-only draft: {exc}") from exc
     if not voice_path.is_file() or voice_path.stat().st_size < 10000:
         raise RuntimeError("Voiceover QA failed: generated narration file is missing or too small.")
-    print(f"VOICEOVER_READY: en-US-GuyNeural ({len(spoken.split())} words)")
+    print(f"VOICEOVER_READY: {voice_name} ({len(spoken.split())} words)")
     return voice_path, spoken
 
 
@@ -918,40 +1036,63 @@ def mix_voice_and_music(bed_path, voice_path, total):
 
 
 def media_quality_report(video_path, expected_duration, voice_path):
-    """Fail closed unless final video/audio streams and audible narration are measurable."""
+    """Fail closed unless the final vertical video, audio level and narration pass QA."""
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries",
-         "stream=codec_type,width,height,sample_rate", "-show_entries", "format=duration,size",
+         "stream=codec_type,width,height,sample_rate,r_frame_rate", "-show_entries", "format=duration,size",
          "-of", "json", str(video_path)], capture_output=True, text=True
     )
     if probe.returncode:
         raise RuntimeError("Media QA failed: ffprobe could not inspect the rendered video.")
     info = json.loads(probe.stdout or "{}")
     streams = info.get("streams", [])
-    if not any(s.get("codec_type") == "video" and s.get("width") == W and s.get("height") == H for s in streams):
+    video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+    audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    if not video_stream or video_stream.get("width") != W or video_stream.get("height") != H:
         raise RuntimeError("Media QA failed: expected 1080x1920 vertical video stream is missing.")
-    if not any(s.get("codec_type") == "audio" for s in streams):
+    if not audio_stream:
         raise RuntimeError("Media QA failed: final audio stream is missing.")
     duration = float((info.get("format") or {}).get("duration") or 0)
+    file_size = int((info.get("format") or {}).get("size") or 0)
     if duration < 8 or abs(duration - expected_duration) > 2.0:
         raise RuntimeError(f"Media QA failed: unexpected duration {duration:.2f}s.")
+    if file_size < 250000:
+        raise RuntimeError(f"Media QA failed: final MP4 is unexpectedly small ({file_size} bytes).")
     if not voice_path.is_file() or voice_path.stat().st_size < 10000:
-        raise RuntimeError("Media QA failed: professional voiceover is absent.")
+        raise RuntimeError("Media QA failed: professional voiceover is absent or incomplete.")
+    voice_probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(voice_path)],
+        capture_output=True, text=True
+    )
+    if voice_probe.returncode:
+        raise RuntimeError("Media QA failed: voiceover duration could not be inspected.")
+    voice_duration = float((voice_probe.stdout or "0").strip() or 0)
+    if voice_duration < 4.0 or voice_duration > duration + 1.0:
+        raise RuntimeError(
+            f"Media QA failed: voiceover duration {voice_duration:.2f}s is implausible for a {duration:.2f}s Short."
+        )
     vol = subprocess.run(
         ["ffmpeg", "-hide_banner", "-i", str(video_path), "-vn", "-af", "volumedetect",
          "-f", "null", "-"], capture_output=True, text=True
     )
     audio_log = (vol.stderr or "")[-12000:]
-    match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", audio_log)
-    if vol.returncode or not match:
-        raise RuntimeError("Media QA failed: could not measure final audio level.")
-    mean_db = float(match.group(1))
+    mean_match = re.search(r"mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", audio_log)
+    peak_match = re.search(r"max_volume:\s*(-?\d+(?:\.\d+)?)\s*dB", audio_log)
+    if vol.returncode or not mean_match or not peak_match:
+        raise RuntimeError("Media QA failed: could not measure final audio loudness and peak.")
+    mean_db = float(mean_match.group(1))
+    peak_db = float(peak_match.group(1))
     if mean_db < -35.0:
         raise RuntimeError(f"Media QA failed: final audio is too quiet (mean {mean_db:.1f} dB).")
+    if peak_db > -0.1:
+        raise RuntimeError(f"Media QA failed: audio peak risks clipping ({peak_db:.1f} dBFS).")
     report = {
         "passed": True, "video_width": W, "video_height": H,
-        "duration_seconds": round(duration, 2), "audio_stream_present": True,
-        "voiceover_present": True, "mean_audio_db": round(mean_db, 2),
+        "duration_seconds": round(duration, 2), "file_size_bytes": file_size,
+        "audio_stream_present": True, "voiceover_present": True,
+        "voiceover_duration_seconds": round(voice_duration, 2),
+        "mean_audio_db": round(mean_db, 2), "peak_audio_dbfs": round(peak_db, 2),
     }
     print(f"MEDIA_QA_PASS: {json.dumps(report)}")
     return report
@@ -965,9 +1106,10 @@ def make_audio(total, cat, seed, times):
              "-af", f"afade=t=in:d=1.2,afade=t=out:st={total - 2.5:.3f}:d=2.5,loudnorm=I=-16:TP=-1.5:LRA=11",
              "-c:a", "aac", "-b:a", "160k", str(wav)])
         return wav, f"Music: {music.name} (licensed local library)"
-    minor = cat in ("AI", "SCIENCE", "SPACE", "SERIES", "ANIME", "TECH")
+    minor = cat in ("AI", "SCIENCE", "SPACE", "SERIES", "ANIME", "TECH", "MYSTERIES", "FACTS")
     root = {"AI": 110.0, "SCIENCE": 98.0, "SPACE": 87.31, "HEALTH": 130.81, "WORLD": 110.0,
-            "TECH": 98.0, "ANIME": 130.81, "SERIES": 82.41, "SPORTS": 146.83, "INDIA": 110.0, "BUSINESS": 98.0}[cat]
+            "TECH": 98.0, "ANIME": 130.81, "SERIES": 82.41, "SPORTS": 146.83, "INDIA": 110.0,
+            "BUSINESS": 98.0, "MYSTERIES": 82.41, "FACTS": 110.0}[cat]
     ratios = (1, 1.189, 1.498, 2.0) if minor else (1, 1.26, 1.498, 2.0)
     cmd = ["ffmpeg", "-y"]
     labels = []
@@ -1032,19 +1174,9 @@ def build(story, publish):
         if s["kind"] == "detail":
             img = add_lower_subtitle(img, s["text"])
         elif s["kind"] == "hook":
-            hook_captions = {
-                "ANIMALS": "Did you know an animal like this exists?",
-                "SCIENCE": "What if one discovery changed how we see the world?",
-                "SPACE": "What is happening beyond our planet?",
-                "AI": "Could this change the future of AI?",
-                "TECH": "The next technology shift may surprise you.",
-                "WORLD": "Here is why this update matters.",
-                "INDIA": "Here is the key detail you should know.",
-                "BUSINESS": "Why does this development matter?",
-                "SPORTS": "Here is the moment fans should know.",
-                "HEALTH": "What does the report actually say?"
-            }
-            img = add_lower_subtitle(img, hook_captions.get(cat, "A discovery worth knowing."))
+            summary_lines = sentences(story.get("summary", ""))
+            context_line = shorten(summary_lines[0], 100) if summary_lines else "Source and supporting details are linked in the description."
+            img = add_lower_subtitle(img, context_line)
         img.save(fg)
         segs.append(render_segment(bg, fg, s["dur"], i, rng))
         durs.append(s["dur"])
@@ -1110,7 +1242,7 @@ def build(story, publish):
     meta = {"title": title, "description": description, "source": story["link"], "category": cat,
             "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "video": str(video),
             "duration_seconds": round(total, 1), "slides": total_slides, "music": music_credit,
-            "voiceover": {"provider": "Microsoft Edge TTS", "voice": "en-US-GuyNeural",
+            "voiceover": {"provider": "Microsoft Edge TTS", "voice": os.getenv("VYROX_TTS_VOICE", "en-IN-PrabhatNeural"),
                           "text": spoken_text, "verified_file": voice_path.name},
             "viral_score": round(viral_score, 2), "viral_score_breakdown": score_breakdown,
             "viral_score_threshold": score_threshold, "quality_report": quality_report,
