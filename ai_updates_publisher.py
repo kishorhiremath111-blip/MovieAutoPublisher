@@ -1109,7 +1109,7 @@ def make_audio(total, cat, seed, times):
     minor = cat in ("AI", "SCIENCE", "SPACE", "SERIES", "ANIME", "TECH", "MYSTERIES", "FACTS")
     root = {"AI": 110.0, "SCIENCE": 98.0, "SPACE": 87.31, "HEALTH": 130.81, "WORLD": 110.0,
             "TECH": 98.0, "ANIME": 130.81, "SERIES": 82.41, "SPORTS": 146.83, "INDIA": 110.0,
-            "BUSINESS": 98.0, "MYSTERIES": 82.41, "FACTS": 110.0}[cat]
+            "BUSINESS": 98.0, "MYSTERIES": 82.41, "FACTS": 110.0}.get(cat, 110.0)
     ratios = (1, 1.189, 1.498, 2.0) if minor else (1, 1.26, 1.498, 2.0)
     cmd = ["ffmpeg", "-y"]
     labels = []
