@@ -37,8 +37,8 @@ SERIF_B = ["assets/fonts/PlayfairDisplay-Bold.ttf", "/usr/share/fonts/truetype/d
 SANS_B = ["assets/fonts/Montserrat-ExtraBold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
 SANS = ["assets/fonts/Montserrat-Medium.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
 
-# Rotate through useful news, history and light entertainment; one fresh story per run.
-ROTATION = ["SPACE", "MYSTERIES", "FACTS", "SCIENCE", "ANIMALS", "AI", "SPACE", "FACTS", "TECH", "MYSTERIES", "SCIENCE", "ANIMALS", "SPACE", "FACTS", "AI", "TECH", "MYSTERIES", "SCIENCE", "SPACE", "WORLD", "BUSINESS"]
+# VYROX GEN X focuses on fresh AI, science and anime updates.
+ROTATION = ["AI", "SCIENCE", "ANIME", "AI", "ANIME", "SCIENCE"]
 
 CATS = {
     "AI": dict(top=(5, 9, 28), bot=(18, 42, 100), accent=(0, 210, 255), label="AI UPDATE",
@@ -993,7 +993,7 @@ def make_voiceover(story):
     body = " ".join(body_sentences)
     if len(body.split()) < 8:
         raise RuntimeError("Voiceover QA failed: source summary has too little usable detail.")
-    spoken = f"{hook} {body} The original source is linked in the description. Follow VYROX DAILY for more."
+    spoken = f"{hook} {body} The original source is linked in the description. Follow VYROX GEN X for more."
     spoken = shorten(spoken, 430)
     if len(spoken.split()) < 12:
         raise RuntimeError("Voiceover QA failed: narration is too short to tell a complete mini-story.")
@@ -1148,10 +1148,9 @@ def build(story, publish):
     total_slides = len(plan)
     photo_path, photo_credit = fetch_story_photo(story)
     if not photo_path:
-        raise RuntimeError(
-            f"No real reusable photo found for {cat}: refusing to render a fake/abstract substitute. "
-            "Retry later or add a properly licensed image to the project."
-        )
+        # Original designed graphics are the fallback, never a fake photograph.
+        photo_credit = "Original VYROX GEN X visual; generated in-project with procedural graphics; no external image asset used"
+        print("VISUAL_FALLBACK: generating original VYROX GEN X artwork (no external photo found).")
     if cat in {"FUNNY", "ANIME"} and len(photo_path) < 4:
         print(f"NOTE: {cat} has only {len(photo_path)} reusable image(s); 4-panel collage needs 4.")
     segs, durs = [], []
@@ -1190,15 +1189,16 @@ def build(story, publish):
     source_url_ok = str(story.get("link", "")).startswith("https://")
     if not source_url_ok:
         raise RuntimeError("Source QA failed: source URL must use HTTPS.")
-    license_match = re.search(r"license:\s*([^;]+)", photo_credit, flags=re.IGNORECASE)
-    license_name = license_match.group(1).strip() if license_match else ""
+    is_original_visual = "original vyrox gen x visual" in photo_credit.lower()
+    license_match = re.search(r"license:\\s*([^;]+)", photo_credit, flags=re.IGNORECASE)
+    license_name = license_match.group(1).strip() if license_match else ("Original in-project visual" if is_original_visual else "")
     license_normalized = license_name.lower()
-    recognized_reuse_license = any(token in license_normalized for token in (
+    recognized_reuse_license = is_original_visual or any(token in license_normalized for token in (
         "cc0", "cc by", "cc-by", "cc by-sa", "cc-by-sa", "public domain", "pdm"
     ))
     rights_report = {
         "source_url_https": source_url_ok,
-        "photo_credit_present": bool(photo_credit and "creator:" in photo_credit.lower()),
+        "photo_credit_present": bool(photo_credit and ("creator:" in photo_credit.lower() or is_original_visual)),
         "photo_license_name": license_name or "not extracted",
         "recognized_reuse_license": recognized_reuse_license,
         "human_review_required": True,
@@ -1233,7 +1233,7 @@ def build(story, publish):
     for p in (OUT / "video_silent.mp4",):
         p.unlink(missing_ok=True)
 
-    title = shorten(short_title, 78) + " | VYROX DAILY #Shorts"
+    title = shorten(short_title, 78) + " | VYROX GEN X #Shorts"
     description = (f"{CATS[cat]['label']} from {story['source']}.\n\n{shorten(story['summary'], 600) if story['summary'] else short_title}\n\n"
                    f"Original source (read the full story): {story['link']}\n\n"
                    f"Visual credits: {photo_credit}.\n{music_credit}\n"
@@ -1269,7 +1269,7 @@ def upload(video, title, description, story):
     if privacy not in ("private", "unlisted", "public"):
         privacy = "private"
     vid = upload_video(str(video), title, description,
-                       tags=["VYROX DAILY", story["category"], "Shorts", "News"], privacy=privacy)
+                       tags=["VYROX GEN X", story["category"], "Shorts", "Updates"], privacy=privacy)
     print(f"YOUTUBE_UPLOAD_SUCCESS ({privacy}): https://youtube.com/shorts/{vid}")
 
 
