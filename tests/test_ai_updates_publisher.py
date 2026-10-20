@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from ai_updates_publisher import is_fresh_story, make_hook, published_timestamp, story_interest_score
+from ai_updates_publisher import ROTATION, is_fresh_story, make_hook, published_timestamp, story_interest_score
 
 
 class StorySelectionTests(unittest.TestCase):
@@ -43,6 +43,11 @@ class StorySelectionTests(unittest.TestCase):
             "summary": "Researchers describe evidence from a new study."
         }
         self.assertGreater(story_interest_score(curious), story_interest_score(generic))
+
+
+    def test_gen_x_rotation_only_uses_ai_science_and_anime(self):
+        self.assertTrue(set(ROTATION).issubset({"AI", "SCIENCE", "ANIME"}))
+        self.assertEqual(set(ROTATION), {"AI", "SCIENCE", "ANIME"})
 
     def test_spoken_hook_uses_the_actual_story_title(self):
         story = {"category": "SPACE", "title": "A strange signal from a distant planet"}
