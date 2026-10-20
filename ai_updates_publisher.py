@@ -15,7 +15,7 @@ Usage
   python ai_updates_publisher.py --demo ANIME    # offline sample, no feeds, no state change
   python ai_updates_publisher.py --category AI   # force a category
 """
-import argparse, hashlib, html, json, math, os, random, re, shutil, subprocess, sys, time
+import argparse, base64, hashlib, html, json, math, os, random, re, shutil, subprocess, sys, time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
@@ -407,6 +407,49 @@ def pick_story(forced=None):
     )
 
 
+# --------------------------------------------------------------------------- optional original AI-generated artwork
+def generate_ai_story_visual(story):
+    """Generate an original editorial visual when OPENAI_API_KEY is configured."""
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        print("OPENAI_IMAGE_SKIPPED: OPENAI_API_KEY is not configured; procedural artwork will be used if no licensed image is found.")
+        return None
+    category = str(story.get("category", "SCIENCE")).upper()
+    title = clean(story.get("title", ""))[:220]
+    summary = clean(story.get("summary", ""))[:700]
+    style = {
+        "AI": "futuristic artificial intelligence lab, abstract neural networks, robotic hardware, cinematic cyan and violet light",
+        "SCIENCE": "scientific editorial illustration, realistic laboratory or space research scene, cinematic teal and deep blue lighting",
+        "ANIME": "original anime-inspired sci-fi illustration with expressive original characters, dynamic cinematic composition, not based on any existing franchise",
+    }.get(category, "modern science and technology editorial illustration")
+    prompt = (
+        "Create a polished, high-detail vertical 2:3 editorial illustration for a short-form news explainer. "
+        f"Topic: {title}. Context from the source: {summary}. Visual direction: {style}. "
+        "Use a premium modern Gen Z visual style, clear focal subject, dramatic depth, sophisticated lighting, "
+        "deep navy background with electric cyan and magenta accents. No text, no captions, no logos, no watermarks, "
+        "no copyrighted characters, no fake news graphics. It is an illustration, not a documentary photo of an event."
+    )
+    response = requests.post(
+        "https://api.openai.com/v1/images/generations",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": "gpt-image-1", "prompt": prompt, "size": "1024x1536", "quality": "high", "output_format": "png", "n": 1},
+        timeout=150,
+    )
+    response.raise_for_status()
+    rows = response.json().get("data", [])
+    encoded = rows[0].get("b64_json") if rows else None
+    if not encoded:
+        raise RuntimeError("Image API response did not include generated image data.")
+    raw = base64.b64decode(encoded, validate=True)
+    from io import BytesIO
+    image = Image.open(BytesIO(raw))
+    image.verify()
+    path = OUT / "ai_generated_story_visual.png"
+    path.write_bytes(raw)
+    print(f"OPENAI_IMAGE_SUCCESS: generated original visual for category {category}.")
+    return path
+
+
 # --------------------------------------------------------------------------- sourced real photos
 def fetch_story_photo(story):
     """Find real, reusable images relevant to the story; never substitute abstract art."""
@@ -499,8 +542,17 @@ def fetch_story_photo(story):
             continue
     if downloaded:
         return [item[0] for item in downloaded], "; ".join(item[1] for item in downloaded)
-    print("No reusable source photo found; refusing to render a substitute.")
-    return [], "No reusable source photo found"
+    try:
+        generated = generate_ai_story_visual(story)
+        if generated:
+            return [generated], (
+                "Original AI-generated visual using OpenAI Images API; created for this story; "
+                "illustration only, not a documentary photograph"
+            )
+    except Exception as exc:
+        print(f"OPENAI_IMAGE_FAILED: {exc}; using original procedural graphics instead.")
+    print("No reusable photo or AI image available; using original procedural artwork.")
+    return [], "Original VYROX GEN X visual; generated in-project with procedural graphics; no external image asset used"
 
 
 # --------------------------------------------------------------------------- visuals
@@ -1189,7 +1241,7 @@ def build(story, publish):
     source_url_ok = str(story.get("link", "")).startswith("https://")
     if not source_url_ok:
         raise RuntimeError("Source QA failed: source URL must use HTTPS.")
-    is_original_visual = "original vyrox gen x visual" in photo_credit.lower()
+    is_original_visual = ("original vyrox gen x visual" in photo_credit.lower() or "original ai-generated visual" in photo_credit.lower())
     license_match = re.search(r"license:\s*([^;]+)", photo_credit, flags=re.IGNORECASE)
     license_name = license_match.group(1).strip() if license_match else ("Original in-project visual" if is_original_visual else "")
     license_normalized = license_name.lower()
