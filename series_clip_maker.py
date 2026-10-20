@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-TIME_RE = re.compile(r"pts_time:([0-9]+(?:\\.[0-9]+)?)")
+TIME_RE = re.compile(r"pts_time:([0-9]+(?:\.[0-9]+)?)")
 
 
 def run(args: list[str], *, capture: bool = True) -> subprocess.CompletedProcess:
