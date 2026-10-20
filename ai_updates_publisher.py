@@ -456,6 +456,16 @@ def fetch_story_photo(story):
     OUT.mkdir(parents=True, exist_ok=True)
     title = re.sub(r"[^A-Za-z0-9 ]", " ", story.get("title", ""))[:100].strip()
     cat = story.get("category", "")
+    # Prefer a freshly generated editorial illustration when an API key is configured.
+    try:
+        generated = generate_ai_story_visual(story)
+        if generated:
+            return [generated], (
+                "Original AI-generated visual using OpenAI Images API; created for this story; "
+                "illustration only, not a documentary photograph"
+            )
+    except Exception as exc:
+        print(f"OPENAI_IMAGE_FAILED: {exc}; trying licensed source images next.")
     category_queries = {
         "SPACE": ["NASA deep space nebula galaxy", "NASA Sun solar surface", "NASA Moon lunar surface"],
         "SCIENCE": ["scientific research laboratory", "scientists laboratory experiment"],
@@ -542,15 +552,6 @@ def fetch_story_photo(story):
             continue
     if downloaded:
         return [item[0] for item in downloaded], "; ".join(item[1] for item in downloaded)
-    try:
-        generated = generate_ai_story_visual(story)
-        if generated:
-            return [generated], (
-                "Original AI-generated visual using OpenAI Images API; created for this story; "
-                "illustration only, not a documentary photograph"
-            )
-    except Exception as exc:
-        print(f"OPENAI_IMAGE_FAILED: {exc}; using original procedural graphics instead.")
     print("No reusable photo or AI image available; using original procedural artwork.")
     return [], "Original VYROX GEN X visual; generated in-project with procedural graphics; no external image asset used"
 
