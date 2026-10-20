@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Upload to YouTube after rendering (off = draft only)"
+        description: "Leave false: this workflow only creates a reviewable draft and never publishes publicly"
         required: true
         type: boolean
         default: false
@@ -21,6 +21,8 @@ on:
           - AI
           - TECH
           - ANIMALS
+          - MYSTERIES
+          - FACTS
           - WORLD
           - HEALTH
           - SPORTS
@@ -67,6 +69,9 @@ jobs:
       - name: Validate Python syntax
         run: python -m py_compile ai_updates_publisher.py
 
+      - name: Test freshness, topic ranking and spoken hooks
+        run: python -m unittest discover -s tests -v
+
       - name: Render and optionally publish
         env:
           GITHUB_ACTIONS: "true"
@@ -75,10 +80,13 @@ jobs:
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: |
           CATEGORY="${{ inputs.category }}"
-          if [ -z "$CATEGORY" ]; then CATEGORY="HEALTH"; fi
-          # This workflow only generates a reviewable draft. Exact-artifact approval/upload
-          # is handled by the separate approve-vyrox-draft workflow.
-          python ai_updates_publisher.py --category "$CATEGORY"
+          # Scheduled and push-triggered runs use the topic rotation. A manual category
+          # only overrides that rotation for the requested draft. This workflow never uploads.
+          if [ -n "$CATEGORY" ]; then
+            python ai_updates_publisher.py --category "$CATEGORY"
+          else
+            python ai_updates_publisher.py
+          fi
 
       - name: Remember used stories (no repeats)
         if: always()
