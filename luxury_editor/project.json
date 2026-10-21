@@ -1,0 +1,21 @@
+{
+  "hook": "THE LUXURY WORLD IS CHANGING",
+  "music": null,
+  "scenes": [
+    {
+      "type": "full",
+      "image": "assets/scene-01.jpg",
+      "seconds": 4.5
+    },
+    {
+      "type": "full",
+      "image": "assets/scene-02.jpg",
+      "seconds": 4.5
+    },
+    {
+      "type": "full",
+      "image": "assets/scene-03.jpg",
+      "seconds": 4.5
+    }
+  ]
+}
