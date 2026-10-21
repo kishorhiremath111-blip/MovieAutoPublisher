@@ -78,6 +78,9 @@ jobs:
           test -f "$RUNTIME/extracted/luxury.py/luxury_editor.py"
           test -f "$RUNTIME/extracted/luxury.py/youtube_device_auth.py"
           test -f "$RUNTIME/extracted/luxury.py/requirements.txt"
+          # Luxury-only compatibility patch: use a concrete Gemini text model.
+          python -c "from pathlib import Path; p=Path('daily_luxury.py'); s=p.read_text(); s=s.replace(chr(39)+'gemini-flash-latest'+chr(39), chr(39)+'gemini-2.5-flash'+chr(39), 1); p.write_text(s)"
+          grep -q "gemini-2.5-flash" "$RUNTIME/extracted/luxury.py/daily_luxury.py"
 
       - name: Set up Python
         uses: actions/setup-python@v5
