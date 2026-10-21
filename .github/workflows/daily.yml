@@ -81,7 +81,9 @@ jobs:
           test -f "$RUNTIME/extracted/luxury.py/luxury_editor.py"
           test -f "$RUNTIME/extracted/luxury.py/youtube_device_auth.py"
           test -f "$RUNTIME/extracted/luxury.py/requirements.txt"
-          # Patch only the extracted Luxury runtime; leave source bundle and other workflows untouched.
+          # Patch only the extracted Luxury runtime; source bundle, editor, and other workflows stay untouched.
+          # Make Gemini topic search resilient: try supported text models, retry transient failures,
+          # and preserve the actual HTTP/API error instead of treating it as an empty model response.
           python - <<'PY'
           from pathlib import Path
           import re
@@ -89,28 +91,72 @@ jobs:
           daily = root / "daily_luxury.py"
           s = daily.read_text(encoding="utf-8")
           s, n = re.subn(
-              r"^TEXT_MODEL = os\.environ\.get\('GEMINI_TEXT_MODEL', .*?\)$",
+              r"^TEXT_MODEL = os\\.environ\\.get\\('GEMINI_TEXT_MODEL', .*?\\)$",
               "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.8-flash')",
               s, count=1, flags=re.M)
           if n != 1:
               raise SystemExit("Could not safely update Luxury text-model default")
-          old = "    if not data or not data.get('candidates'):\n        raise RuntimeError('Gemini returned nothing.')"
-          new = """    if not data or not data.get('candidates'):
-                  feedback = data.get('promptFeedback', {}) if isinstance(data, dict) else {}
-                  reasons = []
-                  for candidate in (data.get('candidates', []) if isinstance(data, dict) else []):
-                      reasons.append(candidate.get('finishReason', 'unknown'))
-                  raise RuntimeError(
-                      'Gemini returned no candidate; promptFeedback=' + json.dumps(feedback, ensure_ascii=False)
-                      + '; finishReasons=' + json.dumps(reasons) + '; responseKeys='
-                      + json.dumps(sorted(data.keys()) if isinstance(data, dict) else [])
-                  )"""
-          if old not in s:
-              raise SystemExit("Could not safely add Gemini empty-response diagnostics")
-          s = s.replace(old, new, 1)
+          begin = s.index("def gemini(prompt, search=True, temperature=0.8):")
+          finish = s.index("\\ndef extract_json(text):", begin)
+          function = '''def gemini(prompt, search=True, temperature=0.8):
+              key = need_key()
+              body = {'contents': [{'parts': [{'text': prompt}]}],
+                      'generationConfig': {'temperature': temperature}}
+              if search:
+                  body['tools'] = [{'google_search': {}}]
+              preferred = os.environ.get('GEMINI_TEXT_MODEL', '').strip()
+              models = []
+              for name in [preferred, 'gemini-3.8-flash', 'gemini-3.6-flash',
+                           'gemini-2.5-flash', 'gemini-flash-latest']:
+                  if name and name not in models:
+                      models.append(name)
+              failures = []
+              for model in models:
+                  for attempt in range(3):
+                      try:
+                          req = urllib.request.Request(
+                              f'{API}/models/{model}:generateContent',
+                              json.dumps(body).encode(),
+                              {'Content-Type': 'application/json', 'x-goog-api-key': key})
+                          with urllib.request.urlopen(req, timeout=180) as response:
+                              raw = response.read()
+                          try:
+                              data = json.loads(raw)
+                          except (ValueError, UnicodeDecodeError) as exc:
+                              failures.append(f'{model}: invalid JSON response ({exc}); body={raw[:300]!r}')
+                              break
+                          if isinstance(data, dict) and data.get('candidates'):
+                              cand = data['candidates'][0]
+                              text = ''.join(p.get('text', '') for p in cand.get('content', {}).get('parts', []))
+                              chunks = cand.get('groundingMetadata', {}).get('groundingChunks', [])
+                              sources = [{'title': c['web'].get('title', ''), 'uri': c['web'].get('uri', '')}
+                                         for c in chunks if 'web' in c]
+                              if not text.strip():
+                                  failures.append(f'{model}: candidate had no text; finishReason={cand.get("finishReason")}')
+                                  break
+                              if search and not sources:
+                                  failures.append(f'{model}: generated text but Google Search returned no grounding sources')
+                                  break
+                              return text, sources
+                          failures.append(f'{model}: empty/non-candidate response: {json.dumps(data, ensure_ascii=False)[:600]}')
+                          break
+                      except urllib.error.HTTPError as exc:
+                          detail = exc.read().decode('utf-8', errors='replace')[:600]
+                          failures.append(f'{model}: HTTP {exc.code}: {detail}')
+                          if exc.code in (400, 401, 403, 404):
+                              break
+                          time.sleep(2 ** attempt)
+                      except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                          failures.append(f'{model}: network error: {exc}')
+                          if attempt < 2:
+                              time.sleep(2 ** attempt)
+              raise Fatal('Gemini failed for all configured text models. ' + ' | '.join(failures[-8:]))
+          '''
+          s = s[:begin] + function + s[finish:]
           daily.write_text(s, encoding="utf-8")
-          print("Luxury text model and empty-response diagnostics patched.")
+          print("Luxury-only Gemini fallback and API diagnostics installed.")
           PY
+          python -m py_compile "$RUNTIME/extracted/luxury.py/daily_luxury.py"
           grep -q "gemini-3.8-flash" "$RUNTIME/extracted/luxury.py/daily_luxury.py"
           grep -q "GEMINI_IMAGE_MODEL" "$RUNTIME/extracted/luxury.py/luxury_editor.py"
 
