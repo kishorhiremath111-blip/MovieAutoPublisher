@@ -79,8 +79,8 @@ jobs:
           test -f "$RUNTIME/extracted/luxury.py/youtube_device_auth.py"
           test -f "$RUNTIME/extracted/luxury.py/requirements.txt"
           # Luxury-only compatibility patch: use the current supported Gemini text model.
-          python -c "from pathlib import Path; p=Path('luxury_pipeline/runtime/extracted/luxury.py/daily_luxury.py'); s=p.read_text(); s=s.replace(chr(39)+'gemini-flash-latest'+chr(39), chr(39)+'gemini-3.6-flash'+chr(39), 1); s=s.replace(chr(39)+'gemini-2.5-flash'+chr(39), chr(39)+'gemini-3.6-flash'+chr(39), 1); s=s.replace(chr(39)+'gemini-3.8-flash'+chr(39), chr(39)+'gemini-3.6-flash'+chr(39), 1); p.write_text(s)"
-          grep -q "gemini-3.6-flash" "$RUNTIME/extracted/luxury.py/daily_luxury.py"
+          python -c "from pathlib import Path; p=Path('luxury_pipeline/runtime/extracted/luxury.py/daily_luxury.py'); s=p.read_text(); s=re.sub(r"TEXT_MODEL = os.environ.get\('GEMINI_TEXT_MODEL', .*?\)", "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.8-flash')", s, count=1); p.write_text(s)"
+          grep -q "gemini-3.8-flash" "$RUNTIME/extracted/luxury.py/daily_luxury.py"
 
       - name: Set up Python
         uses: actions/setup-python@v5
