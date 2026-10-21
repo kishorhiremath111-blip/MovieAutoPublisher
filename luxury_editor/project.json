@@ -4,17 +4,17 @@
   "scenes": [
     {
       "type": "full",
-      "image": "assets/scene-01.jpg",
+      "prompt": "Ultra-premium modern supercar parked outside a striking glass mansion at blue hour, dramatic low angle, cinematic luxury editorial photography",
       "seconds": 4.5
     },
     {
       "type": "full",
-      "image": "assets/scene-02.jpg",
+      "prompt": "Minimalist luxury penthouse overlooking Dubai skyline at golden hour, warm reflections, wide architectural composition, premium travel magazine photography",
       "seconds": 4.5
     },
     {
       "type": "full",
-      "image": "assets/scene-03.jpg",
+      "prompt": "Close-up of a sophisticated luxury watch on dark textured stone with elegant side lighting, macro editorial product photography",
       "seconds": 4.5
     }
   ]
