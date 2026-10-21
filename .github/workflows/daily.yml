@@ -38,7 +38,7 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'dry' }}
+      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'public' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
       TZ_OFFSET_MIN: "330"
 
@@ -48,41 +48,69 @@ jobs:
         with:
           persist-credentials: true
 
+      - name: Install FFmpeg, unzip and fonts
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg unzip fonts-dejavu-core
+
+      - name: Reassemble and verify the supplied Luxury source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME="luxury_pipeline/runtime"
+          mkdir -p "$RUNTIME"
+          cat luxury_pipeline/.bundle/part-*.b64 | base64 --decode > "$RUNTIME/source.zip"
+          echo "82da622d3e2f819e0cd3cace85c3b412177d2843a9de2072993337cee6886207  $RUNTIME/source.zip" | sha256sum --check -
+          unzip -t "$RUNTIME/source.zip"
+          mkdir -p "$RUNTIME/extracted"
+          unzip -q "$RUNTIME/source.zip" -d "$RUNTIME/extracted"
+          test -f "$RUNTIME/extracted/luxury.py/daily_luxury.py"
+          test -f "$RUNTIME/extracted/luxury.py/luxury_editor.py"
+          test -f "$RUNTIME/extracted/luxury.py/youtube_device_auth.py"
+          test -f "$RUNTIME/extracted/luxury.py/requirements.txt"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: luxury_pipeline/requirements.txt
-
-      - name: Install FFmpeg and fonts
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          cache-dependency-path: luxury_pipeline/runtime/extracted/luxury.py/requirements.txt
 
       - name: Install Python dependencies
-        working-directory: luxury_pipeline
+        working-directory: luxury_pipeline/runtime/extracted/luxury.py
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
-      - name: Build and upload Luxury Short
-        working-directory: luxury_pipeline
+      - name: Restore Luxury topic history
         shell: bash
         run: |
           set -euo pipefail
-          EXTRA_ARGS=""
-          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
-            EXTRA_ARGS="--force"
-          elif [[ "${{ inputs.force }}" == "true" ]]; then
-            EXTRA_ARGS="--force"
+          STATE="luxury_pipeline/state/published.json"
+          DEST="luxury_pipeline/runtime/extracted/luxury.py/state/published.json"
+          if [[ -f "$STATE" ]]; then
+            mkdir -p "$(dirname "$DEST")"
+            cp "$STATE" "$DEST"
           fi
-          python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" $EXTRA_ARGS
+
+      - name: Build and upload Luxury Short
+        working-directory: luxury_pipeline/runtime/extracted/luxury.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=()
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
+            EXTRA_ARGS+=(--force)
+          elif [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS+=(--force)
+          fi
+          python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${EXTRA_ARGS[@]}"
 
       - name: Save generated video artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: luxury-short-${{ github.run_id }}-${{ github.run_attempt }}
-          path: luxury_pipeline/output/**/short.mp4
+          path: luxury_pipeline/runtime/extracted/luxury.py/output/**/short.mp4
           if-no-files-found: ignore
           retention-days: 7
 
@@ -91,10 +119,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -f luxury_pipeline/state/published.json ]]; then
+          SOURCE="luxury_pipeline/runtime/extracted/luxury.py/state/published.json"
+          DEST="luxury_pipeline/state/published.json"
+          if [[ -f "$SOURCE" ]]; then
+            mkdir -p "$(dirname "$DEST")"
+            cp "$SOURCE" "$DEST"
+          fi
+          if [[ -f "$DEST" ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add luxury_pipeline/state/published.json
+            git add "$DEST"
             if ! git diff --cached --quiet; then
               git commit -m "Update Luxury pipeline topic history"
               git push
