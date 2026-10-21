@@ -96,15 +96,15 @@ jobs:
               raise SystemExit("Could not safely update Luxury text-model default")
           old = "    if not data or not data.get('candidates'):\n        raise RuntimeError('Gemini returned nothing.')"
           new = """    if not data or not data.get('candidates'):
-          feedback = data.get('promptFeedback', {}) if isinstance(data, dict) else {}
-          reasons = []
-          for candidate in (data.get('candidates', []) if isinstance(data, dict) else []):
-              reasons.append(candidate.get('finishReason', 'unknown'))
-          raise RuntimeError(
-              'Gemini returned no candidate; promptFeedback=' + json.dumps(feedback, ensure_ascii=False)
-              + '; finishReasons=' + json.dumps(reasons) + '; responseKeys='
-              + json.dumps(sorted(data.keys()) if isinstance(data, dict) else [])
-          )"""
+                  feedback = data.get('promptFeedback', {}) if isinstance(data, dict) else {}
+                  reasons = []
+                  for candidate in (data.get('candidates', []) if isinstance(data, dict) else []):
+                      reasons.append(candidate.get('finishReason', 'unknown'))
+                  raise RuntimeError(
+                      'Gemini returned no candidate; promptFeedback=' + json.dumps(feedback, ensure_ascii=False)
+                      + '; finishReasons=' + json.dumps(reasons) + '; responseKeys='
+                      + json.dumps(sorted(data.keys()) if isinstance(data, dict) else [])
+                  )"""
           if old not in s:
               raise SystemExit("Could not safely add Gemini empty-response diagnostics")
           s = s.replace(old, new, 1)
