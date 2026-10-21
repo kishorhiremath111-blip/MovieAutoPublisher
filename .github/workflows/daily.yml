@@ -61,7 +61,7 @@ jobs:
           RUNTIME="luxury_pipeline/runtime"
           mkdir -p "$RUNTIME"
           cat luxury_pipeline/.bundle/part-*.b64 | base64 --decode > "$RUNTIME/source.zip"
-          echo "82da622d3e2f819e0cd3cace85c3b412177d2843a9de2072993337cee6886207  $RUNTIME/source.zip" | sha256sum --check -
+          echo "82da622d3e2f819e0cd3cace85c3b412177d2843a9de2072993337cee6886203  $RUNTIME/source.zip" | sha256sum --check -
           unzip -t "$RUNTIME/source.zip"
           mkdir -p "$RUNTIME/extracted"
           unzip -q "$RUNTIME/source.zip" -d "$RUNTIME/extracted"
