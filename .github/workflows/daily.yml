@@ -41,6 +41,9 @@ jobs:
       UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'public' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
       TZ_OFFSET_MIN: "330"
+      GEMINI_TEXT_MODEL: "gemini-3.8-flash"
+      GEMINI_IMAGE_MODEL: "gemini-3.1-flash-image"
+      GEMINI_IMAGE_SIZE: "4K"
 
     steps:
       - name: Checkout repository
@@ -78,9 +81,38 @@ jobs:
           test -f "$RUNTIME/extracted/luxury.py/luxury_editor.py"
           test -f "$RUNTIME/extracted/luxury.py/youtube_device_auth.py"
           test -f "$RUNTIME/extracted/luxury.py/requirements.txt"
-          # Luxury-only compatibility patch: use the current supported Gemini text model.
-          python -c "from pathlib import Path; p=Path('luxury_pipeline/runtime/extracted/luxury.py/daily_luxury.py'); s=p.read_text(); s=re.sub(r"TEXT_MODEL = os.environ.get\('GEMINI_TEXT_MODEL', .*?\)", "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.8-flash')", s, count=1); p.write_text(s)"
+          # Patch only the extracted Luxury runtime; leave source bundle and other workflows untouched.
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path("luxury_pipeline/runtime/extracted/luxury.py")
+          daily = root / "daily_luxury.py"
+          s = daily.read_text(encoding="utf-8")
+          s, n = re.subn(
+              r"^TEXT_MODEL = os\.environ\.get\('GEMINI_TEXT_MODEL', .*?\)$",
+              "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.8-flash')",
+              s, count=1, flags=re.M)
+          if n != 1:
+              raise SystemExit("Could not safely update Luxury text-model default")
+          old = "    if not data or not data.get('candidates'):\n        raise RuntimeError('Gemini returned nothing.')"
+          new = """    if not data or not data.get('candidates'):
+          feedback = data.get('promptFeedback', {}) if isinstance(data, dict) else {}
+          reasons = []
+          for candidate in (data.get('candidates', []) if isinstance(data, dict) else []):
+              reasons.append(candidate.get('finishReason', 'unknown'))
+          raise RuntimeError(
+              'Gemini returned no candidate; promptFeedback=' + json.dumps(feedback, ensure_ascii=False)
+              + '; finishReasons=' + json.dumps(reasons) + '; responseKeys='
+              + json.dumps(sorted(data.keys()) if isinstance(data, dict) else [])
+          )"""
+          if old not in s:
+              raise SystemExit("Could not safely add Gemini empty-response diagnostics")
+          s = s.replace(old, new, 1)
+          daily.write_text(s, encoding="utf-8")
+          print("Luxury text model and empty-response diagnostics patched.")
+          PY
           grep -q "gemini-3.8-flash" "$RUNTIME/extracted/luxury.py/daily_luxury.py"
+          grep -q "GEMINI_IMAGE_MODEL" "$RUNTIME/extracted/luxury.py/luxury_editor.py"
 
       - name: Set up Python
         uses: actions/setup-python@v5
