@@ -1,20 +1,31 @@
 {
-  "hook": "THE LUXURY WORLD IS CHANGING",
+  "topic": "ULTRA LUXURY LIFESTYLE",
+  "hook": "THE WORLD OF ULTRA LUXURY",
   "music": null,
   "scenes": [
     {
       "type": "full",
-      "prompt": "Ultra-premium modern supercar parked outside a striking glass mansion at blue hour, dramatic low angle, cinematic luxury editorial photography",
+      "prompt": "Photorealistic ultra-luxury hypercar in a dramatic modern architectural driveway at blue hour, glossy paint reflections, low cinematic camera angle, premium automotive magazine photography, no logos",
       "seconds": 4.5
     },
     {
       "type": "full",
-      "prompt": "Minimalist luxury penthouse overlooking Dubai skyline at golden hour, warm reflections, wide architectural composition, premium travel magazine photography",
+      "prompt": "Sky-high luxury penthouse in Dubai with floor-to-ceiling windows, panoramic skyline and warm sunset reflections, elegant marble and designer furniture, high-end real estate editorial photography",
       "seconds": 4.5
     },
     {
       "type": "full",
-      "prompt": "Close-up of a sophisticated luxury watch on dark textured stone with elegant side lighting, macro editorial product photography",
+      "prompt": "Luxury superyacht cruising across deep turquoise Mediterranean water beside a dramatic coastline, aerial three-quarter view, late golden hour, premium travel editorial photography",
+      "seconds": 4.5
+    },
+    {
+      "type": "full",
+      "prompt": "Private luxury jet interior with cream leather seats, polished wood and soft golden ambient lighting, cinematic aisle perspective, sophisticated travel magazine photography",
+      "seconds": 4.5
+    },
+    {
+      "type": "full",
+      "prompt": "Elegant mechanical luxury wristwatch on dark textured stone with precise metallic details and dramatic side lighting, macro high-end product photography, no visible brand or text",
       "seconds": 4.5
     }
   ]
