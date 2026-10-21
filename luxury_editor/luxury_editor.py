@@ -5,7 +5,7 @@ Reads ONLY files under this tool's own project directory. It never scans the
 existing MovieAutoPublisher video folders or downloads legacy video sources.
 Set GEMINI_API_KEY in GitHub Actions secrets to enable prompt-based image creation.
 """
-import argparse, json, os, shutil, subprocess, sys, tempfile
+import argparse, base64, json, os, shutil, subprocess, sys, tempfile, time, urllib.request, urllib.error
 from pathlib import Path
 
 try:
@@ -62,6 +62,35 @@ def hook_png(text, path, size):
         y += line_h
     im.save(path)
 
+def generate_image(prompt, destination, ratio):
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise SystemExit("Scene prompt needs GEMINI_API_KEY configured in GitHub repository Actions secrets.")
+    model = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    body = json.dumps({
+        "contents": [{"parts": [{"text": prompt + ". Photorealistic, premium luxury editorial photography, cinematic natural lighting, sharp details, vertical social video image, no text, no watermark, no logos, no identifiable real person's face."}]}],
+        "generationConfig": {"responseModalities": ["TEXT", "IMAGE"], "imageConfig": {"aspectRatio": ratio}}
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type":"application/json","x-goog-api-key":key})
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=240) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            for part in result.get("candidates", [{}])[0].get("content", {}).get("parts", []):
+                if "inlineData" in part:
+                    destination.write_bytes(base64.b64decode(part["inlineData"]["data"]))
+                    return
+            raise SystemExit(f"Gemini returned no image for prompt: {prompt[:80]}")
+        except urllib.error.HTTPError as exc:
+            if exc.code in (400, 401, 403, 404):
+                raise SystemExit(f"Gemini image API rejected request (HTTP {exc.code}); check GEMINI_IMAGE_MODEL and GEMINI_API_KEY.")
+            if attempt == 2: raise
+            time.sleep(2 ** attempt)
+        except (urllib.error.URLError, TimeoutError):
+            if attempt == 2: raise
+            time.sleep(2 ** attempt)
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", default=str(ROOT / "project.json"))
@@ -87,11 +116,17 @@ def main():
         inputs, filters, durations = [], [], []
         for i, scene in enumerate(scenes):
             image = scene.get("image")
-            if not image:
-                raise SystemExit(f"Scene {i+1} needs an image path. Add licensed/original images under luxury_editor/assets/.")
-            src = (ROOT / image).resolve()
-            if ROOT not in src.parents or not src.is_file():
-                raise SystemExit(f"Scene {i+1}: image must exist inside luxury_editor/: {image}")
+            prompt = scene.get("prompt")
+            if image:
+                src = (ROOT / image).resolve()
+                if ROOT not in src.parents or not src.is_file():
+                    raise SystemExit(f"Scene {i+1}: image must exist inside luxury_editor/: {image}")
+            elif prompt:
+                src = td / f"generated-scene{i}.png"
+                print(f"Generating original scene {i+1} with Gemini...")
+                generate_image(str(prompt), src, "9:16")
+            else:
+                raise SystemExit(f"Scene {i+1} needs either 'image' or 'prompt'.")
             tile = td / f"scene{i}.jpg"
             fit_image(src, tile, (w,h))
             inputs += ["-loop","1","-framerate",str(FPS),"-t",str(float(scene.get("seconds",4.5))),"-i",str(tile)]
