@@ -1,0 +1,102 @@
+name: Daily Luxury Short
+
+on:
+  schedule:
+    # 09:00 IST (03:30 UTC) and 18:00 IST (12:30 UTC)
+    - cron: "30 3 * * *"
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry = build only, private = upload privately, public = publish publicly"
+        required: true
+        type: choice
+        options:
+          - dry
+          - private
+          - public
+        default: dry
+      force:
+        description: "Allow another video even if one is already recorded for today"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-luxury
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'dry' }}
+      VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
+      TZ_OFFSET_MIN: "330"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: luxury_pipeline/requirements.txt
+
+      - name: Install FFmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install Python dependencies
+        working-directory: luxury_pipeline
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Build and upload Luxury Short
+        working-directory: luxury_pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=""
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
+            EXTRA_ARGS="--force"
+          elif [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS="--force"
+          fi
+          python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" $EXTRA_ARGS
+
+      - name: Save generated video artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: luxury-short-${{ github.run_id }}-${{ github.run_attempt }}
+          path: luxury_pipeline/output/**/short.mp4
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Persist Luxury topic history
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f luxury_pipeline/state/published.json ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add luxury_pipeline/state/published.json
+            if ! git diff --cached --quiet; then
+              git commit -m "Update Luxury pipeline topic history"
+              git push
+            fi
+          fi
