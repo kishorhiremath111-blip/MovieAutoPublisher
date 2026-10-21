@@ -1,0 +1,56 @@
+name: Luxury Editor - Isolated Shorts
+
+on:
+  workflow_dispatch:
+    inputs:
+      resolution:
+        description: "Output resolution"
+        required: true
+        type: choice
+        options: ["1080", "4k"]
+        default: "1080"
+  push:
+    paths:
+      - "luxury_editor/**"
+      - ".github/workflows/luxury-editor.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: luxury-editor-short
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+
+      - name: Validate isolated input folder
+        run: |
+          test -f luxury_editor/luxury_editor.py
+          test -f luxury_editor/project.json
+          echo "This workflow only reads luxury_editor/ assets."
+          echo "Legacy video folders and other workflows are not inputs."
+
+      - name: Render new Short
+        run: |
+          python luxury_editor/luxury_editor.py --project luxury_editor/project.json --output luxury_editor/output/luxury-short.mp4 --resolution "${{ inputs.resolution || '1080' }}"
+
+      - name: Upload rendered Short
+        uses: actions/upload-artifact@v4
+        with:
+          name: luxury-editor-short
+          path: luxury_editor/output/luxury-short.mp4
+          if-no-files-found: error
+          retention-days: 7
