@@ -51,6 +51,32 @@ jobs:
         with:
           persist-credentials: true
 
+      - name: Validate required credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "::error::GEMINI_API_KEY repository Actions secret is missing."
+            exit 1
+          fi
+          case "${UPLOAD_MODE,,}" in
+            dry) ;;
+            private|public)
+              missing=()
+              [[ -n "${YOUTUBE_CLIENT_ID:-}" ]] || missing+=("YOUTUBE_CLIENT_ID")
+              [[ -n "${YOUTUBE_CLIENT_SECRET:-}" ]] || missing+=("YOUTUBE_CLIENT_SECRET")
+              [[ -n "${YOUTUBE_REFRESH_TOKEN:-}" ]] || missing+=("YOUTUBE_REFRESH_TOKEN")
+              if (( ${#missing[@]} > 0 )); then
+                printf '::error::UPLOAD_MODE=%s requires these GitHub Actions secrets: %s. Add them in Settings > Secrets and variables > Actions, or run with mode=dry.\n' "$UPLOAD_MODE" "${missing[*]}"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported UPLOAD_MODE='$UPLOAD_MODE'. Use dry, private, or public."
+              exit 1
+              ;;
+          esac
+
       - name: Install FFmpeg, unzip and fonts
         run: |
           set -euo pipefail
@@ -107,7 +133,7 @@ jobs:
               preferred = os.environ.get('GEMINI_TEXT_MODEL', '').strip()
               models = []
               for name in [preferred, 'gemini-3.8-flash', 'gemini-3.6-flash',
-                           'gemini-2.5-flash', 'gemini-flash-latest']:
+                           'gemini-flash-latest']:
                   if name and name not in models:
                       models.append(name)
               failures = []
@@ -125,8 +151,12 @@ jobs:
                           except (ValueError, UnicodeDecodeError) as exc:
                               failures.append(f'{model}: invalid JSON response ({exc}); body={raw[:300]!r}')
                               break
-                          if isinstance(data, dict) and data.get('candidates'):
-                              cand = data['candidates'][0]
+                          if not isinstance(data, dict):
+                              failures.append(f'{model}: non-object API response {raw[:300]!r}')
+                              break
+                          candidates = data.get('candidates', [])
+                          if candidates:
+                              cand = candidates[0]
                               text = ''.join(p.get('text', '') for p in cand.get('content', {}).get('parts', []))
                               chunks = cand.get('groundingMetadata', {}).get('groundingChunks', [])
                               sources = [{'title': c['web'].get('title', ''), 'uri': c['web'].get('uri', '')}
@@ -138,19 +168,34 @@ jobs:
                                   failures.append(f'{model}: generated text but Google Search returned no grounding sources')
                                   break
                               return text, sources
-                          failures.append(f'{model}: empty/non-candidate response: {json.dumps(data, ensure_ascii=False)[:600]}')
+                          feedback = data.get('promptFeedback', {})
+                          failures.append(f'{model}: no candidates; promptFeedback={json.dumps(feedback, ensure_ascii=False)[:400]}; responseKeys={sorted(data.keys())}')
                           break
                       except urllib.error.HTTPError as exc:
-                          detail = exc.read().decode('utf-8', errors='replace')[:600]
+                          detail = exc.read().decode('utf-8', errors='replace')[:800]
+                          lower = detail.lower()
+                          if exc.code == 429 and (
+                              'resource_exhausted' in lower or
+                              'exceeded your current quota' in lower or
+                              'check your plan and billing details' in lower or
+                              'current quota' in lower
+                          ):
+                              raise Fatal(
+                                  'Gemini API quota/rate limit is exhausted (HTTP 429). '
+                                  'The workflow stopped to avoid wasting more requests. '
+                                  'Check https://ai.dev/rate-limit and your Google AI Studio project billing/limits. '
+                                  'This cannot be fixed by switching models. API details: ' + detail[:450]
+                              )
                           failures.append(f'{model}: HTTP {exc.code}: {detail}')
                           if exc.code in (400, 401, 403, 404):
                               break
-                          time.sleep(2 ** attempt)
+                          if attempt < 2:
+                              time.sleep(min(60, 2 ** (attempt + 1)))
                       except (urllib.error.URLError, TimeoutError, OSError) as exc:
                           failures.append(f'{model}: network error: {exc}')
                           if attempt < 2:
-                              time.sleep(2 ** attempt)
-              raise Fatal('Gemini failed for all configured text models. ' + ' | '.join(failures[-8:]))
+                              time.sleep(min(30, 2 ** (attempt + 1)))
+              raise Fatal('Gemini text generation failed across available model attempts. ' + ' | '.join(failures[-6:]))
           '''
           s = s[:begin] + function + s[finish:]
           daily.write_text(s, encoding="utf-8")
