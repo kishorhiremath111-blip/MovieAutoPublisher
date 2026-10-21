@@ -41,7 +41,7 @@ jobs:
       UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'public' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
       TZ_OFFSET_MIN: "330"
-      GEMINI_TEXT_MODEL: "gemini-3.8-flash"
+      GEMINI_TEXT_MODEL: "gemini-3.1-flash-lite"
       GEMINI_IMAGE_MODEL: "gemini-3.1-flash-image"
       GEMINI_IMAGE_SIZE: "4K"
 
@@ -118,7 +118,7 @@ jobs:
           s = daily.read_text(encoding="utf-8")
           s, n = re.subn(
               r"^TEXT_MODEL = os\.environ\.get\('GEMINI_TEXT_MODEL', .*?\)$",
-              "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.8-flash')",
+              "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.1-flash-lite')",
               s, count=1, flags=re.M)
           if n != 1:
               raise SystemExit("Could not safely update Luxury text-model default")
@@ -132,8 +132,8 @@ jobs:
                   body['tools'] = [{'google_search': {}}]
               preferred = os.environ.get('GEMINI_TEXT_MODEL', '').strip()
               models = []
-              for name in [preferred, 'gemini-3.8-flash', 'gemini-3.6-flash',
-                           'gemini-flash-latest']:
+              for name in [preferred, 'gemini-3.1-flash-lite', 'gemini-3.8-flash',
+                           'gemini-3.6-flash', 'gemini-flash-latest']:
                   if name and name not in models:
                       models.append(name)
               failures = []
