@@ -91,13 +91,13 @@ jobs:
           daily = root / "daily_luxury.py"
           s = daily.read_text(encoding="utf-8")
           s, n = re.subn(
-              r"^TEXT_MODEL = os\\.environ\\.get\\('GEMINI_TEXT_MODEL', .*?\\)$",
+              r"^TEXT_MODEL = os\.environ\.get\('GEMINI_TEXT_MODEL', .*?\)$",
               "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.8-flash')",
               s, count=1, flags=re.M)
           if n != 1:
               raise SystemExit("Could not safely update Luxury text-model default")
           begin = s.index("def gemini(prompt, search=True, temperature=0.8):")
-          finish = s.index("\\ndef extract_json(text):", begin)
+          finish = s.index("\ndef extract_json(text):", begin)
           function = '''def gemini(prompt, search=True, temperature=0.8):
               key = need_key()
               body = {'contents': [{'parts': [{'text': prompt}]}],
