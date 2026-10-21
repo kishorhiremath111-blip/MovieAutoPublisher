@@ -175,10 +175,9 @@ jobs:
                           detail = exc.read().decode('utf-8', errors='replace')[:800]
                           lower = detail.lower()
                           if exc.code == 429 and (
-                              'resource_exhausted' in lower or
-                              'exceeded your current quota' in lower or
-                              'check your plan and billing details' in lower or
-                              'current quota' in lower
+                              'you exceeded your current quota' in lower or
+                              'quota exceeded' in lower or
+                              'check your plan and billing details' in lower
                           ):
                               raise Fatal(
                                   'Gemini API quota/rate limit is exhausted (HTTP 429). '
