@@ -1,21 +1,7 @@
-# Luxury Shorts pipeline (MovieAutoPublisher ke andar, alag folder)
+# Isolated Luxury Shorts pipeline
 
-Roz ek luxury Short: topic dhundho -> fact-check -> video -> YouTube. Purane movie code ko haath nahi lagata.
+This folder contains the original `luxury.py 1.zip` source as an encoded archive under `.bundle/`. The `Daily Luxury Short` GitHub Actions workflow validates and extracts that archive into `runtime/` before running it. This keeps all original MovieAutoPublisher source files and root dependencies untouched.
 
-## Roz ka rotation
-Somvar billionaire news | Mangalvar supercars | Budhvar Dubai/mansion | Guruvar yachts-jets |
-Shukravar watches | Shanivar morning routine (concept) | Ravivar chill party (concept).
-News wale din real khabar + 2 sources + fact-check zaroori, warna video nahi banta.
+The workflow runs at 09:00 and 18:00 India time. The second scheduled run passes `--force` so the source pipeline can create a second Short for the same local date.
 
-## Workflow chalane ka tareeqa
-- Scheduled (roz 09:00 aur 18:00 IST) **tab tak band hai** jab tak repo Variable `UPLOAD_MODE` nahi banta.
-- Manual: Actions -> "Daily Luxury Short" -> Run workflow -> mode **dry** (sirf video banta hai, artifact me milta hai).
-- Pehle dry, phir private, aur sab theek lage tab Variable `UPLOAD_MODE` = `public`.
-- Fail ho to **Preflight** step ka text dekho: kaun sa secret/file/model missing hai wahin likha hota hai.
-
-## Secrets: `GEMINI_API_KEY`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`
-## Optional Variables: `VIDEO_RES` (1080/4k), `GEMINI_IMAGE_SIZE` (1K/2K/4K), `GEMINI_TEXT_MODEL`, `GEMINI_IMAGE_MODEL`
-
-## Music
-`music/` me licensed modern tracks daalo (roz alag). Khaali ho to built-in modern music banta hai.
-Attribution chahiye to `music/credits.txt` me likho.
+Required GitHub Actions secrets: `GEMINI_API_KEY`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN`. Manual workflow runs default to `dry`; scheduled runs default to `public` unless the repository variable `UPLOAD_MODE` overrides it. Run a manual `dry` test first, then verify a `private` upload before allowing scheduled public publishing.
