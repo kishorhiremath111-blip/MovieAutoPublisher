@@ -9,6 +9,10 @@ on:
         type: choice
         options: ["1080", "4k"]
         default: "1080"
+  push:
+    paths:
+      - "luxury_editor/**"
+      - ".github/workflows/luxury-editor.yml"
 
 permissions:
   contents: read
@@ -27,9 +31,8 @@ jobs:
 
       - name: Install renderer dependencies
         run: |
-          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          sudo apt-get install -y ffmpeg
           python -m pip install --upgrade pip
           python -m pip install Pillow
 
@@ -37,12 +40,13 @@ jobs:
         run: |
           test -f luxury_editor/luxury_editor.py
           test -f luxury_editor/project.json
+          echo "This workflow only reads luxury_editor/ assets."
+          echo "Legacy video folders and other workflows are not inputs."
 
       - name: Render new Short
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # GitHub passes an EMPTY string for an unset variable, which broke the model name.
-          GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image' }}
+          GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
         run: |
           python luxury_editor/luxury_editor.py --project luxury_editor/project.json --output luxury_editor/output/luxury-short.mp4 --resolution "${{ inputs.resolution || '1080' }}"
 
