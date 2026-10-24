@@ -11,10 +11,13 @@ on:
         description: "dry = build only, private = upload privately, public = publish publicly"
         required: true
         type: choice
-        options: [dry, private, public]
+        options:
+          - dry
+          - private
+          - public
         default: dry
       force:
-        description: "Allow another video even if one was already made today"
+        description: "Allow another video even if one is already recorded for today"
         required: false
         type: boolean
         default: false
@@ -28,83 +31,240 @@ concurrency:
 
 jobs:
   build-and-upload:
-    # Scheduled runs stay OFF until you create the repository variable UPLOAD_MODE
-    # (Settings > Secrets and variables > Actions > Variables). Manual runs always work.
-    if: github.event_name != 'schedule' || vars.UPLOAD_MODE != ''
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    defaults:
-      run:
-        shell: bash
-        working-directory: luxury_pipeline
+    timeout-minutes: 90
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'dry' }}
+      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'public' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
-      GEMINI_IMAGE_SIZE: ${{ vars.GEMINI_IMAGE_SIZE || '2K' }}
-      GEMINI_TEXT_MODEL: ${{ vars.GEMINI_TEXT_MODEL }}
-      GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
       TZ_OFFSET_MIN: "330"
+      GEMINI_TEXT_MODEL: "gemini-3.1-flash-lite"
+      GEMINI_IMAGE_MODEL: "gemini-3.1-flash-image"
+      GEMINI_IMAGE_SIZE: "4K"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
-      - name: Install FFmpeg and fonts
+      - name: Validate required credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "::error::GEMINI_API_KEY repository Actions secret is missing."
+            exit 1
+          fi
+          case "${UPLOAD_MODE,,}" in
+            dry) ;;
+            private|public)
+              missing=()
+              [[ -n "${YOUTUBE_CLIENT_ID:-}" ]] || missing+=("YOUTUBE_CLIENT_ID")
+              [[ -n "${YOUTUBE_CLIENT_SECRET:-}" ]] || missing+=("YOUTUBE_CLIENT_SECRET")
+              [[ -n "${YOUTUBE_REFRESH_TOKEN:-}" ]] || missing+=("YOUTUBE_REFRESH_TOKEN")
+              if (( ${#missing[@]} > 0 )); then
+                printf '::error::UPLOAD_MODE=%s requires these GitHub Actions secrets: %s. Add them in Settings > Secrets and variables > Actions, or run with mode=dry.\n' "$UPLOAD_MODE" "${missing[*]}"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported UPLOAD_MODE='$UPLOAD_MODE'. Use dry, private, or public."
+              exit 1
+              ;;
+          esac
+
+      - name: Install FFmpeg, unzip and fonts
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          sudo apt-get install -y ffmpeg unzip fonts-dejavu-core
+
+      - name: Reassemble and verify the supplied Luxury source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME="luxury_pipeline/runtime"
+          mkdir -p "$RUNTIME"
+          cat \
+            luxury_pipeline/.bundle/part-00.b64 \
+            luxury_pipeline/.bundle/part-00a.b64 \
+            luxury_pipeline/.bundle/part-01.b64 \
+            luxury_pipeline/.bundle/part-01a.b64 \
+            luxury_pipeline/.bundle/part-02.b64 \
+            luxury_pipeline/.bundle/part-03.b64 \
+            luxury_pipeline/.bundle/part-04.b64 \
+            luxury_pipeline/.bundle/part-05.b64 \
+            | base64 --decode > "$RUNTIME/source.zip"
+          echo "82da622d3e2f819e0cd3cace85c3b412177d2843a9de2072993337cee6886203  $RUNTIME/source.zip" | sha256sum --check -
+          unzip -t "$RUNTIME/source.zip"
+          mkdir -p "$RUNTIME/extracted"
+          unzip -q "$RUNTIME/source.zip" -d "$RUNTIME/extracted"
+          test -f "$RUNTIME/extracted/luxury.py/daily_luxury.py"
+          test -f "$RUNTIME/extracted/luxury.py/luxury_editor.py"
+          test -f "$RUNTIME/extracted/luxury.py/youtube_device_auth.py"
+          test -f "$RUNTIME/extracted/luxury.py/requirements.txt"
+          # Patch only the extracted Luxury runtime; source bundle, editor, and other workflows stay untouched.
+          # Make Gemini topic search resilient: try supported text models, retry transient failures,
+          # and preserve the actual HTTP/API error instead of treating it as an empty model response.
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path("luxury_pipeline/runtime/extracted/luxury.py")
+          daily = root / "daily_luxury.py"
+          s = daily.read_text(encoding="utf-8")
+          s, n = re.subn(
+              r"^TEXT_MODEL = os\.environ\.get\('GEMINI_TEXT_MODEL', .*?\)$",
+              "TEXT_MODEL = os.environ.get('GEMINI_TEXT_MODEL', 'gemini-3.1-flash-lite')",
+              s, count=1, flags=re.M)
+          if n != 1:
+              raise SystemExit("Could not safely update Luxury text-model default")
+          begin = s.index("def gemini(prompt, search=True, temperature=0.8):")
+          finish = s.index("\ndef extract_json(text):", begin)
+          function = '''def gemini(prompt, search=True, temperature=0.8):
+              key = need_key()
+              body = {'contents': [{'parts': [{'text': prompt}]}],
+                      'generationConfig': {'temperature': temperature}}
+              if search:
+                  body['tools'] = [{'google_search': {}}]
+              preferred = os.environ.get('GEMINI_TEXT_MODEL', '').strip()
+              models = []
+              for name in [preferred, 'gemini-3.1-flash-lite', 'gemini-3.8-flash',
+                           'gemini-3.6-flash', 'gemini-flash-latest']:
+                  if name and name not in models:
+                      models.append(name)
+              failures = []
+              for model in models:
+                  for attempt in range(3):
+                      try:
+                          req = urllib.request.Request(
+                              f'{API}/models/{model}:generateContent',
+                              json.dumps(body).encode(),
+                              {'Content-Type': 'application/json', 'x-goog-api-key': key})
+                          with urllib.request.urlopen(req, timeout=180) as response:
+                              raw = response.read()
+                          try:
+                              data = json.loads(raw)
+                          except (ValueError, UnicodeDecodeError) as exc:
+                              failures.append(f'{model}: invalid JSON response ({exc}); body={raw[:300]!r}')
+                              break
+                          if not isinstance(data, dict):
+                              failures.append(f'{model}: non-object API response {raw[:300]!r}')
+                              break
+                          candidates = data.get('candidates', [])
+                          if candidates:
+                              cand = candidates[0]
+                              text = ''.join(p.get('text', '') for p in cand.get('content', {}).get('parts', []))
+                              chunks = cand.get('groundingMetadata', {}).get('groundingChunks', [])
+                              sources = [{'title': c['web'].get('title', ''), 'uri': c['web'].get('uri', '')}
+                                         for c in chunks if 'web' in c]
+                              if not text.strip():
+                                  failures.append(f'{model}: candidate had no text; finishReason={cand.get("finishReason")}')
+                                  break
+                              if search and not sources:
+                                  failures.append(f'{model}: generated text but Google Search returned no grounding sources')
+                                  break
+                              return text, sources
+                          feedback = data.get('promptFeedback', {})
+                          failures.append(f'{model}: no candidates; promptFeedback={json.dumps(feedback, ensure_ascii=False)[:400]}; responseKeys={sorted(data.keys())}')
+                          break
+                      except urllib.error.HTTPError as exc:
+                          detail = exc.read().decode('utf-8', errors='replace')[:800]
+                          lower = detail.lower()
+                          if exc.code == 429 and (
+                              'you exceeded your current quota' in lower or
+                              'quota exceeded' in lower or
+                              'check your plan and billing details' in lower
+                          ):
+                              raise Fatal(
+                                  'Gemini API quota/rate limit is exhausted (HTTP 429). '
+                                  'The workflow stopped to avoid wasting more requests. '
+                                  'Check https://ai.dev/rate-limit and your Google AI Studio project billing/limits. '
+                                  'This cannot be fixed by switching models. API details: ' + detail[:450]
+                              )
+                          failures.append(f'{model}: HTTP {exc.code}: {detail}')
+                          if exc.code in (400, 401, 403, 404):
+                              break
+                          if attempt < 2:
+                              time.sleep(min(60, 2 ** (attempt + 1)))
+                      except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                          failures.append(f'{model}: network error: {exc}')
+                          if attempt < 2:
+                              time.sleep(min(30, 2 ** (attempt + 1)))
+              raise Fatal('Gemini text generation failed across available model attempts. ' + ' | '.join(failures[-6:]))
+          '''
+          s = s[:begin] + function + s[finish:]
+          daily.write_text(s, encoding="utf-8")
+          print("Luxury-only Gemini fallback and API diagnostics installed.")
+          PY
+          python -m py_compile "$RUNTIME/extracted/luxury.py/daily_luxury.py"
+          grep -q "gemini-3.8-flash" "$RUNTIME/extracted/luxury.py/daily_luxury.py"
+          grep -q "GEMINI_IMAGE_MODEL" "$RUNTIME/extracted/luxury.py/luxury_editor.py"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: luxury_pipeline/runtime/extracted/luxury.py/requirements.txt
 
       - name: Install Python dependencies
+        working-directory: luxury_pipeline/runtime/extracted/luxury.py
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Restore Luxury topic history
+        shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Preflight (shows what is missing; never prints secrets)
-        run: python daily_luxury.py --preflight
-
-      - name: Build and upload today's Short
-        run: |
-          set -euo pipefail
-          ARGS=()
-          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
-            ARGS+=(--force)
-          elif [[ "${{ inputs.force }}" == "true" ]]; then
-            ARGS+=(--force)
+          STATE="luxury_pipeline/state/published.json"
+          DEST="luxury_pipeline/runtime/extracted/luxury.py/state/published.json"
+          if [[ -f "$STATE" ]]; then
+            mkdir -p "$(dirname "$DEST")"
+            cp "$STATE" "$DEST"
           fi
-          python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${ARGS[@]}"
 
-      - name: Keep the video for 7 days
+      - name: Build and upload Luxury Short
+        working-directory: luxury_pipeline/runtime/extracted/luxury.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=()
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
+            EXTRA_ARGS+=(--force)
+          elif [[ "${{ inputs.force }}" == "true" ]]; then
+            EXTRA_ARGS+=(--force)
+          fi
+          python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${EXTRA_ARGS[@]}"
+
+      - name: Save generated video artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: luxury-short-${{ github.run_id }}-${{ github.run_attempt }}
-          path: luxury_pipeline/output/**/short.mp4
+          path: luxury_pipeline/runtime/extracted/luxury.py/output/**/short.mp4
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Save topic history
+      - name: Persist Luxury topic history
         if: always()
+        shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p state
-          git add -A state
-          if git diff --cached --quiet; then
-            echo "Nothing to save."
-          else
-            git commit -m "Update Luxury topic history"
-            git pull --rebase
-            git push
+          SOURCE="luxury_pipeline/runtime/extracted/luxury.py/state/published.json"
+          DEST="luxury_pipeline/state/published.json"
+          if [[ -f "$SOURCE" ]]; then
+            mkdir -p "$(dirname "$DEST")"
+            cp "$SOURCE" "$DEST"
+          fi
+          if [[ -f "$DEST" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$DEST"
+            if ! git diff --cached --quiet; then
+              git commit -m "Update Luxury pipeline topic history"
+              git push
+            fi
           fi
