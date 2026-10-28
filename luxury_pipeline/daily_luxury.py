@@ -451,38 +451,68 @@ def preflight(mode):
 
 
 def stock_only_topic(today, theme, state):
-    """Build a safe evergreen luxury topic from a fixed rotation; never calls Gemini."""
+    """Choose an unused, specific luxury angle; stock photos only, no Gemini/API key."""
     ideas = [
-        ('Dubai skyline luxury architecture', 'Inside the Visual World of Dubai Luxury Architecture',
-         'THE SKYLINE THAT LOOKS UNREAL', 'Dubai skyline night|luxury skyscraper exterior|modern penthouse interior|Dubai waterfront skyline|luxury architectural details|city skyline aerial|premium hotel lobby',
-         '#luxury #Dubai #architecture #luxurylifestyle #Shorts'),
-        ('supercar design details', 'The Details That Make Supercars Look Extraordinary',
-         'EVERY DETAIL FEELS EXPENSIVE', 'luxury sports car detail|supercar headlight closeup|sports car wheel detail|supercar rear design|luxury car interior|sports car road cinematic|supercar showroom',
-         '#supercar #luxurycars #cardesign #luxury #Shorts'),
-        ('luxury yacht design', 'Inside the Details of Modern Luxury Yachts',
-         'THIS IS LUXURY ON THE WATER', 'luxury yacht ocean|yacht deck design|yacht interior luxury|yacht bow closeup|superyacht marina|yacht sea aerial|luxury boat sunset',
-         '#luxuryyacht #yachtlife #luxurytravel #luxury #Shorts'),
-        ('luxury mansion interiors', 'Luxury Mansion Details That Make a Statement',
-         'THE DETAILS CHANGE EVERYTHING', 'luxury mansion exterior|modern mansion living room|luxury staircase interior|marble mansion interior|luxury bedroom design|infinity pool mansion|luxury home architecture',
-         '#luxuryhomes #mansion #interiordesign #luxury #Shorts'),
-        ('luxury watches craftsmanship', 'The Craftsmanship Behind Luxury Watch Design',
-         'PRECISION IN EVERY DETAIL', 'luxury watch closeup|mechanical watch movement|watch dial macro|luxury watch wrist|watchmaker hands detail|premium watch display|watch case detail',
-         '#luxurywatch #watchmaking #craftsmanship #luxury #Shorts'),
-        ('private aviation luxury', 'A Closer Look at Private Aviation Luxury',
-         'A DIFFERENT VIEW OF LUXURY', 'private jet airport|private jet cabin interior|private aircraft exterior|luxury aircraft seating|private jet stairs|business jet runway|aircraft window view',
-         '#privatejet #aviation #luxurytravel #luxury #Shorts'),
-        ('luxury resort and travel design', 'Luxury Resort Design Made for the Escape',
-         'ESCAPE INTO ANOTHER WORLD', 'luxury resort infinity pool|tropical luxury villa|resort ocean view|luxury hotel suite|luxury resort architecture|private villa pool|luxury resort sunset',
-         '#luxurytravel #luxuryresort #travelinspiration #luxury #Shorts')
+        ('Dubai skyline architecture', 'Why Dubai Skyscrapers Look So Futuristic', 'A SKYLINE BUILT TO STAND OUT', 'Dubai futuristic skyline|Dubai skyscraper facade|Dubai penthouse view|Dubai waterfront skyline|modern tower architecture|Dubai skyline dusk|luxury hotel architecture', '#Dubai #architecture #luxury #Shorts'),
+        ('supercar aerodynamics', 'The Design Tricks That Make Supercars Look Fast', 'SPEED STARTS WITH THE SHAPE', 'supercar aerodynamic design|sports car front splitter|supercar rear diffuser|sports car side profile|supercar carbon fiber detail|supercar on road|supercar showroom', '#supercars #cardesign #luxury #Shorts'),
+        ('yacht infinity pools', 'Inside the Most Impressive Features of Luxury Yachts', 'A POOL IN THE MIDDLE OF THE OCEAN', 'superyacht ocean|yacht infinity pool|luxury yacht deck|yacht lounge interior|superyacht marina|yacht rear platform|yacht sunset sea', '#yacht #luxurytravel #luxury #Shorts'),
+        ('mansion hidden rooms', 'The Hidden Spaces Inside Ultra-Luxury Homes', 'THIS HOUSE HAS A SECRET SIDE', 'luxury mansion exterior|hidden room luxury home|luxury home cinema|mansion staircase|luxury wine cellar interior|modern mansion living room|luxury home architecture', '#mansion #luxuryhomes #interiordesign #Shorts'),
+        ('mechanical watch movement', 'The Tiny Details Behind Mechanical Luxury Watches', 'HUNDREDS OF PARTS. ONE PERFECT MOMENT.', 'mechanical watch movement macro|watchmaker hands closeup|luxury watch dial macro|watch gears detail|watch case polishing|luxury watch display|precision watchmaking', '#watchmaking #luxurywatch #craftsmanship #Shorts'),
+        ('private jet cabin design', 'How Private Jet Cabins Turn Travel Into Luxury', 'THE CABIN IS A PRIVATE LOUNGE', 'private jet exterior|private jet cabin luxury|private aircraft seats|private jet dining area|business jet window|private jet stairs|private jet airport', '#privatejet #aviation #luxurytravel #Shorts'),
+        ('overwater luxury villas', 'Why Overwater Villas Feel Like Another World', 'WAKE UP ABOVE THE OCEAN', 'overwater luxury villa|tropical villa deck|overwater bungalow aerial|luxury villa ocean view|private pool villa|tropical resort architecture|overwater villa sunset', '#luxurytravel #resort #Shorts'),
+        ('luxury hotel lobbies', 'The Design Details That Make Hotel Lobbies Feel Expensive', 'THE FIRST 5 SECONDS FEEL DIFFERENT', 'luxury hotel lobby|grand hotel chandelier|marble hotel reception|designer hotel interior|luxury lobby staircase|premium hotel lounge|luxury hotel entrance', '#luxuryhotels #interiordesign #Shorts'),
+        ('premium car interiors', 'Why Premium Car Interiors Feel So Different', 'YOU CAN FEEL THE DETAIL', 'luxury car interior leather|premium car dashboard|car ambient lighting interior|luxury car seat stitching|premium steering wheel detail|luxury car console|high end car interior', '#luxurycars #cardesign #Shorts'),
+        ('supercar paint finishes', 'The Paint Finishes That Make Supercars Pop', 'THIS FINISH CHANGES EVERYTHING', 'supercar metallic paint|sports car glossy finish|supercar paint closeup|car detailing luxury|supercar body reflections|sports car showroom|supercar side profile', '#supercars #carculture #Shorts'),
+        ('designer lighting interiors', 'How Statement Lighting Transforms Luxury Interiors', 'ONE LIGHT CAN CHANGE A ROOM', 'luxury pendant chandelier|modern luxury living room lighting|designer floor lamp interior|architectural lighting luxury home|marble interior chandelier|premium hotel lighting|luxury dining room', '#interiordesign #luxuryhomes #Shorts'),
+        ('luxury bathroom design', 'Inside the Details of Spa-Level Luxury Bathrooms', 'A PRIVATE SPA AT HOME', 'luxury bathroom marble|freestanding bathtub luxury|spa bathroom design|rain shower luxury bathroom|luxury vanity design|modern bathroom lighting|premium bathroom interior', '#luxuryhomes #design #Shorts'),
+        ('rooftop infinity pools', 'Why Rooftop Infinity Pools Look Unreal', 'THE EDGE DISAPPEARS', 'rooftop infinity pool skyline|luxury rooftop pool|infinity pool aerial|city hotel rooftop pool|modern luxury architecture pool|skyline pool sunset|luxury hotel pool deck', '#luxurytravel #architecture #Shorts'),
+        ('private island retreats', 'What Makes a Private Island Retreat So Exclusive', 'YOUR OWN PIECE OF PARADISE', 'private island aerial|luxury island villa|tropical island beach house|private island resort dock|luxury island pool|private island ocean view|island resort sunset', '#privateretreat #luxurytravel #Shorts'),
+        ('luxury train suites', 'Inside the World of Luxury Train Suites', 'FIRST CLASS ON RAILS', 'luxury train exterior|luxury train suite interior|premium train dining car|luxury rail travel cabin|train suite bed|luxury train window scenery|elegant train lounge', '#luxurytravel #trainjourney #Shorts'),
+        ('supercar cockpit design', 'The Cockpit Details Built Around a Supercar Driver', 'EVERY CONTROL HAS A PURPOSE', 'supercar cockpit interior|sports car steering wheel closeup|supercar digital dashboard|performance car paddle shifters|sports car bucket seats|supercar center console|carbon fiber cockpit', '#supercars #cardesign #Shorts'),
+        ('luxury sneaker craftsmanship', 'The Craftsmanship Behind Premium Sneaker Design', 'SMALL DETAILS. BIG DIFFERENCE.', 'premium sneaker material detail|luxury sneaker stitching|designer sneaker sole closeup|sneaker craftsmanship hands|premium leather sneaker|minimal sneaker design|sneaker display', '#sneakerdesign #craftsmanship #Shorts'),
+        ('bespoke tailoring', 'The Precision Behind Bespoke Luxury Tailoring', 'MADE TO FIT ONE PERSON', 'bespoke suit tailoring|tailor measuring suit|luxury fabric swatches|hand stitching suit detail|tailoring workshop|premium suit jacket detail|bespoke menswear', '#bespoke #mensstyle #Shorts'),
+        ('luxury perfume bottles', 'Why Luxury Perfume Bottles Are Designed Like Art', 'THE BOTTLE IS PART OF THE EXPERIENCE', 'luxury perfume bottle closeup|perfume glass craftsmanship|premium fragrance display|perfume bottle cap detail|luxury fragrance counter|perfume bottle reflections|elegant perfume collection', '#fragrance #luxurydesign #Shorts'),
+        ('fine dining presentation', 'The Visual Details Behind Luxury Fine Dining', 'EVERY PLATE IS A DESIGN', 'fine dining plated dish|luxury restaurant table setting|chef plating gourmet food|fine dining interior|premium dessert presentation|elegant dining table|luxury restaurant ambience', '#finedining #luxurylifestyle #Shorts'),
+        ('luxury penthouse terraces', 'The Outdoor Spaces That Define a Luxury Penthouse', 'A BALCONY ABOVE THE CITY', 'luxury penthouse terrace|penthouse skyline balcony|modern rooftop garden|luxury apartment terrace|city view outdoor lounge|penthouse outdoor dining|high rise terrace sunset', '#penthouse #architecture #Shorts'),
+        ('sculptural staircases', 'Why Sculptural Staircases Become a Mansion Centrepiece', 'THIS STAIRCASE IS THE ARTWORK', 'sculptural staircase luxury home|floating staircase modern house|curved marble staircase|luxury interior stairs|architectural staircase detail|modern mansion interior|grand staircase lighting', '#architecture #luxuryhomes #Shorts'),
+        ('luxury garage design', 'Inside the Showroom-Style Garages of Luxury Homes', 'THE GARAGE IS PART OF THE DESIGN', 'luxury home car garage|supercar collection garage|modern glass garage|luxury garage lighting|car display room mansion|premium garage flooring|luxury car storage', '#luxurycars #luxuryhomes #Shorts'),
+        ('designer luggage details', 'The Design Details That Make Premium Luggage Stand Out', 'TRAVEL GEAR, REFINED', 'premium luggage suitcase detail|luxury suitcase wheels|designer travel luggage|leather luggage handle|premium luggage collection|elegant suitcase design|luxury travel accessories', '#luxurytravel #design #Shorts'),
+        ('modern palace interiors', 'How Modern Palaces Blend Grandeur With Minimalism', 'GRAND, WITHOUT THE CLUTTER', 'modern palace exterior|palace luxury interior|grand marble hall|modern royal residence architecture|luxury palace chandelier|palace courtyard architecture|grand residence entrance', '#architecture #luxury #Shorts'),
+        ('luxury home libraries', 'Inside the Quiet Luxury of Private Home Libraries', 'A ROOM BUILT FOR ESCAPE', 'luxury home library|floor to ceiling bookshelves mansion|modern reading room interior|luxury library ladder|wood paneled library|reading lounge luxury home|library architectural lighting', '#luxuryhomes #interiordesign #Shorts'),
+        ('luxury outdoor kitchens', 'The Outdoor Kitchens Built for Resort-Style Living', 'DINNER WITH A VIEW', 'luxury outdoor kitchen|modern outdoor dining pavilion|outdoor kitchen stone counter|luxury patio kitchen|villa outdoor dining|poolside outdoor kitchen|garden entertaining luxury home', '#luxurylifestyle #design #Shorts'),
+        ('yacht interiors materials', 'The Materials That Make Yacht Interiors Feel Premium', 'DESIGNED FOR LIFE AT SEA', 'luxury yacht interior wood|yacht leather seating detail|yacht marble table interior|superyacht cabin design|yacht interior lighting|luxury yacht lounge|yacht material craftsmanship', '#yacht #interiordesign #Shorts'),
+        ('watch dial finishing', 'The Finishing Techniques Behind Luxury Watch Dials', 'THE DIAL IS A MINIATURE MASTERPIECE', 'luxury watch dial macro|watch dial guilloche|watch hands closeup|watch face texture|watchmaker loupe hands|luxury watch markers|watch dial craftsmanship', '#watchmaking #luxurywatch #Shorts'),
+        ('hypercar rear design', 'Why Hypercar Rear Designs Look So Dramatic', 'THE BACK IS BUILT FOR DRAMA', 'hypercar rear design|supercar taillight closeup|sports car diffuser detail|hypercar exhaust design|supercar rear wing|hypercar carbon fiber|supercar rear at dusk', '#hypercar #cardesign #Shorts'),
+        ('luxury resort arrival', 'The Arrival Experiences Designed by Luxury Resorts', 'THE EXPERIENCE STARTS AT THE GATE', 'luxury resort entrance|resort arrival driveway|luxury hotel porte cochere|tropical resort welcome|luxury resort lobby entrance|villa arrival walkway|premium hotel exterior', '#luxurytravel #luxuryresort #Shorts'),
+        ('architectural glass facades', 'How Glass Facades Make Luxury Buildings Feel Weightless', 'A BUILDING MADE OF LIGHT', 'modern glass skyscraper facade|glass luxury villa architecture|reflective tower exterior|architectural glass facade detail|glass mansion windows|modern building reflections|luxury architecture skyline', '#architecture #luxury #Shorts'),
+        ('luxury watch bracelets', 'The Detail Work Behind Premium Watch Bracelets', 'EVEN THE BRACELET IS ENGINEERED', 'luxury watch bracelet closeup|watch metal links macro|watch clasp detail|polished watch bracelet|watchmaker bracelet finishing|premium watch wrist detail|watch bracelet craftsmanship', '#luxurywatch #craftsmanship #Shorts'),
+        ('premium home audio rooms', 'Inside Dedicated Listening Rooms in Luxury Homes', 'SOUND HAS ITS OWN SPACE', 'luxury home listening room|premium speaker setup interior|high end audio room|modern media room luxury home|audiophile listening chair|luxury home cinema speakers|acoustic wall panels interior', '#luxuryhomes #audiophile #Shorts'),
+        ('luxury pool architecture', 'The Architectural Details Behind Iconic Luxury Pools', 'WATER BECOMES PART OF THE ARCHITECTURE', 'luxury pool architecture|modern villa swimming pool|infinity pool edge detail|luxury pool stone deck|architectural pool lighting|mansion pool aerial|resort pool design', '#architecture #luxurytravel #Shorts'),
+        ('superyacht helipads', 'How Superyachts Make Room for Helicopter Landings', 'A HELIPAD ON THE OCEAN', 'superyacht helipad|luxury yacht aerial view|superyacht deck design|yacht helicopter landing area|large yacht marina|superyacht stern|yacht open sea', '#superyacht #luxurytravel #Shorts'),
+        ('luxury wardrobe design', 'The Details Inside a Bespoke Luxury Dressing Room', 'A WARDROBE DESIGNED LIKE A BOUTIQUE', 'luxury walk in closet|bespoke dressing room design|luxury wardrobe lighting|designer closet island|premium closet cabinetry|luxury shoe display room|modern dressing room interior', '#luxuryhomes #interiordesign #Shorts'),
+        ('luxury resort villas at night', 'How Resort Villas Transform After Sunset', 'THE NIGHT VERSION IS DIFFERENT', 'luxury villa night lighting|tropical resort villa at night|luxury pool night lighting|resort architecture dusk|villa exterior warm lights|luxury terrace evening|resort walkway night', '#luxurytravel #resortdesign #Shorts'),
+        ('luxury car lighting design', 'The Light Signatures That Give Premium Cars Their Identity', 'YOU KNOW THE CAR BEFORE THE BADGE', 'luxury car headlight closeup|supercar LED taillight|premium car light signature|sports car front lights night|automotive lighting design|car rear lights detail|luxury car at dusk', '#cardesign #luxurycars #Shorts'),
+        ('minimalist luxury interiors', 'The Quiet Details Behind Minimalist Luxury Interiors', 'LESS, BUT BETTER', 'minimalist luxury living room|quiet luxury interior design|premium natural stone interior|minimalist luxury bedroom|designer furniture detail|neutral luxury home|modern luxury interior texture', '#quietluxury #interiordesign #Shorts'),
+        ('luxury yacht night lighting', 'The Lighting Details That Make Superyachts Glow at Night', 'A FLOATING CITY AFTER DARK', 'superyacht night lights|luxury yacht marina at night|yacht deck lighting|superyacht ocean dusk|yacht illuminated exterior|luxury marina evening|superyacht stern night', '#superyacht #luxury #Shorts'),
     ]
-    idx = today.date().toordinal() % len(ideas)
-    previous = {str(e.get('topic', '')).lower() for e in state.get('entries', [])}
+    previous = {str(e.get('topic', '')).strip().lower() for e in state.get('entries', [])}
+    previous.update(str(e.get('title', '')).strip().lower() for e in state.get('entries', []))
+    # Pick the first unused angle in a deterministic rotation, so retries remain predictable.
+    seed = today.date().toordinal()
+    try:
+        seed += int(os.environ.get('GITHUB_RUN_NUMBER', '0')) * 7
+    except ValueError:
+        pass
+    start = seed % len(ideas)
+    chosen = None
     for off in range(len(ideas)):
-        candidate = ideas[(idx + off) % len(ideas)]
-        if candidate[0].lower() not in previous:
-            idx = (idx + off) % len(ideas)
+        candidate = ideas[(start + off) % len(ideas)]
+        if candidate[0].lower() not in previous and candidate[1].lower() not in previous:
+            chosen = candidate
             break
-    topic, title, hook, queries, hashtags = ideas[idx]
+    if chosen is None:
+        raise Fatal('All built-in luxury topics have already been used. Add fresh topics to stock_only_topic().')
+    topic, title, hook, queries, hashtags = chosen
     q = queries.split('|')
     scenes = [
         {'type': 'full', 'search': q[0], 'seconds': 4.5},
@@ -524,7 +554,7 @@ def main():
     log(f'Mode={a.mode}  stock-only theme: {theme}')
     try:
         t = stock_only_topic(now, theme, state)
-        log('Gemini API disabled: using built-in luxury topics and Pexels photo tracking.')
+        log('Gemini disabled: selecting an unused luxury angle from the stock-only topic library; photos from Wikimedia Commons.')
         log(f'Topic: {t["title"]}  | hook: {t["hook"]}')
         video = build_video(t, OUT_DIR / day, a.res)
         entry = {'date': day, 'topic': t['topic'], 'title': t['title'], 'mode': t['mode'],
