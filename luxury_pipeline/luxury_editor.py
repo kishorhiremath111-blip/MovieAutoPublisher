@@ -18,7 +18,7 @@ Project file (paths are relative to the project file):
      {"type": "full",  "image": "hook.jpg", "seconds": 4.5},
      {"type": "stack", "top": "owner.jpg", "bottom": "tower.jpg", "seconds": 5},
      {"type": "full",  "prompt": "Burj Khalifa at golden hour", "seconds": 4}]}
-A scene may use "search" (real stock photo, needs PEXELS_API_KEY) or "prompt" (or "top_prompt"/"bottom_prompt") instead of a file: the image is
+A scene may use "search" (real stock photo, uses Wikimedia Commons (no API key required)) or "prompt" (or "top_prompt"/"bottom_prompt") instead of a file: the image is
 then generated with Gemini (needs GEMINI_API_KEY). Real people: use a licensed photo you
 supply; never generate a real person's face and present it as real.
 Hook text: Latin letters only (English / Roman Hinglish).
@@ -260,21 +260,20 @@ def save_used(ids):
         pass
 
 
-def pexels_get(url, key, raw=False):
+def commons_get(url, raw=False):
+    """Query Wikimedia Commons or download a freely licensed media file."""
     for attempt in range(3):
         try:
-            headers = {'User-Agent': UA}
-            if not raw:
-                headers['Authorization'] = key
+            headers = {'User-Agent': UA + ' (licensed stock-photo video pipeline)'}
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=120) as r:
                 body = r.read()
             return body if raw else json.loads(body)
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                die('Pexels refused the key (HTTP %d). Check the PEXELS_API_KEY secret.' % e.code)
-            if e.code == 429:
-                die('Pexels rate limit reached (free: 200 requests/hour). Try again later.')
-            if e.code < 500 or attempt == 2:
+        except urllib.error.HTTPError as ex:
+            if ex.code in (401, 403):
+                die('Wikimedia Commons API denied the request (HTTP %d).' % ex.code)
+            if ex.code == 429:
+                die('Wikimedia Commons rate limit reached. Wait before retrying.')
+            if ex.code < 500 or attempt == 2:
                 return None
         except (urllib.error.URLError, TimeoutError):
             if attempt == 2:
@@ -284,39 +283,67 @@ def pexels_get(url, key, raw=False):
 
 
 def fetch_stock(query, dst, w, h):
-    """Downloads the best unused real photo for `query`. True on success, False if none found."""
-    key = os.environ.get('PEXELS_API_KEY', '').strip()
+    """Download an unused raster photo from Wikimedia Commons and retain its license credit."""
     target = w / h
     orient = 'portrait' if target < 0.8 else ('landscape' if target > 1.25 else 'square')
     big = W > 1080
     used = load_used()
-    for size in (['large', 'medium', 'small'] if big else ['medium', 'small']):
-        url = 'https://api.pexels.com/v1/search?' + urllib.parse.urlencode(
-            {'query': query, 'orientation': orient, 'size': size, 'per_page': 30, 'locale': 'en-US'})
-        data = pexels_get(url, key) or {}
-        cands = [x for x in data.get('photos', []) if str(x.get('id')) not in used]
-
-        def rank(x):
-            asp = abs(math.log((x['width'] / x['height']) / target))
-            short = min(x['width'] / w, x['height'] / h)
-            return (short < (1.0 if big else 0.8), round(asp, 2), -x['width'] * x['height'])
-        for ph in sorted(cands, key=rank)[:3]:
-            link = ph['src'].get('original' if big else 'large2x') or ph['src'].get('large2x')
-            raw = pexels_get(link, key, raw=True)
-            used.add(str(ph['id']))
-            save_used(used)
-            try:
-                Image.open(__import__('io').BytesIO(raw or b'')).verify()
-            except Exception:
-                continue
-            Path(dst).write_bytes(raw)
-            CREDITS['stock'].append({'id': ph['id'], 'url': ph.get('url', ''),
-                                     'photographer': ph.get('photographer', ''),
-                                     'credit': f"Photo by {ph.get('photographer', 'unknown')} on Pexels"})
-            print(f"  real photo: \"{query}\" -> Pexels #{ph['id']} ({ph['width']}x{ph['height']})")
-            return True
+    params = {
+        'action': 'query', 'generator': 'search',
+        'gsrsearch': 'filetype:bitmap ' + query,
+        'gsrnamespace': 6, 'gsrlimit': 30, 'gsrwhat': 'text',
+        'prop': 'imageinfo', 'iiprop': 'url|size|mime|extmetadata',
+        'iiurlwidth': 2400 if big else 1500, 'format': 'json'
+    }
+    url = 'https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(params)
+    data = commons_get(url) or {}
+    pages = list((data.get('query') or {}).get('pages', {}).values())
+    candidates = []
+    for page in pages:
+        info = (page.get('imageinfo') or [{}])[0]
+        mime = info.get('mime', '')
+        if mime not in ('image/jpeg', 'image/png', 'image/webp', 'image/tiff'):
+            continue
+        ident = str(page.get('pageid') or page.get('title') or '')
+        if not ident or ident in used:
+            continue
+        if (info.get('width', 0) or 0) < 900 or (info.get('height', 0) or 0) < 600:
+            continue
+        ratio = info.get('width', 1) / max(info.get('height', 1), 1)
+        asp = abs(math.log(max(ratio, 0.01) / target))
+        short = min(info.get('width', 0) / w, info.get('height', 0) / h)
+        candidates.append((short < (1.0 if big else 0.8), round(asp, 2),
+                           -(info.get('width', 0) * info.get('height', 0)), ident, page, info))
+    for _, _, _, ident, page, info in sorted(candidates)[:10]:
+        meta = info.get('extmetadata') or {}
+        def meta_value(k):
+            return str((meta.get(k) or {}).get('value', '')).strip()
+        license_name = meta_value('LicenseShortName')
+        license_url = meta_value('LicenseUrl')
+        artist = meta_value('Artist') or meta_value('Credit') or 'Unknown author'
+        artist = re.sub(r'<[^>]+>', '', artist).strip()
+        if not license_name or not license_url:
+            continue
+        download_url = info.get('thumburl') or info.get('url')
+        if not download_url:
+            continue
+        raw = commons_get(download_url, raw=True)
+        try:
+            Image.open(__import__('io').BytesIO(raw or b'')).verify()
+        except Exception:
+            continue
+        Path(dst).write_bytes(raw)
+        used.add(ident)
+        save_used(used)
+        page_url = 'https://commons.wikimedia.org/wiki/' + urllib.parse.quote(page.get('title', '').replace(' ', '_'))
+        CREDITS['stock'].append({
+            'id': ident, 'url': page_url, 'photographer': artist,
+            'credit': f'Photo: {artist}; source: Wikimedia Commons; license: {license_name} ({license_url})'
+        })
+        print(f'  licensed photo: "{query}" -> Wikimedia Commons ({license_name})')
+        return True
+    print(f'  no suitable freely licensed Commons photo found for "{query}"')
     return False
-
 
 def get_tile(s, key, typ, dst, w, h, n):
     sk = 'search' if key == 'image' else f'{key}_search'
@@ -327,8 +354,6 @@ def get_tile(s, key, typ, dst, w, h, n):
         if src == 'stock':
             if not s.get(sk):
                 why.append(f'no "{sk}" given')
-            elif not os.environ.get('PEXELS_API_KEY', '').strip():
-                why.append('PEXELS_API_KEY missing (free key: pexels.com/api)')
             elif fetch_stock(s[sk], dst, w, h):
                 return
             else:
