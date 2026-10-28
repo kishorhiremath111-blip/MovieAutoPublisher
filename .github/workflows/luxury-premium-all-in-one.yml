@@ -41,7 +41,6 @@ jobs:
         shell: bash
         working-directory: luxury_pipeline
     env:
-      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       IMAGE_SOURCE: stock
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
@@ -93,7 +92,7 @@ jobs:
         if: failure()
         run: |
           echo "Read the preceding Build step for the exact API/FFmpeg error."
-          echo "This pipeline is stock-only. Check PEXELS_API_KEY and Pexels responses in Build logs."
+          echo "This pipeline uses freely licensed Wikimedia Commons photos. Check the Commons search/download error above."
 
       - name: Keep generated Short for 7 days
         if: always()
