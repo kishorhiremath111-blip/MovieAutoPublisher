@@ -1,0 +1,124 @@
+name: Luxury Premium Source Installer
+
+on:
+  push:
+    paths:
+      - "luxury-premium-source/part-*.b64"
+      - ".github/workflows/luxury-bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: luxury-premium-source-installer
+  cancel-in-progress: false
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Verify archive chunks and reconstruct ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A expected=(
+            [01]=69f9140c3fd4d47532ee52d4b440c2b397e0ffd0355d4df1b3bd3ded434bd917
+            [02]=68393c5e02131669cb5f025c90b7668e0d687378ed5b1442da1b8d6a8e218022
+            [03]=a181fe4920bd301377280637396acf64afb9892ccf3470601bd80f77c48fac96
+            [04]=58c5bd1be528b8c5db16c242e5ec35568f9c0f209fb2a5d8169bc482310386e4
+            [05]=da57dc95a92aaacff4109c2e2f699e8d6e198d3cb99b24ef559e90dc375c6a82
+            [06]=c5c14b15cc14b0aa160288d0c4e0dfbc3d61a40bc212a5ac5e1a9b28953deff2
+            [07]=772aefee0a51b091f27dd42c3e8776a84bd78bc1316909adca6ad19e7f17bf0c
+            [08]=dac78561e2e4363112949f1e3a804d893b75fd971edbbbc1fe01b1f65c514906
+            [09]=31253f21f37d1cfd29bd55eaddef06b6fdeb3ebb73beb0b2f3cc3d3f22ef07e8
+            [10]=6f2e91a472a9987d22318b6f909133a2725c9b03451e403ae803942c73ed6ee3
+            [11]=c1b839554ede8c24eb991c670ab1ba3eb2a9f21a7dbe6238960c10b4b985a9d8
+            [12]=af45c1b20f211106cf4410f0b6c003a4154564ab0ea5c3b32613547ff2011a1d
+            [13]=5b6ad1df8694934663423a39a67d43af3961b66f63c9c88b58c38390ab1ee93f
+            [14]=7d532adafe9d9f48b1f05bc51379518b13f209f78a0631b3370c765c58825309
+          )
+          for i in $(seq -w 1 14); do
+            file="luxury-premium-source/part-${i}.b64"
+            test -s "$file"
+            printf '%s  %s\n' "${expected[$i]}" "$file" | sha256sum -c -
+          done
+          cat luxury-premium-source/part-*.b64 > /tmp/luxury-source.zip.b64
+          base64 --decode /tmp/luxury-source.zip.b64 > /tmp/luxury-source.zip
+          echo "f7a756928df4f1139349a3d3fc34bab86297908a370fda89a4a04f40578fb09d  /tmp/luxury-source.zip" | sha256sum -c -
+          unzip -t /tmp/luxury-source.zip
+
+      - name: Install files from the ZIP manifest
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+
+          archive = Path("/tmp/luxury-source.zip")
+          root = "Luxury premium all in one/luxury_premium/"
+          with zipfile.ZipFile(archive) as z:
+              manifest = z.read(root + "MANIFEST.txt").decode("utf-8")
+              installed = []
+              for line in manifest.splitlines():
+                  if "->" not in line:
+                      continue
+                  source, rest = line.split("->", 1)
+                  destination = rest.split("|", 1)[0].strip()
+                  source = source.strip()
+                  member = root + source
+                  data = z.read(member)
+                  target = Path(destination)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+                  installed.append((source, destination, len(data)))
+          print(f"Installed {len(installed)} manifest files:")
+          for source, destination, size in installed:
+              print(f"{source} -> {destination} ({size} bytes)")
+          if len(installed) != 11:
+              raise SystemExit(f"Expected 11 files from MANIFEST.txt, got {len(installed)}")
+          PY
+
+      - name: Create manually-triggered workflow with the requested name
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+          source = source.replace("name: Daily Luxury Short", "name: Luxury Premium All-in-One", 1)
+          start = source.index("  schedule:\n")
+          end = source.index("  workflow_dispatch:\n", start)
+          source = source[:start] + source[end:]
+          source = source.replace("group: daily-luxury", "group: luxury-premium-all-in-one", 1)
+          source = source.replace("name: luxury-short-${{ github.run_id }}", "name: luxury-premium-short-${{ github.run_id }}", 1)
+          source = source.replace("Update Luxury topic history", "Update Luxury Premium topic history", 1)
+          Path(".github/workflows/luxury-premium-all-in-one.yml").write_text(source, encoding="utf-8")
+          PY
+
+      - name: Verify exact installed files and Python syntax
+        run: |
+          set -euo pipefail
+          python verify_install.py
+          python -m py_compile luxury_pipeline/daily_luxury.py luxury_pipeline/luxury_editor.py luxury_pipeline/youtube_device_auth.py gemini_check.py verify_install.py
+
+      - name: Remove temporary installer payload
+        run: |
+          rm -rf luxury-premium-source
+          rm -f .github/workflows/luxury-bootstrap.yml
+          rm -f /tmp/luxury-source.zip.b64 /tmp/luxury-source.zip
+
+      - name: Commit installed Luxury files (only)
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          git commit -m "Install Luxury Premium all-in-one source files"
+          git push origin HEAD:main
