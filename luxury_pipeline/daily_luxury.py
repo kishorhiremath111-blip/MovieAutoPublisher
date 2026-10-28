@@ -418,13 +418,13 @@ def preflight(mode):
     """Stock-only preflight: no Gemini API key or model checks."""
     import shutil
     ok = True
-    names = ['PEXELS_API_KEY'] + (['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET',
-                                  'YOUTUBE_REFRESH_TOKEN'] if mode != 'dry' else [])
+    names = (['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET',
+              'YOUTUBE_REFRESH_TOKEN'] if mode != 'dry' else [])
     for n in names:
         has = bool(os.environ.get(n, '').strip())
         ok &= has
         print(f'secret {n}: {"OK" if has else "MISSING  <- add it in repository Actions secrets"}')
-    print('image source: stock-only (Gemini disabled)')
+    print('image source: Wikimedia Commons licensed photos (Gemini disabled; no photo API key required)')
     for tool in ('ffmpeg', 'ffprobe'):
         has = bool(shutil.which(tool))
         ok &= has
