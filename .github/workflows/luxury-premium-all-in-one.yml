@@ -8,7 +8,7 @@ on:
       - ".github/workflows/daily.yml"
       - ".github/workflows/luxury-editor.yml"
       - ".github/workflows/gemini-check.yml"
-      - "luxury_pipeline/**"
+      - "luxury_pipeline/*.py"
       - "gemini_check.py"
       - "verify_install.py"
   schedule:
@@ -29,11 +29,11 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: luxury-premium-all-in-one
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-and-upload:
@@ -107,4 +107,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      # Deliberately do not commit luxury_pipeline/state/published.json during this test.
+      - name: Persist Luxury topic history
+        if: always() && github.event_name != 'pull_request'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add luxury_pipeline/state/published.json
+          if git diff --cached --quiet; then
+            echo "No topic history changes to save."
+          else
+            git commit -m "Save Luxury topic history"
+            git pull --rebase
+            git push
+          fi
