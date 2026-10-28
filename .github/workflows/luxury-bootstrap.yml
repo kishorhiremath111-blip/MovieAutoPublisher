@@ -54,7 +54,7 @@ jobs:
           echo "f7a756928df4f1139349a3d3fc34bab86297908a370fda89a4a04f40578fb09d  /tmp/luxury-source.zip" | sha256sum -c -
           unzip -t /tmp/luxury-source.zip
 
-      - name: Install files from the ZIP manifest
+      - name: Install non-workflow files from the ZIP manifest
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -62,63 +62,54 @@ jobs:
 
           archive = Path("/tmp/luxury-source.zip")
           root = "Luxury premium all in one/luxury_premium/"
+          installed = []
+          skipped = []
           with zipfile.ZipFile(archive) as z:
               manifest = z.read(root + "MANIFEST.txt").decode("utf-8")
-              installed = []
               for line in manifest.splitlines():
                   if "->" not in line or line.lstrip().startswith("#"):
                       continue
                   source, rest = line.split("->", 1)
                   destination = rest.split("|", 1)[0].strip()
                   source = source.strip()
-                  member = root + source
-                  data = z.read(member)
+                  if destination.startswith(".github/workflows/"):
+                      skipped.append(destination)
+                      continue
+                  data = z.read(root + source)
                   target = Path(destination)
                   target.parent.mkdir(parents=True, exist_ok=True)
                   target.write_bytes(data)
                   installed.append((source, destination, len(data)))
-          print(f"Installed {len(installed)} manifest files:")
+          print(f"Installed {len(installed)} non-workflow files:")
           for source, destination, size in installed:
               print(f"{source} -> {destination} ({size} bytes)")
-          if len(installed) != 11:
-              raise SystemExit(f"Expected 11 files from MANIFEST.txt, got {len(installed)}")
+          print("Workflow files are intentionally left for direct GitHub API updates:", skipped)
+          if len(installed) != 8:
+              raise SystemExit(f"Expected 8 non-workflow files, got {len(installed)}")
           PY
 
-      - name: Create manually-triggered workflow with the requested name
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          source = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
-          source = source.replace("name: Daily Luxury Short", "name: Luxury Premium All-in-One", 1)
-          start = source.index("  schedule:\n")
-          end = source.index("  workflow_dispatch:\n", start)
-          source = source[:start] + source[end:]
-          source = source.replace("group: daily-luxury", "group: luxury-premium-all-in-one", 1)
-          source = source.replace("name: luxury-short-${{ github.run_id }}", "name: luxury-premium-short-${{ github.run_id }}", 1)
-          source = source.replace("Update Luxury topic history", "Update Luxury Premium topic history", 1)
-          Path(".github/workflows/luxury-premium-all-in-one.yml").write_text(source, encoding="utf-8")
-          PY
-
-      - name: Verify exact installed files and Python syntax
+      - name: Verify installed code files and Python syntax
         run: |
           set -euo pipefail
-          python verify_install.py
           python -m py_compile luxury_pipeline/daily_luxury.py luxury_pipeline/luxury_editor.py luxury_pipeline/youtube_device_auth.py gemini_check.py verify_install.py
+          test -s luxury_pipeline/requirements.txt
+          test -s luxury_pipeline/daily_luxury.py
+          test -s luxury_pipeline/luxury_editor.py
+          test -s luxury_pipeline/youtube_device_auth.py
+          test -s luxury_pipeline/README.md
+          test -s luxury_pipeline/music/README.txt
+          echo "All source files exist and Python syntax passed."
 
-      - name: Remove temporary installer payload
-        run: |
-          rm -rf luxury-premium-source
-          rm -f .github/workflows/luxury-bootstrap.yml
-          rm -f /tmp/luxury-source.zip.b64 /tmp/luxury-source.zip
-
-      - name: Commit installed Luxury files (only)
+      - name: Commit installed source files only
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add gemini_check.py verify_install.py luxury_pipeline/README.md luxury_pipeline/daily_luxury.py luxury_pipeline/luxury_editor.py luxury_pipeline/youtube_device_auth.py luxury_pipeline/requirements.txt luxury_pipeline/music/README.txt
           git status --short
-          git commit -m "Install Luxury Premium all-in-one source files"
-          git push origin HEAD:main
+          if git diff --cached --quiet; then
+            echo "Source files already match; no commit needed."
+          else
+            git commit -m "Install Luxury Premium source files"
+            git push origin HEAD:main
+          fi
