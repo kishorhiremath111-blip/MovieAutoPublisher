@@ -14,7 +14,7 @@ on:
         options: [dry, private, public]
         default: dry
       force:
-        description: "Allow another video even if one was already made today"
+        description: "Allow another video even if one was already recorded today"
         required: false
         type: boolean
         default: false
@@ -24,12 +24,12 @@ permissions:
 
 concurrency:
   group: luxury-premium-all-in-one
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -41,7 +41,7 @@ jobs:
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      # Push-triggered verification must never upload, regardless of repo variables.
+      # Push-triggered verification must never upload, regardless of repository variables.
       UPLOAD_MODE: ${{ github.event_name == 'push' && 'dry' || inputs.mode || 'dry' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
       GEMINI_IMAGE_SIZE: ${{ vars.GEMINI_IMAGE_SIZE || '2K' }}
@@ -87,12 +87,11 @@ jobs:
           if [[ "${{ inputs.force }}" == "true" ]]; then ARGS+=(--force); fi
           python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${ARGS[@]}"
 
-      - name: Explain failure without exposing secrets
+      - name: Explain where to inspect failure
         if: failure()
-        continue-on-error: true
-        working-directory: .
         run: |
-          if [[ -f gemini_check.py ]]; then python gemini_check.py; else echo "gemini_check.py is missing."; fi
+          echo "Read the preceding Build step for the exact API/FFmpeg error."
+          echo "For a separate, deeper diagnostic, run Actions > Gemini check manually."
 
       - name: Keep generated Short for 7 days
         if: always()
