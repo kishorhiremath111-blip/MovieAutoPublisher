@@ -45,9 +45,9 @@ jobs:
         working-directory: luxury_pipeline
     env:
       IMAGE_SOURCE: stock
-      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      # Reuse the same OAuth JSON secrets already used by the VYROX uploader.
+      YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+      YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
       # Push-triggered verification must never upload, regardless of repository variables.
       UPLOAD_MODE: ${{ github.event_name == 'push' && 'dry' || github.event_name == 'schedule' && 'public' || inputs.mode || 'dry' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
