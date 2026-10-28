@@ -284,66 +284,98 @@ def commons_get(url, raw=False):
 
 
 def fetch_stock(query, dst, w, h):
-    """Download an unused raster photo from Wikimedia Commons and retain its license credit."""
+    """Download a fresh, freely licensed raster photo from Wikimedia Commons.
+
+    Search the exact scene first, then broaden the query so one sparse search
+    result does not fail the entire video build.
+    """
     target = w / h
-    orient = 'portrait' if target < 0.8 else ('landscape' if target > 1.25 else 'square')
     big = W > 1080
     used = load_used()
-    params = {
-        'action': 'query', 'generator': 'search',
-        'gsrsearch': 'filetype:bitmap ' + query,
-        'gsrnamespace': 6, 'gsrlimit': 30, 'gsrwhat': 'text',
-        'prop': 'imageinfo', 'iiprop': 'url|size|mime|extmetadata',
-        'iiurlwidth': 2400 if big else 1500, 'format': 'json'
+
+    # Keep the exact visual intent first; use broader, related searches only
+    # when Commons has no suitable unused result for the original phrase.
+    queries = [query]
+    qlow = query.lower()
+    fallback_map = {
+        'luxury bedroom design': ['modern bedroom interior', 'luxury home interior', 'bedroom interior design'],
+        'luxury mansion exterior': ['modern mansion house', 'luxury house architecture', 'modern villa exterior'],
+        'modern mansion living room': ['modern luxury living room', 'designer living room interior', 'modern home interior'],
+        'luxury staircase interior': ['modern staircase architecture', 'luxury home staircase', 'interior staircase design'],
+        'marble mansion interior': ['marble interior architecture', 'luxury interior design', 'modern house interior'],
+        'infinity pool mansion': ['luxury infinity pool house', 'modern villa swimming pool', 'luxury resort pool'],
+        'premium hotel lobby': ['luxury hotel interior', 'modern hotel lobby', 'designer hotel interior'],
     }
-    url = 'https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(params)
-    data = commons_get(url) or {}
-    pages = list((data.get('query') or {}).get('pages', {}).values())
-    candidates = []
-    for page in pages:
-        info = (page.get('imageinfo') or [{}])[0]
-        mime = info.get('mime', '')
-        if mime not in ('image/jpeg', 'image/png', 'image/webp', 'image/tiff'):
-            continue
-        ident = str(page.get('pageid') or page.get('title') or '')
-        if not ident or ident in used:
-            continue
-        if (info.get('width', 0) or 0) < 900 or (info.get('height', 0) or 0) < 600:
-            continue
-        ratio = info.get('width', 1) / max(info.get('height', 1), 1)
-        asp = abs(math.log(max(ratio, 0.01) / target))
-        short = min(info.get('width', 0) / w, info.get('height', 0) / h)
-        candidates.append((short < (1.0 if big else 0.8), round(asp, 2),
-                           -(info.get('width', 0) * info.get('height', 0)), ident, page, info))
-    for _, _, _, ident, page, info in sorted(candidates)[:10]:
-        meta = info.get('extmetadata') or {}
-        def meta_value(k):
-            return str((meta.get(k) or {}).get('value', '')).strip()
-        license_name = meta_value('LicenseShortName')
-        license_url = meta_value('LicenseUrl')
-        artist = meta_value('Artist') or meta_value('Credit') or 'Unknown author'
-        artist = re.sub(r'<[^>]+>', '', artist).strip()
-        if not license_name or not license_url:
-            continue
-        download_url = info.get('thumburl') or info.get('url')
-        if not download_url:
-            continue
-        raw = commons_get(download_url, raw=True)
-        try:
-            Image.open(__import__('io').BytesIO(raw or b'')).verify()
-        except Exception:
-            continue
-        Path(dst).write_bytes(raw)
-        used.add(ident)
-        save_used(used)
-        page_url = 'https://commons.wikimedia.org/wiki/' + urllib.parse.quote(page.get('title', '').replace(' ', '_'))
-        CREDITS['stock'].append({
-            'id': ident, 'url': page_url, 'photographer': artist,
-            'credit': f'Photo: {artist}; source: Wikimedia Commons; license: {license_name} ({license_url})'
-        })
-        print(f'  licensed photo: "{query}" -> Wikimedia Commons ({license_name})')
-        return True
-    print(f'  no suitable freely licensed Commons photo found for "{query}"')
+    queries.extend(fallback_map.get(qlow, []))
+    # General-purpose fallback for other sparse searches.
+    if len(queries) == 1:
+        words = [word for word in query.split() if word.lower() not in
+                 ('luxury', 'premium', 'cinematic', 'design', 'details', 'modern')]
+        if words:
+            queries.append(' '.join(words) + ' architecture interior')
+        queries.extend(['luxury architecture interior', 'modern interior architecture'])
+
+    seen_ids = set()
+    for search_query in queries:
+        params = {
+            'action': 'query', 'generator': 'search',
+            'gsrsearch': 'filetype:bitmap ' + search_query,
+            'gsrnamespace': 6, 'gsrlimit': 50, 'gsrwhat': 'text',
+            'prop': 'imageinfo', 'iiprop': 'url|size|mime|extmetadata',
+            'iiurlwidth': 2400 if big else 1500, 'format': 'json'
+        }
+        url = 'https://commons.wikimedia.org/w/api.php?' + urllib.parse.urlencode(params)
+        data = commons_get(url) or {}
+        pages = list((data.get('query') or {}).get('pages', {}).values())
+        candidates = []
+        for page in pages:
+            info = (page.get('imageinfo') or [{}])[0]
+            mime = info.get('mime', '')
+            if mime not in ('image/jpeg', 'image/png', 'image/webp', 'image/tiff'):
+                continue
+            ident = str(page.get('pageid') or page.get('title') or '')
+            if not ident or ident in used or ident in seen_ids:
+                continue
+            seen_ids.add(ident)
+            if (info.get('width', 0) or 0) < 900 or (info.get('height', 0) or 0) < 600:
+                continue
+            ratio = info.get('width', 1) / max(info.get('height', 1), 1)
+            asp = abs(math.log(max(ratio, 0.01) / target))
+            short = min(info.get('width', 0) / w, info.get('height', 0) / h)
+            candidates.append((short < (1.0 if big else 0.8), round(asp, 2),
+                               -(info.get('width', 0) * info.get('height', 0)),
+                               ident, page, info))
+        for _, _, _, ident, page, info in sorted(candidates)[:20]:
+            meta = info.get('extmetadata') or {}
+            def meta_value(k):
+                return str((meta.get(k) or {}).get('value', '')).strip()
+            license_name = meta_value('LicenseShortName')
+            license_url = meta_value('LicenseUrl')
+            artist = meta_value('Artist') or meta_value('Credit') or 'Unknown author'
+            artist = re.sub(r'<[^>]+>', '', artist).strip()
+            if not license_name or not license_url:
+                continue
+            download_url = info.get('thumburl') or info.get('url')
+            if not download_url:
+                continue
+            raw = commons_get(download_url, raw=True)
+            try:
+                Image.open(__import__('io').BytesIO(raw or b'')).verify()
+            except Exception:
+                continue
+            Path(dst).write_bytes(raw)
+            used.add(ident)
+            save_used(used)
+            page_url = 'https://commons.wikimedia.org/wiki/' + urllib.parse.quote(page.get('title', '').replace(' ', '_'))
+            CREDITS['stock'].append({
+                'id': ident, 'url': page_url, 'photographer': artist,
+                'credit': f'Photo: {artist}; source: Wikimedia Commons; license: {license_name} ({license_url})'
+            })
+            print(f'  licensed photo: "{search_query}" -> Wikimedia Commons ({license_name})')
+            if search_query != query:
+                print(f'  fallback search used for scene "{query}"')
+            return True
+    print(f'  no suitable unused freely licensed Commons photo found for "{query}" after {len(queries)} searches')
     return False
 
 def get_tile(s, key, typ, dst, w, h, n):
