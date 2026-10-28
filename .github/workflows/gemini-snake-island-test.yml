@@ -1,0 +1,38 @@
+name: VYROX GEN X — Gemini Snake Island Test Short
+on:
+  push:
+    branches: [ai-updates-publisher]
+    paths:
+      - "scripts/gemini_snake_island_short.py"
+      - ".github/workflows/gemini-snake-island-test.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FFmpeg and Hindi fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-dejavu-core
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        run: pip install pillow edge-tts google-genai
+      - name: Generate photorealistic scene images with Gemini and render Short
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: python scripts/gemini_snake_island_short.py
+      - name: Upload test video and scene assets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyrox-snake-island-test-${{ github.run_number }}
+          path: output/snake_island/
+          if-no-files-found: warn
+          retention-days: 14

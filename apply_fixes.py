@@ -2,12 +2,12 @@
 """One-time patcher for MovieAutoPublisher. Safe to run twice (already-applied fixes are skipped).
 
 Fixes:
-  1. trend_engine.py       - channel stats HTTP 400 (batch channel ids in groups of 50)
-  2. process.py            - caption emoji-strip regex that also deleted capital letters and digits
-  3. process.py            - one invalid metadata item no longer aborts the whole daily run
-  4. process.py            - Shorts now render with the demo-style layout (demo_style.py)
-  5. uploaders/youtube.py  - clear error instead of a 90-minute hang when the OAuth token is dead in CI
-  6. uploaders/youtube.py  - retry transient 5xx errors during upload
+  1. trend_engine.py   - channel stats HTTP 400 (batch channel ids in groups of 50)
+  2. process.py        - caption emoji-strip regex that also deleted capital letters and digits
+  3. process.py        - one invalid metadata item no longer aborts the whole daily run
+  4. process.py        - Shorts now render with the demo-style layout (demo_style.py)
+  5. uploaders/youtube.py - clear error instead of a 90-minute hang when the OAuth token is dead in CI
+  6. uploaders/youtube.py - retry transient 5xx errors during upload
 """
 import sys
 from pathlib import Path
@@ -119,6 +119,16 @@ NEW_SHORT = (
     "        return out, {'start': start, 'end': start + target_len, 'score': score}\n"
 ) + OLD_SHORT
 text = patch("process.py", text, OLD_SHORT, NEW_SHORT, "process.py demo-style Shorts")
+OLD_TYPE = (
+    "    if item.get('type') not in ('movie', 'series', 'anime'):\n"
+    "        raise RuntimeError('type must be movie, series or anime')\n"
+)
+NEW_TYPE = (
+    "    if item.get('type') not in ('movie', 'series', 'anime', 'general'):\n"
+    "        raise RuntimeError('type must be movie, series, anime or general')\n"
+)
+text = patch("process.py", text, OLD_TYPE, NEW_TYPE, "process.py allow type 'general' (own/stock/relatable clips)")
+
 if text is not None:
     write("process.py", text)
 

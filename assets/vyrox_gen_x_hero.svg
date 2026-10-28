@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050817"/><stop offset=".48" stop-color="#101947"/><stop offset="1" stop-color="#240a39"/></linearGradient>
+ <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#27f4ff"/><stop offset="1" stop-color="#4676ff"/></linearGradient>
+ <linearGradient id="pink"><stop stop-color="#ff4ecb"/><stop offset="1" stop-color="#ff9c5c"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#155bff" stop-opacity=".75"/><stop offset="1" stop-color="#071027" stop-opacity="0"/></radialGradient>
+ <filter id="blur"><feGaussianBlur stdDeviation="30"/></filter>
+ <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse"><path d="M56 0H0V56" fill="none" stroke="#2c82ff" stroke-opacity=".15" stroke-width="1"/></pattern>
+</defs>
+<rect width="1080" height="1920" fill="url(#bg)"/><rect width="1080" height="1920" fill="url(#grid)"/>
+<circle cx="810" cy="530" r="390" fill="url(#glow)"/><circle cx="240" cy="1260" r="380" fill="url(#glow)"/>
+<g fill="none" stroke="url(#cyan)" opacity=".75">
+ <circle cx="540" cy="750" r="230" stroke-width="3"/><circle cx="540" cy="750" r="275" stroke-width="1.5" stroke-dasharray="12 18"/>
+ <ellipse cx="540" cy="750" rx="340" ry="125" stroke-width="2" transform="rotate(-28 540 750)"/>
+ <ellipse cx="540" cy="750" rx="340" ry="125" stroke-width="2" transform="rotate(34 540 750)"/>
+</g>
+<g transform="translate(540 735)">
+ <path d="M-160 -80 Q-155 -200 -55 -220 L55 -220 Q155 -200 160 -80 L145 75 Q130 140 70 160 L-70 160 Q-130 140 -145 75Z" fill="#101e43" stroke="#45edff" stroke-width="5"/>
+ <path d="M-122 -62 Q-95 -138 0 -140 Q95 -138 122 -62 L102 22 Q0 75 -102 22Z" fill="#061026" stroke="#597fff" stroke-width="3"/>
+ <path d="M-88 -36 L-28 -52 L-18 -12 L-82 2Z M28 -52 L88 -36 L82 2 L18 -12Z" fill="url(#cyan)"/>
+ <path d="M-42 73 Q0 93 42 73" stroke="#ff6adf" stroke-width="8" fill="none" stroke-linecap="round"/>
+ <path d="M-90 162 L-130 220 M90 162 L130 220" stroke="#45edff" stroke-width="10" stroke-linecap="round"/>
+</g>
+<g font-family="Arial,Helvetica,sans-serif" text-anchor="middle">
+ <text x="540" y="190" font-size="94" font-weight="900" fill="#f8fbff" letter-spacing="3">VYROX</text>
+ <text x="540" y="292" font-size="116" font-weight="900" fill="url(#cyan)" letter-spacing="5">GEN X</text>
+ <text x="540" y="365" font-size="29" font-weight="700" fill="#dce8ff" letter-spacing="7">AI • SCIENCE • ANIME</text>
+ <text x="540" y="1120" font-size="58" font-weight="900" fill="#ffffff">THE FUTURE, EXPLAINED.</text>
+ <text x="540" y="1180" font-size="29" fill="#b9c9f7">Fresh updates. Real sources. Original visuals.</text>
+</g>
+<g transform="translate(105 1325)">
+ <rect width="870" height="112" rx="24" fill="#0b1637" stroke="#36e7ff" stroke-width="2"/>
+ <circle cx="54" cy="56" r="18" fill="#30f2d1"/><text x="96" y="67" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="800" fill="#f5f9ff">AI MODEL &amp; TOOL UPDATES</text>
+ <rect y="140" width="870" height="112" rx="24" fill="#0b1637" stroke="#4d8dff" stroke-width="2"/>
+ <circle cx="54" cy="196" r="18" fill="#4d8dff"/><text x="96" y="207" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="800" fill="#f5f9ff">SPACE &amp; SCIENCE DISCOVERIES</text>
+ <rect y="280" width="870" height="112" rx="24" fill="#0b1637" stroke="#ff68d7" stroke-width="2"/>
+ <circle cx="54" cy="336" r="18" fill="#ff68d7"/><text x="96" y="347" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="800" fill="#f5f9ff">ANIME ANNOUNCEMENTS</text>
+</g>
+<g fill="#e5f8ff" opacity=".85">
+ <circle cx="130" cy="480" r="4"/><circle cx="930" cy="390" r="5"/><circle cx="890" cy="960" r="3"/><circle cx="180" cy="1030" r="5"/><circle cx="840" cy="1500" r="4"/><circle cx="200" cy="1580" r="3"/>
+</g>
+<text x="540" y="1830" font-family="Arial,Helvetica,sans-serif" text-anchor="middle" font-size="23" fill="#8ba6de" letter-spacing="5">VYROX GEN X • SOURCED UPDATES ONLY</text>
+</svg>

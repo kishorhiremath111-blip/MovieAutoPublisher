@@ -1,0 +1,43 @@
+name: VYROX GEN X — Daily Hindi What If Science Shorts
+
+on:
+  push:
+    branches:
+      - ai-updates-publisher
+    paths:
+      - "scripts/what_if_science_short.py"
+      - ".github/workflows/what-if-science-shorts.yml"
+  workflow_dispatch:
+  schedule:
+    # Daily 7:30 PM IST (14:00 UTC); scheduled runs require this workflow on the default branch.
+    - cron: "0 14 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  render-what-if:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install FFmpeg and Hindi fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-dejavu-core
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install renderer dependencies
+        run: pip install pillow edge-tts
+      - name: Render cinematic Hindi What If Short with male voice
+        run: python scripts/what_if_science_short.py
+      - name: Upload MP4 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vyrox-what-if-science-${{ github.run_number }}
+          path: output/what_if_shorts/VYROX_What_If_Earth_Stops_Rotating_Hindi.mp4
+          if-no-files-found: error
+          retention-days: 14
