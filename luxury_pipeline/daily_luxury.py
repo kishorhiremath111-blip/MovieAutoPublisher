@@ -32,7 +32,7 @@ OUT_DIR = ROOT / 'output'
 API = 'https://generativelanguage.googleapis.com/v1beta'
 # Model IDs from Google's docs (Oct 2026). First one that exists for your key is used.
 TEXT_MODELS = ([os.environ['GEMINI_TEXT_MODEL']] if os.environ.get('GEMINI_TEXT_MODEL') else
-               ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'])
+               ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'])
 IMAGE_MODELS = ['gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview',
                 'gemini-3.1-flash-lite-image', 'gemini-2.5-flash-image']
 _ACTIVE = {}

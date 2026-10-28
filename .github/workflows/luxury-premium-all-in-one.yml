@@ -5,6 +5,12 @@ on:
   push:
     paths:
       - ".github/workflows/luxury-premium-all-in-one.yml"
+      - ".github/workflows/daily.yml"
+      - ".github/workflows/luxury-editor.yml"
+      - ".github/workflows/gemini-check.yml"
+      - "luxury_pipeline/**"
+      - "gemini_check.py"
+      - "verify_install.py"
   workflow_dispatch:
     inputs:
       mode:

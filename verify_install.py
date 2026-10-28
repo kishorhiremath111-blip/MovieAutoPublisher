@@ -13,7 +13,7 @@ EXPECTED = {
     ".github/workflows/luxury-editor.yml": "6be61e1ad02b20f82253d0e58847abfb964ad4c9b1c8194f1b4e59969d7c8c60",
     ".github/workflows/gemini-check.yml": "76dd67372c4685a2022b18d064bfa4ae6956a8c573d6183dd236096122e4274c",
     "gemini_check.py": "a444eaaad4e442e9f3dec292a855f5c48537ad94f11601191d21dd5eee66a68c",
-    "luxury_pipeline/daily_luxury.py": "ffffa57fe35c65461491e5ad4eaa635c72ab6fa2e33512723753814d581eb6a4",
+    "luxury_pipeline/daily_luxury.py": "7318b963093e81a515cb19a6d583d249a47a9408cd7db13fd3330f854c6b6417",
     "luxury_pipeline/luxury_editor.py": "764185cc28af20f8f80fd3388237c57d5a2624f4051510e6b5ec6864c11ac585",
     "luxury_pipeline/youtube_device_auth.py": "198a513421d2d4d65abde04f5d5561f9ffc0da0b3f441265de7cbc54d1848671",
     "luxury_pipeline/requirements.txt": "a005489757bfc93583ebacfc2ae311bd8122e230814a5ba8941298d1b1d2d2dc",
