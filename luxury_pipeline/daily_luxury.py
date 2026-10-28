@@ -352,18 +352,33 @@ def build_description(t):
 
 # ---------------- YouTube ----------------
 def youtube_client():
+    """Reuse the existing VYROX uploader's base64-encoded OAuth JSON secrets."""
+    import base64
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
-    env = {k: os.environ.get(k, '').strip() for k in
-           ('YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN')}
-    missing = [k for k, v in env.items() if not v]
+
+    client_b64 = os.environ.get('YOUTUBE_CLIENT_SECRET_B64', '').strip()
+    token_b64 = os.environ.get('YOUTUBE_TOKEN_B64', '').strip()
+    missing = [name for name, value in (
+        ('YOUTUBE_CLIENT_SECRET_B64', client_b64),
+        ('YOUTUBE_TOKEN_B64', token_b64),
+    ) if not value]
     if missing:
-        raise Fatal('Missing YouTube secrets: ' + ', '.join(missing))
-    creds = Credentials(None, refresh_token=env['YOUTUBE_REFRESH_TOKEN'],
-                        token_uri='https://oauth2.googleapis.com/token',
-                        client_id=env['YOUTUBE_CLIENT_ID'],
-                        client_secret=env['YOUTUBE_CLIENT_SECRET'],
-                        scopes=['https://www.googleapis.com/auth/youtube'])
+        raise Fatal('Missing existing YouTube uploader secrets: ' + ', '.join(missing))
+    try:
+        client_info = json.loads(base64.b64decode(client_b64, validate=True))
+        token_info = json.loads(base64.b64decode(token_b64, validate=True))
+        # Validate the OAuth client JSON, but use the authorized token file's matching
+        # client_id/client_secret/refresh_token so the existing token scope is preserved.
+        oauth_client = client_info.get('installed') or client_info.get('web') or {}
+        if not oauth_client.get('client_id') or not oauth_client.get('client_secret'):
+            raise ValueError('client_secret.json has no installed/web OAuth client')
+        if not token_info.get('refresh_token'):
+            raise ValueError('token.json has no refresh_token')
+        creds = Credentials.from_authorized_user_info(
+            token_info, scopes=['https://www.googleapis.com/auth/youtube.upload'])
+    except Exception as exc:
+        raise Fatal('Could not read existing YouTube OAuth JSON secrets. Check YOUTUBE_CLIENT_SECRET_B64 and YOUTUBE_TOKEN_B64 in Actions secrets (' + type(exc).__name__ + ').') from exc
     return build('youtube', 'v3', credentials=creds, cache_discovery=False)
 
 
@@ -418,8 +433,7 @@ def preflight(mode):
     """Stock-only preflight: no Gemini API key or model checks."""
     import shutil
     ok = True
-    names = (['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET',
-              'YOUTUBE_REFRESH_TOKEN'] if mode != 'dry' else [])
+    names = (['YOUTUBE_CLIENT_SECRET_B64', 'YOUTUBE_TOKEN_B64'] if mode != 'dry' else [])
     for n in names:
         has = bool(os.environ.get(n, '').strip())
         ok &= has
