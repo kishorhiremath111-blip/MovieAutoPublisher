@@ -41,18 +41,14 @@ jobs:
         shell: bash
         working-directory: luxury_pipeline
     env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-      IMAGE_SOURCE: ${{ vars.IMAGE_SOURCE || 'auto' }}
+      IMAGE_SOURCE: stock
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
       # Push-triggered verification must never upload, regardless of repository variables.
       UPLOAD_MODE: ${{ github.event_name == 'push' && 'dry' || inputs.mode || 'dry' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
-      GEMINI_IMAGE_SIZE: ${{ vars.GEMINI_IMAGE_SIZE || '2K' }}
-      GEMINI_TEXT_MODEL: ${{ vars.GEMINI_TEXT_MODEL }}
-      GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
       TZ_OFFSET_MIN: "330"
 
     steps:
@@ -97,7 +93,7 @@ jobs:
         if: failure()
         run: |
           echo "Read the preceding Build step for the exact API/FFmpeg error."
-          echo "For a separate, deeper diagnostic, run Actions > Gemini check manually."
+          echo "This pipeline is stock-only. Check PEXELS_API_KEY and Pexels responses in Build logs."
 
       - name: Keep generated Short for 7 days
         if: always()

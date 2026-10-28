@@ -415,51 +415,73 @@ def upload(yt, video, t, privacy):
 
 # ---------------- preflight ----------------
 def preflight(mode):
-    """Prints what is OK / missing (never prints secret values)."""
+    """Stock-only preflight: no Gemini API key or model checks."""
     import shutil
     ok = True
-    names = ['GEMINI_API_KEY'] + (['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET',
-                                   'YOUTUBE_REFRESH_TOKEN'] if mode != 'dry' else [])
+    names = ['PEXELS_API_KEY'] + (['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET',
+                                  'YOUTUBE_REFRESH_TOKEN'] if mode != 'dry' else [])
     for n in names:
         has = bool(os.environ.get(n, '').strip())
         ok &= has
-        print(f'secret {n}: {"OK" if has else "MISSING  <- add it in Settings > Secrets"}')
-    src = (os.environ.get('IMAGE_SOURCE') or 'auto').lower()
-    pex = bool(os.environ.get('PEXELS_API_KEY', '').strip())
-    print(f'image source: {src} | PEXELS_API_KEY: {"OK" if pex else "missing"}')
-    if src == 'stock' and not pex:
-        ok = False
-        print('  -> IMAGE_SOURCE=stock needs the PEXELS_API_KEY secret (free: pexels.com/api)')
+        print(f'secret {n}: {"OK" if has else "MISSING  <- add it in repository Actions secrets"}')
+    print('image source: stock-only (Gemini disabled)')
     for tool in ('ffmpeg', 'ffprobe'):
         has = bool(shutil.which(tool))
         ok &= has
         print(f'{tool}: {"OK" if has else "MISSING"}')
-    for f in ('luxury_editor.py',):
-        has = (ROOT / f).exists()
-        ok &= has
-        print(f'file {f}: {"OK" if has else "MISSING  <- upload it to the repo root"}')
-    if os.environ.get('GEMINI_API_KEY', '').strip():
-        try:
-            req = urllib.request.Request(f'{API}/models?pageSize=200',
-                                         headers={'x-goog-api-key': os.environ['GEMINI_API_KEY']})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                avail = {m['name'].split('/')[-1] for m in json.loads(r.read()).get('models', [])}
-            t = [m for m in TEXT_MODELS if m in avail]
-            i = [m for m in IMAGE_MODELS if m in avail]
-            print(f'text model that will be used: {t[0] if t else "NONE FOUND"}')
-            print(f'image model that will be used: {i[0] if i else "NONE FOUND"}')
-            if not t or (not i and src != 'stock' and not pex):
-                ok = False
-                print('Models your key can see:', ', '.join(sorted(
-                    m for m in avail if 'gemini' in m and 'embedding' not in m))[:900])
-        except urllib.error.HTTPError as e:
-            ok = False
-            print(f'Gemini key check failed: HTTP {e.code} (wrong key, or API not enabled)')
-        except (urllib.error.URLError, TimeoutError):
-            ok = False
-            print('Gemini key check failed: network error')
+    has_editor = (ROOT / 'luxury_editor.py').exists()
+    ok &= has_editor
+    print(f'file luxury_editor.py: {"OK" if has_editor else "MISSING"}')
     print('PREFLIGHT', 'PASSED' if ok else 'FAILED')
     return 0 if ok else 1
+
+
+def stock_only_topic(today, theme, state):
+    """Build a safe evergreen luxury topic from a fixed rotation; never calls Gemini."""
+    ideas = [
+        ('Dubai skyline luxury architecture', 'Inside the Visual World of Dubai Luxury Architecture',
+         'THE SKYLINE THAT LOOKS UNREAL', 'Dubai skyline night|luxury skyscraper exterior|modern penthouse interior|Dubai waterfront skyline|luxury architectural details|city skyline aerial|premium hotel lobby',
+         '#luxury #Dubai #architecture #luxurylifestyle #Shorts'),
+        ('supercar design details', 'The Details That Make Supercars Look Extraordinary',
+         'EVERY DETAIL FEELS EXPENSIVE', 'luxury sports car detail|supercar headlight closeup|sports car wheel detail|supercar rear design|luxury car interior|sports car road cinematic|supercar showroom',
+         '#supercar #luxurycars #cardesign #luxury #Shorts'),
+        ('luxury yacht design', 'Inside the Details of Modern Luxury Yachts',
+         'THIS IS LUXURY ON THE WATER', 'luxury yacht ocean|yacht deck design|yacht interior luxury|yacht bow closeup|superyacht marina|yacht sea aerial|luxury boat sunset',
+         '#luxuryyacht #yachtlife #luxurytravel #luxury #Shorts'),
+        ('luxury mansion interiors', 'Luxury Mansion Details That Make a Statement',
+         'THE DETAILS CHANGE EVERYTHING', 'luxury mansion exterior|modern mansion living room|luxury staircase interior|marble mansion interior|luxury bedroom design|infinity pool mansion|luxury home architecture',
+         '#luxuryhomes #mansion #interiordesign #luxury #Shorts'),
+        ('luxury watches craftsmanship', 'The Craftsmanship Behind Luxury Watch Design',
+         'PRECISION IN EVERY DETAIL', 'luxury watch closeup|mechanical watch movement|watch dial macro|luxury watch wrist|watchmaker hands detail|premium watch display|watch case detail',
+         '#luxurywatch #watchmaking #craftsmanship #luxury #Shorts'),
+        ('private aviation luxury', 'A Closer Look at Private Aviation Luxury',
+         'A DIFFERENT VIEW OF LUXURY', 'private jet airport|private jet cabin interior|private aircraft exterior|luxury aircraft seating|private jet stairs|business jet runway|aircraft window view',
+         '#privatejet #aviation #luxurytravel #luxury #Shorts'),
+        ('luxury resort and travel design', 'Luxury Resort Design Made for the Escape',
+         'ESCAPE INTO ANOTHER WORLD', 'luxury resort infinity pool|tropical luxury villa|resort ocean view|luxury hotel suite|luxury resort architecture|private villa pool|luxury resort sunset',
+         '#luxurytravel #luxuryresort #travelinspiration #luxury #Shorts')
+    ]
+    idx = today.date().toordinal() % len(ideas)
+    previous = {str(e.get('topic', '')).lower() for e in state.get('entries', [])}
+    for off in range(len(ideas)):
+        candidate = ideas[(idx + off) % len(ideas)]
+        if candidate[0].lower() not in previous:
+            idx = (idx + off) % len(ideas)
+            break
+    topic, title, hook, queries, hashtags = ideas[idx]
+    q = queries.split('|')
+    scenes = [
+        {'type': 'full', 'search': q[0], 'seconds': 4.5},
+        {'type': 'stack', 'top_search': q[1], 'bottom_search': q[2], 'seconds': 5},
+        {'type': 'full', 'search': q[3], 'seconds': 4.5},
+        {'type': 'stack', 'top_search': q[4], 'bottom_search': q[5], 'seconds': 5},
+        {'type': 'full', 'search': q[6], 'seconds': 4.5},
+        {'type': 'full', 'search': q[1], 'seconds': 4.5}
+    ]
+    return {'topic': topic, 'title': title, 'hook': hook,
+            'description': 'A cinematic look at premium design, craftsmanship and luxury lifestyle details, using licensed stock photography.',
+            'hashtags': hashtags.split(), 'facts': [], 'mode': 'concept', 'news_date': '',
+            'sources': [], 'scenes': scenes, 'stock_only': True}
 
 
 # ---------------- main ----------------
@@ -485,9 +507,10 @@ def main():
         return 0
 
     mode, theme = THEMES[a.weekday if a.weekday is not None else now.weekday()]
-    log(f'Mode={a.mode}  theme={mode}: {theme}')
+    log(f'Mode={a.mode}  stock-only theme: {theme}')
     try:
-        t = pick_topic(mode, theme, now, state)
+        t = stock_only_topic(now, theme, state)
+        log('Gemini API disabled: using built-in luxury topics and Pexels photo tracking.')
         log(f'Topic: {t["title"]}  | hook: {t["hook"]}')
         video = build_video(t, OUT_DIR / day, a.res)
         entry = {'date': day, 'topic': t['topic'], 'title': t['title'], 'mode': t['mode'],

@@ -45,7 +45,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 FPS, SR = 30, 48000
 W, H = 2160, 3840
 MUSIC_STYLE = 'modern'
-IMAGE_SOURCE = 'auto'          # auto = real stock photo first, AI image as backup
+IMAGE_SOURCE = 'stock'         # stock-only: never use Gemini-generated images
 CREDITS = {'stock': [], 'ai_count': 0}
 USED_FILE = Path(__file__).resolve().parent / 'state' / 'used_images.json'
 UA = 'LuxuryShorts/1.0'
@@ -692,7 +692,7 @@ def main():
     if not hook:
         die('Project needs a "hook".')
     global MUSIC_STYLE, IMAGE_SOURCE
-    IMAGE_SOURCE = (os.environ.get('IMAGE_SOURCE') or proj.get('image_source') or 'auto').lower()
+    IMAGE_SOURCE = 'stock'  # enforced stock-only mode; never call Gemini image generation
     if IMAGE_SOURCE not in ('auto', 'stock', 'gemini'):
         die('IMAGE_SOURCE must be auto, stock or gemini.')
     MUSIC_STYLE = a.music_style or proj.get('music_style', 'modern')
