@@ -24,9 +24,9 @@ on:
           - ANIME
         default: AI
   schedule:
-    # Two Shorts per day: 1:30 PM IST and 7:30 PM IST.
-    # Scheduled runs only fire from the default branch (main).
-    - cron: "0 8,14 * * *"
+    # Three draft Shorts per day: 9:30 AM, 3:30 PM, and 7:30 PM IST.
+    # Scheduled runs only fire from the default branch (main), after this branch is merged.
+    - cron: "0 4,10,14 * * *"
 
 permissions:
   contents: write
