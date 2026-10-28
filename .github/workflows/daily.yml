@@ -2,8 +2,7 @@ name: Daily Luxury Short
 
 on:
   schedule:
-    # 09:00 IST (03:30 UTC) and 18:00 IST (12:30 UTC)
-    - cron: "30 3 * * *"
+    # Daily public Short at 6:00 PM India time (12:30 UTC).
     - cron: "30 12 * * *"
   workflow_dispatch:
     inputs:
@@ -12,7 +11,7 @@ on:
         required: true
         type: choice
         options: [dry, private, public]
-        default: dry
+        default: public
       force:
         description: "Allow another video even if one was already made today"
         required: false
@@ -28,9 +27,6 @@ concurrency:
 
 jobs:
   build-and-upload:
-    # Scheduled runs stay OFF until you create the repository variable UPLOAD_MODE
-    # (Settings > Secrets and variables > Actions > Variables). Manual runs always work.
-    if: github.event_name != 'schedule' || vars.UPLOAD_MODE != ''
     runs-on: ubuntu-latest
     timeout-minutes: 60
     defaults:
@@ -38,17 +34,12 @@ jobs:
         shell: bash
         working-directory: luxury_pipeline
     env:
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-      IMAGE_SOURCE: ${{ vars.IMAGE_SOURCE || 'auto' }}
-      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'dry' }}
+      # Match the uploader credentials expected by luxury_pipeline/daily_luxury.py
+      YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+      YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+      IMAGE_SOURCE: stock
+      UPLOAD_MODE: ${{ github.event_name == 'schedule' && 'public' || inputs.mode || 'dry' }}
       VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
-      GEMINI_IMAGE_SIZE: ${{ vars.GEMINI_IMAGE_SIZE || '2K' }}
-      GEMINI_TEXT_MODEL: ${{ vars.GEMINI_TEXT_MODEL }}
-      GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
       TZ_OFFSET_MIN: "330"
 
     steps:
@@ -85,9 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           ARGS=()
-          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
-            ARGS+=(--force)
-          elif [[ "${{ inputs.force }}" == "true" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${{ inputs.force }}" == "true" ]]; then
             ARGS+=(--force)
           fi
           python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${ARGS[@]}"
