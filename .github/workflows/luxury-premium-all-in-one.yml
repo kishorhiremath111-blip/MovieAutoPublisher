@@ -21,7 +21,7 @@ on:
         required: true
         type: choice
         options: [dry, private, public]
-        default: dry
+        default: public
       force:
         description: "Allow another video even if one was already recorded today"
         required: false
