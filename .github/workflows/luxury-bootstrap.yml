@@ -66,7 +66,7 @@ jobs:
               manifest = z.read(root + "MANIFEST.txt").decode("utf-8")
               installed = []
               for line in manifest.splitlines():
-                  if "->" not in line:
+                  if "->" not in line or line.lstrip().startswith("#"):
                       continue
                   source, rest = line.split("->", 1)
                   destination = rest.split("|", 1)[0].strip()
