@@ -1,0 +1,125 @@
+name: Luxury Premium All-in-One
+
+on:
+  schedule:
+    # 09:00 IST (03:30 UTC) and 18:00 IST (12:30 UTC)
+    - cron: "30 3 * * *"
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry = build only, private = upload privately, public = publish publicly"
+        required: true
+        type: choice
+        options: [dry, private, public]
+        default: dry
+      force:
+        description: "Allow another video even if one was already made today"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: luxury-premium-all-in-one
+  cancel-in-progress: false
+
+jobs:
+  build-and-upload:
+    # Scheduled runs stay OFF until repository variable UPLOAD_MODE is set.
+    # Manual runs are always enabled.
+    if: github.event_name != 'schedule' || vars.UPLOAD_MODE != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: luxury_pipeline
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      IMAGE_SOURCE: ${{ vars.IMAGE_SOURCE || 'auto' }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      UPLOAD_MODE: ${{ inputs.mode || vars.UPLOAD_MODE || 'dry' }}
+      VIDEO_RES: ${{ vars.VIDEO_RES || '1080' }}
+      GEMINI_IMAGE_SIZE: ${{ vars.GEMINI_IMAGE_SIZE || '2K' }}
+      GEMINI_TEXT_MODEL: ${{ vars.GEMINI_TEXT_MODEL }}
+      GEMINI_IMAGE_MODEL: ${{ vars.GEMINI_IMAGE_MODEL }}
+      TZ_OFFSET_MIN: "330"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg and fonts
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify installed files (informational, never blocks)
+        continue-on-error: true
+        working-directory: .
+        run: |
+          if [[ -f verify_install.py ]]; then python verify_install.py; else echo "verify_install.py not in repo (optional)."; fi
+
+      - name: Preflight
+        run: python daily_luxury.py --preflight
+
+      - name: Build and upload today's Short
+        run: |
+          set -euo pipefail
+          ARGS=()
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" && "${{ github.event.schedule }}" == "30 12 * * *" ]]; then
+            ARGS+=(--force)
+          elif [[ "${{ inputs.force }}" == "true" ]]; then
+            ARGS+=(--force)
+          fi
+          python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${ARGS[@]}"
+
+      - name: Explain failure
+        if: failure()
+        continue-on-error: true
+        working-directory: .
+        run: |
+          if [[ -f gemini_check.py ]]; then python gemini_check.py; else echo "gemini_check.py is not installed at repo root."; fi
+
+      - name: Keep the video for 7 days
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: luxury-premium-short-${{ github.run_id }}-${{ github.run_attempt }}
+          path: luxury_pipeline/output/**/short.mp4
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Save topic history
+        if: always()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p state
+          git add -A state
+          if git diff --cached --quiet; then
+            echo "Nothing to save."
+          else
+            git commit -m "Update Luxury Premium topic history"
+            git pull --rebase
+            git push
+          fi
