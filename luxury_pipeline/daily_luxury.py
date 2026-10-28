@@ -544,8 +544,12 @@ def main():
     now = datetime.now(timezone.utc) + timedelta(minutes=int(os.environ.get('TZ_OFFSET_MIN') or 330))
     state = load_state()
     day = f'{now:%Y-%m-%d}'
-    done = [e for e in state['entries'] if e.get('date') == day and e.get('status', '')
-            .startswith(('uploaded', 'built'))]
+    # A previous dry/build-only run must not block a real upload. Only an already-uploaded
+    # video blocks another public/private upload; dry mode may skip an existing built video.
+    done = [e for e in state['entries'] if e.get('date') == day and (
+        e.get('status', '').startswith('uploaded') or
+        (a.mode == 'dry' and e.get('status', '') == 'built')
+    )]
     if done and not a.force:
         log(f'Already made today\'s video ({done[0]["title"]}). Skipping.')
         return 0
