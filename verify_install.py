@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 EXPECTED = {
-    ".github/workflows/daily.yml": "e2dcb7674195dc88edb504e278429473c69c70915e7634e0517717882546435e",
+    ".github/workflows/daily.yml": "55bb8a510dd1715c9ece6c1bad24d639443ce1be8a5ba9ca2c049267b29793ea",
     ".github/workflows/luxury-editor.yml": "6be61e1ad02b20f82253d0e58847abfb964ad4c9b1c8194f1b4e59969d7c8c60",
     ".github/workflows/gemini-check.yml": "76dd67372c4685a2022b18d064bfa4ae6956a8c573d6183dd236096122e4274c",
     "gemini_check.py": "a444eaaad4e442e9f3dec292a855f5c48537ad94f11601191d21dd5eee66a68c",
