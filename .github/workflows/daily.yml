@@ -81,12 +81,14 @@ jobs:
           fi
           python daily_luxury.py --mode "$UPLOAD_MODE" --res "$VIDEO_RES" "${ARGS[@]}"
 
-      - name: Explain the failure (runs only if something above failed)
+      - name: Explain the failure (stock-only; no Gemini required)
         if: failure()
         continue-on-error: true
         working-directory: .
         run: |
-          if [[ -f gemini_check.py ]]; then python gemini_check.py; else echo "Upload gemini_check.py to the repo root for an automatic explanation here."; fi
+          echo "This Luxury workflow is stock-photo-only. Gemini image generation and GEMINI_API_KEY are not required."
+          echo "Read the failed Build and upload step above for the actual error."
+          echo "If Wikimedia Commons rate-limits requests, the editor now retries and skips unrelated fallback images."
 
       - name: Keep the video for 7 days
         if: always()
