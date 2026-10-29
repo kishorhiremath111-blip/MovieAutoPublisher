@@ -262,8 +262,8 @@ def save_used(ids):
 
 
 def commons_get(url, raw=False):
-    """Query Wikimedia Commons or download a freely licensed media file."""
-    for attempt in range(3):
+    """Query/download licensed Commons media with conservative rate-limit retries."""
+    for attempt in range(5):
         try:
             headers = {'User-Agent': UA + ' (licensed stock-photo video pipeline)'}
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=120) as r:
@@ -271,15 +271,27 @@ def commons_get(url, raw=False):
             return body if raw else json.loads(body)
         except urllib.error.HTTPError as ex:
             if ex.code in (401, 403):
-                die('Wikimedia Commons API denied the request (HTTP %d).' % ex.code)
+                die('Wikimedia Commons denied the request (HTTP %d). Check API access.' % ex.code)
             if ex.code == 429:
-                die('Wikimedia Commons rate limit reached. Wait before retrying.')
-            if ex.code < 500 or attempt == 2:
+                retry_after = ex.headers.get('Retry-After', '')
+                try:
+                    wait = max(5, min(45, int(retry_after)))
+                except (TypeError, ValueError):
+                    wait = min(30, 5 * (attempt + 1))
+                print(f'  Wikimedia Commons rate-limited this request; waiting {wait}s (retry {attempt + 1}/5).')
+                if attempt == 4:
+                    print('  Commons rate limit persisted after retries; this photo candidate is skipped.')
+                    return None
+                time.sleep(wait)
+                continue
+            if ex.code < 500 or attempt == 4:
+                print(f'  Commons request failed with HTTP {ex.code}; skipping this candidate.')
                 return None
-        except (urllib.error.URLError, TimeoutError):
-            if attempt == 2:
+        except (urllib.error.URLError, TimeoutError) as ex:
+            if attempt == 4:
+                print(f'  Commons network request failed ({type(ex).__name__}); skipping this candidate.')
                 return None
-        time.sleep(2 ** attempt)
+        time.sleep(min(16, 2 ** attempt))
     return None
 
 
@@ -307,20 +319,15 @@ def fetch_stock(query, dst, w, h):
         'premium hotel lobby': ['luxury hotel interior', 'modern hotel lobby', 'designer hotel interior'],
     }
     queries.extend(fallback_map.get(qlow, []))
-    # General-purpose fallback for other sparse searches.
-    if len(queries) == 1:
-        words = [word for word in query.split() if word.lower() not in
-                 ('luxury', 'premium', 'cinematic', 'design', 'details', 'modern')]
-        if words:
-            queries.append(' '.join(words) + ' architecture interior')
-        queries.extend(['luxury architecture interior', 'modern interior architecture'])
+    # Do not substitute unrelated generic architecture photos for a specific scene.
+    # If the exact scene has no fresh unused licensed photo, fail clearly instead of padding with mismatches.
 
     seen_ids = set()
     for search_query in queries:
         params = {
             'action': 'query', 'generator': 'search',
             'gsrsearch': 'filetype:bitmap ' + search_query,
-            'gsrnamespace': 6, 'gsrlimit': 50, 'gsrwhat': 'text',
+            'gsrnamespace': 6, 'gsrlimit': 20, 'gsrwhat': 'text',
             'prop': 'imageinfo', 'iiprop': 'url|size|mime|extmetadata',
             'iiurlwidth': 2400 if big else 1500, 'format': 'json'
         }
@@ -345,7 +352,7 @@ def fetch_stock(query, dst, w, h):
             candidates.append((short < (1.0 if big else 0.8), round(asp, 2),
                                -(info.get('width', 0) * info.get('height', 0)),
                                ident, page, info))
-        for _, _, _, ident, page, info in sorted(candidates)[:20]:
+        for _, _, _, ident, page, info in sorted(candidates)[:8]:
             meta = info.get('extmetadata') or {}
             def meta_value(k):
                 return str((meta.get(k) or {}).get('value', '')).strip()
