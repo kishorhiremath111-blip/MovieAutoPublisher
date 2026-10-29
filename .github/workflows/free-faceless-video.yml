@@ -1,0 +1,73 @@
+name: Free Faceless Video Maker (Separate)
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Video topic"
+        required: true
+        type: string
+        default: "समुद्र की गहराइयों के 5 रहस्य"
+  push:
+    paths:
+      - "tools/free-faceless-video/**"
+      - ".github/workflows/free-faceless-video.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-faceless-video
+  cancel-in-progress: false
+
+jobs:
+  make-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      OLLAMA_MODEL: llama3.2:3b
+      VIDEO_LANGUAGE: Hindi (Devanagari script)
+      VIDEO_VOICE: hi-IN-MadhurNeural
+      NUM_SECTIONS: "10"
+      WORDS_PER_SECTION: "230"
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg curl
+          python -m pip install --upgrade pip
+          python -m pip install requests edge-tts
+
+      - name: Install and start Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/ollama.log 2>&1 &)
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:11434/api/tags >/dev/null
+          ollama pull "$OLLAMA_MODEL"
+
+      - name: Generate video
+        env:
+          VIDEO_TOPIC: ${{ inputs.topic || 'समुद्र की गहराइयों के 5 रहस्य' }}
+        run: |
+          python tools/free-faceless-video/make_video.py "$VIDEO_TOPIC"
+          test -n "$(find . -maxdepth 1 -type f -name '*.mp4' -print -quit)"
+
+      - name: Upload video and script as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: free-faceless-video
+          path: |
+            *.mp4
+            *_info.txt
+          if-no-files-found: error
+          retention-days: 7
