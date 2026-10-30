@@ -20,14 +20,17 @@ CHAR_DIR.mkdir(parents=True, exist_ok=True)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PROMPT = (
-    "A single adorable stylized 3D animated family-film baby monkey character, "
-    "full body, standing upright on two legs in a neutral A-pose, arms slightly "
-    "away from torso, legs separated, symmetrical humanoid anatomy, warm chestnut "
-    "brown soft fur, cream beige face and belly, large expressive amber-brown eyes, "
-    "rounded cheeks, small ears, friendly mischievous smile, long curved tail, "
-    "clearly separated arms and legs, clean production-ready geometry, detailed "
-    "PBR materials, cinematic character design, isolated neutral studio background. "
-    "No props, no clothes, no text, no watermark, no extra characters."
+    "Create one original, friendly, stylized 3D cartoon monkey mascot for a "
+    "lighthearted jungle comedy. This is a fictional non-human animal character. "
+    "Show the complete character standing upright in a clear neutral A-pose, "
+    "facing forward, with both arms slightly away from the torso and both legs "
+    "clearly separated for automatic 3D rigging. The character has warm chestnut "
+    "brown short coat, a soft tan face and belly, large expressive amber eyes, "
+    "rounded cheeks, small rounded ears, a cheerful smile, and one long curved tail. "
+    "Dress the character in a simple bright green jungle explorer vest and plain "
+    "brown shorts. Use clean symmetrical anatomy, clearly separated limbs, "
+    "production-ready geometry, detailed PBR materials, and a plain neutral "
+    "studio background. One character only. No logos, no text, no watermark."
 )
 
 SESSION = requests.Session()
