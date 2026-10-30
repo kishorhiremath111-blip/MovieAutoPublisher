@@ -330,6 +330,40 @@ def fetch_stock(query, dst, w, h):
         ],
     }
     queries.extend(fallback_map.get(qlow, []))
+
+    # Add conservative category-aware fallbacks for stock-library searches that
+    # are not covered by an exact phrase. These remain within the same subject.
+    q = qlow
+    if any(word in q for word in ('dubai', 'uae', 'emirati')):
+        queries.extend(['Dubai skyline', 'Dubai city skyline', 'Dubai architecture',
+                        'Burj Khalifa skyline'])
+    if any(word in q for word in ('saudi', 'riyadh', 'neom')):
+        queries.extend(['Saudi Arabia architecture', 'Riyadh skyline',
+                        'Saudi Arabia skyline', 'NEOM Saudi Arabia'])
+    if any(word in q for word in ('skyline', 'panoramic', 'panorama', 'cityscape')):
+        queries.extend(['city skyline panorama', 'modern city skyline'])
+    if any(word in q for word in ('penthouse', 'apartment', 'terrace', 'balcony')):
+        queries.extend(['luxury apartment interior', 'modern penthouse interior',
+                        'high rise apartment view'])
+    if any(word in q for word in ('architecture', 'building', 'project', 'tower', 'skyscraper')):
+        queries.extend(['modern architecture building', 'modern skyscraper architecture'])
+    if any(word in q for word in ('yacht', 'superyacht', 'marina')):
+        queries.extend(['luxury yacht deck', 'superyacht marina'])
+    if any(word in q for word in ('supercar', 'sports car', 'car ', 'automotive')):
+        queries.extend(['luxury sports car', 'supercar side profile'])
+    if any(word in q for word in ('watch', 'watchmaking', 'timepiece')):
+        queries.extend(['mechanical watch movement', 'watchmaker workshop'])
+    if any(word in q for word in ('private jet', 'aircraft', 'aviation')):
+        queries.extend(['private jet cabin', 'business jet exterior'])
+    if any(word in q for word in ('hotel', 'lobby', 'resort')):
+        queries.extend(['luxury hotel interior', 'hotel lobby interior'])
+    if any(word in q for word in ('villa', 'mansion', 'home', 'house', 'residence')):
+        queries.extend(['luxury villa exterior', 'modern luxury home interior'])
+    if 'pool' in q:
+        queries.extend(['luxury infinity pool', 'rooftop swimming pool'])
+    if any(word in q for word in ('interior', 'living room', 'bedroom', 'staircase')):
+        queries.extend(['luxury interior design', 'modern home interior'])
+
     # Keep order while removing duplicate phrases (case-insensitive).
     queries = list(dict.fromkeys(q.strip() for q in queries if q and q.strip()))
     # Do not substitute unrelated generic architecture photos for a specific scene.
