@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   generate-and-render:
-    if: ${{ github.event.inputs.confirm_generation == 'YES' }}
+    if: github.event.inputs.confirm_generation == 'YES'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
