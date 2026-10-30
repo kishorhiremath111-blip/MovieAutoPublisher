@@ -1,10 +1,10 @@
-name: Jungle Masti - Funny Cartoon Video
+name: Jungle Masti - Funny Cartoon Video (No Tripo Credits)
 
 on:
   workflow_dispatch:
     inputs:
       confirm_generation:
-        description: "Type YES to spend Tripo API credits and generate Monty"
+        description: "Type YES to render the Blender cartoon (no Tripo credits used)"
         required: true
         type: string
         default: "NO"
@@ -27,57 +27,26 @@ jobs:
         with:
           ref: jungle-masti-pipeline
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies and Blender
+      - name: Install Blender and FFmpeg
         run: |
-          python -m pip install --upgrade pip requests
           sudo apt-get update
           sudo apt-get install -y blender ffmpeg
+          blender --version
+          ffmpeg -version | head -n 1
 
-      - name: Check required secret
-        env:
-          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
-        run: |
-          if [ -z "$TRIPO_API_KEY" ]; then
-            echo "::error::TRIPO_API_KEY repository secret is missing."
-            exit 1
-          fi
-          case "$TRIPO_API_KEY" in
-            tsk_*) echo "Tripo Secret Key format verified." ;;
-            tcli_*) echo "::error::TRIPO_API_KEY contains a Client ID (tcli_...). Replace it with the Secret Key beginning tsk_."; exit 1 ;;
-            *) echo "::error::TRIPO_API_KEY format is invalid. Use the Tripo Secret Key beginning tsk_."; exit 1 ;;
-          esac
+      - name: Create output directory
+        run: mkdir -p /home/runner/JUNGLE_MASTI
 
-      - name: Generate Monty, rig and animations with Tripo
-        env:
-          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
-        run: |
-          printf 'YES\n' | python jungle_masti_pipeline/generate_jungle_masti.py
-
-      - name: Verify Tripo animation output
-        run: |
-          test -s /home/runner/JUNGLE_MASTI/animated/Monty_walk.glb
-          test -s /home/runner/JUNGLE_MASTI/animated/Monty_idle.glb
-          test -s /home/runner/JUNGLE_MASTI/animated/Monty_run.glb
-          echo "All Tripo animation files are present."
-
-      - name: Render funny Mango Heist cartoon video
+      - name: Render original funny Mango Heist cartoon
         run: |
           blender --background --python jungle_masti_pipeline/render_funny_mango_heist.py
           test -s /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
+          ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
 
-      - name: Upload video and 3D assets
+      - name: Upload finished cartoon video
         uses: actions/upload-artifact@v4
         with:
           name: jungle-masti-funny-cartoon
-          path: |
-            /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
-            /home/runner/JUNGLE_MASTI/characters/*.glb
-            /home/runner/JUNGLE_MASTI/animated/*.glb
-            /home/runner/JUNGLE_MASTI/Jungle_Masti_3D_Studio.html
+          path: /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
           if-no-files-found: error
           retention-days: 14
