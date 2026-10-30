@@ -46,7 +46,11 @@ jobs:
             echo "::error::TRIPO_API_KEY repository secret is missing."
             exit 1
           fi
-          echo "Tripo API key is available to this workflow."
+          case "$TRIPO_API_KEY" in
+            tsk_*) echo "Tripo Secret Key format verified." ;;
+            tcli_*) echo "::error::TRIPO_API_KEY contains a Client ID (tcli_...). Replace it with the Secret Key beginning tsk_."; exit 1 ;;
+            *) echo "::error::TRIPO_API_KEY format is invalid. Use the Tripo Secret Key beginning tsk_."; exit 1 ;;
+          esac
 
       - name: Generate Monty, rig and animations with Tripo
         env:
