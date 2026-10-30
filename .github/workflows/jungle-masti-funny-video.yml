@@ -1,0 +1,71 @@
+name: Jungle Masti - Funny Cartoon Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_generation:
+        description: "Type YES to spend Tripo API credits and generate Monty"
+        required: true
+        type: string
+        default: "NO"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jungle-masti-funny-video
+  cancel-in-progress: false
+
+jobs:
+  generate-and-render:
+    if: ${ github.event.inputs.confirm_generation == 'YES' }
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Jungle Masti pipeline branch
+        uses: actions/checkout@v4
+        with:
+          ref: jungle-masti-pipeline
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies and Blender
+        run: |
+          python -m pip install --upgrade pip requests
+          sudo apt-get update
+          sudo apt-get install -y blender ffmpeg
+
+      - name: Check required secret
+        env:
+          TRIPO_API_KEY: ${ secrets.TRIPO_API_KEY }
+        run: |
+          if [ -z "$TRIPO_API_KEY" ]; then
+            echo "::error::TRIPO_API_KEY repository secret is missing."
+            exit 1
+          fi
+          echo "Tripo API key is available to this workflow."
+
+      - name: Generate Monty, rig and animations with Tripo
+        env:
+          TRIPO_API_KEY: ${ secrets.TRIPO_API_KEY }
+        run: |
+          printf 'YES\n' | python jungle_masti_pipeline/generate_jungle_masti.py
+
+      - name: Render funny Mango Heist cartoon video
+        run: |
+          blender --background --python jungle_masti_pipeline/render_funny_mango_heist.py
+
+      - name: Upload video and 3D assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: jungle-masti-funny-cartoon
+          path: |
+            ~/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
+            ~/JUNGLE_MASTI/characters/*.glb
+            ~/JUNGLE_MASTI/animated/*.glb
+            ~/JUNGLE_MASTI/Jungle_Masti_3D_Studio.html
+          if-no-files-found: error
+          retention-days: 14
