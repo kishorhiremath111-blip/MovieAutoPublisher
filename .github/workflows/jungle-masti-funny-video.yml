@@ -54,18 +54,26 @@ jobs:
         run: |
           printf 'YES\n' | python jungle_masti_pipeline/generate_jungle_masti.py
 
+      - name: Verify Tripo animation output
+        run: |
+          test -s /home/runner/JUNGLE_MASTI/animated/Monty_walk.glb
+          test -s /home/runner/JUNGLE_MASTI/animated/Monty_idle.glb
+          test -s /home/runner/JUNGLE_MASTI/animated/Monty_run.glb
+          echo "All Tripo animation files are present."
+
       - name: Render funny Mango Heist cartoon video
         run: |
           blender --background --python jungle_masti_pipeline/render_funny_mango_heist.py
+          test -s /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
 
       - name: Upload video and 3D assets
         uses: actions/upload-artifact@v4
         with:
           name: jungle-masti-funny-cartoon
           path: |
-            ~/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
-            ~/JUNGLE_MASTI/characters/*.glb
-            ~/JUNGLE_MASTI/animated/*.glb
-            ~/JUNGLE_MASTI/Jungle_Masti_3D_Studio.html
+            /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
+            /home/runner/JUNGLE_MASTI/characters/*.glb
+            /home/runner/JUNGLE_MASTI/animated/*.glb
+            /home/runner/JUNGLE_MASTI/Jungle_Masti_3D_Studio.html
           if-no-files-found: error
           retention-days: 14
