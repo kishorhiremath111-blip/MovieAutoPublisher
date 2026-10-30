@@ -2,8 +2,9 @@ name: Daily Luxury Short
 
 on:
   schedule:
-    # Daily public Short at 6:00 PM India time (12:30 UTC).
-    - cron: "30 12 * * *"
+    # Three public Shorts every day at 9 AM, 3 PM and 9 PM India time.
+    - cron: "30 3,9,15 * * *"
+
   workflow_dispatch:
     inputs:
       mode:
