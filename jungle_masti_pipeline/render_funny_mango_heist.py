@@ -4,10 +4,8 @@ from mathutils import Vector
 from pathlib import Path
 
 ROOT = Path.home() / "JUNGLE_MASTI"
-MODEL = ROOT / "animated" / "Monty_walk.glb"
 OUTPUT = ROOT / "Jungle_Masti_Funny_Mango_Heist.mp4"
-if not MODEL.exists():
-    raise FileNotFoundError(f"Animated model missing: {MODEL}")
+ROOT.mkdir(parents=True, exist_ok=True)
 
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
