@@ -317,8 +317,21 @@ def fetch_stock(query, dst, w, h):
         'marble mansion interior': ['marble interior architecture', 'luxury interior design', 'modern house interior'],
         'infinity pool mansion': ['luxury infinity pool house', 'modern villa swimming pool', 'luxury resort pool'],
         'premium hotel lobby': ['luxury hotel interior', 'modern hotel lobby', 'designer hotel interior'],
+        # City-specific fallback chain for the scene that failed in run 41086396718.
+        # Each query stays visually relevant to a Dubai penthouse / skyline scene.
+        'dubai penthouse panoramic view': [
+            'Dubai skyline panorama', 'Dubai marina skyline',
+            'Dubai luxury apartment interior', 'modern penthouse interior',
+            'luxury high rise apartment view',
+        ],
+        'manhattan penthouse skyline view': [
+            'Manhattan skyline panorama', 'New York luxury apartment interior',
+            'New York high rise apartment view', 'New York city skyline at dusk',
+        ],
     }
     queries.extend(fallback_map.get(qlow, []))
+    # Keep order while removing duplicate phrases (case-insensitive).
+    queries = list(dict.fromkeys(q.strip() for q in queries if q and q.strip()))
     # Do not substitute unrelated generic architecture photos for a specific scene.
     # If the exact scene has no fresh unused licensed photo, fail clearly instead of padding with mismatches.
 
