@@ -1,6 +1,11 @@
 name: Daily Luxury Short
 
 on:
+  # Run a non-publishing build check whenever the stock-photo editor changes.
+  # Push events use UPLOAD_MODE=dry below; scheduled runs remain public.
+  push:
+    paths:
+      - "luxury_pipeline/luxury_editor.py"
   schedule:
     # Three public Shorts every day at 9 AM, 3 PM and 9 PM India time.
     - cron: "30 3,9,15 * * *"
