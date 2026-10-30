@@ -262,7 +262,7 @@ def main():
         stop("API key missing.")
     print("\\nThis uses Tripo credits for model generation, rigging and animation.")
     print("It creates animated GLB files plus a browser WebM recorder, not a direct MP4.")
-    if input("Continue? [y/N]: ").strip().lower() != "y":
+    if input("Continue? [y/N]: ").strip().lower() not in ("y", "yes"):
         print("Cancelled; no generation request sent.")
         return
     source_task, original = generate_character()
