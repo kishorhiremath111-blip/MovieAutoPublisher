@@ -65,7 +65,7 @@ def cylinder(name, loc, radius, depth, material):
     bevel = o.modifiers.new("Soft edges", "BEVEL")
     bevel.width = 0.1
     bevel.segments = 3
-    o.modifiers.new("Weighted normals", "WEIGHTED_NORMAL")
+    # Avoid Weighted Normal modifier: it is unnecessary for these smooth primitives and creates headless Blender warnings.
     return o
 
 bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -0.08))
