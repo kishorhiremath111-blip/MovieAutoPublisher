@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   generate-and-render:
-    if: ${ github.event.inputs.confirm_generation == 'YES' }
+    if: github.event.inputs.confirm_generation == 'YES'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -40,7 +40,7 @@ jobs:
 
       - name: Check required secret
         env:
-          TRIPO_API_KEY: ${ secrets.TRIPO_API_KEY }
+          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
         run: |
           if [ -z "$TRIPO_API_KEY" ]; then
             echo "::error::TRIPO_API_KEY repository secret is missing."
@@ -50,7 +50,7 @@ jobs:
 
       - name: Generate Monty, rig and animations with Tripo
         env:
-          TRIPO_API_KEY: ${ secrets.TRIPO_API_KEY }
+          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
         run: |
           printf 'YES\n' | python jungle_masti_pipeline/generate_jungle_masti.py
 
