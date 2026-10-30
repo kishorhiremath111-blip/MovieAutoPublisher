@@ -257,9 +257,13 @@ def main():
     print("=" * 56)
     print("JUNGLE MASTI - TRIPO 3D ANIMATION PIPELINE")
     print("=" * 56)
-    API_KEY = os.environ.get("TRIPO_API_KEY") or getpass.getpass("Tripo API key (hidden): ").strip()
+    API_KEY = (os.environ.get("TRIPO_API_KEY") or getpass.getpass("Tripo API key (hidden): ")).strip()
     if not API_KEY:
         stop("API key missing.")
+    if not API_KEY.startswith("tsk_"):
+        if API_KEY.startswith("tcli_"):
+            stop("Wrong Tripo credential: TRIPO_API_KEY contains a Client ID (tcli_...). Use the Secret Key (tsk_...) in GitHub Actions Secrets. No generation request was sent.")
+        stop("Wrong Tripo credential format: Secret Key must start with tsk_. Check GitHub Actions Secret TRIPO_API_KEY. No generation request was sent.")
     print("\\nThis uses Tripo credits for model generation, rigging and animation.")
     print("It creates animated GLB files plus a browser WebM recorder, not a direct MP4.")
     if input("Continue? [y/N]: ").strip().lower() not in ("y", "yes"):
