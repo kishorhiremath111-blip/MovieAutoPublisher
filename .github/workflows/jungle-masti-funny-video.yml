@@ -30,7 +30,9 @@ jobs:
       - name: Install Blender and FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender ffmpeg
+          sudo apt-get install -y blender ffmpeg libegl1 libgl1-mesa-dri libglx-mesa0
+          sudo ldconfig
+          ldconfig -p | grep -E 'libEGL.so.1|libGL.so.1' || true
           blender --version
           ffmpeg -version | head -n 1
 
@@ -39,6 +41,9 @@ jobs:
 
       - name: Render original funny Mango Heist cartoon
         run: |
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export EGL_PLATFORM=surfaceless
+          export MESA_GL_VERSION_OVERRIDE=4.5
           blender --background --python jungle_masti_pipeline/render_funny_mango_heist.py
           test -s /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
           ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
