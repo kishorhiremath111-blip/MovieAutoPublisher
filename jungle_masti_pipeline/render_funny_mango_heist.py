@@ -7,234 +7,230 @@ ROOT = Path.home() / "JUNGLE_MASTI"
 OUTPUT = ROOT / "Jungle_Masti_Funny_Mango_Heist.mp4"
 ROOT.mkdir(parents=True, exist_ok=True)
 
+# Clean scene
 bpy.ops.object.select_all(action="SELECT")
 bpy.ops.object.delete(use_global=False)
+for datablocks in (bpy.data.meshes, bpy.data.curves, bpy.data.materials):
+    pass
+
 scene = bpy.context.scene
-engines = {item.identifier for item in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items}
-scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
-scene.render.resolution_x = 1280
-scene.render.resolution_y = 720
-scene.render.resolution_percentage = 100
+scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in {x.identifier for x in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items} else "BLENDER_EEVEE"
+scene.render.resolution_x = 1920
+scene.render.resolution_y = 1080
+scene.render.resolution_percentage = 70
 scene.render.fps = 24
 scene.frame_start = 1
 scene.frame_end = 360
 scene.render.image_settings.file_format = "FFMPEG"
 scene.render.ffmpeg.format = "MPEG4"
 scene.render.ffmpeg.codec = "H264"
-scene.render.ffmpeg.constant_rate_factor = "MEDIUM"
+scene.render.ffmpeg.constant_rate_factor = "HIGH"
+scene.render.ffmpeg.audio_codec = "AAC"
 scene.render.filepath = str(OUTPUT)
-scene.view_settings.view_transform = "Standard"
-scene.view_settings.look = "Medium High Contrast"
+scene.view_settings.look = "AgX - Medium High Contrast" if hasattr(scene.view_settings, "look") else "Medium High Contrast"
 
-world = bpy.data.worlds.new("Jungle Sky") if not bpy.data.worlds else bpy.data.worlds[0]
-scene.world = world
-world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[0].default_value = (0.12, 0.28, 0.42, 1)
-world.node_tree.nodes["Background"].inputs[1].default_value = 0.8
-
-def mat(name, color, roughness=0.8):
-    m = bpy.data.materials.new(name)
-    m.diffuse_color = (*color, 1)
-    m.use_nodes = True
-    m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*color, 1)
-    m.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = roughness
+# ---------- Materials ----------
+def mat(name, color, rough=0.55, metallic=0.0):
+    m=bpy.data.materials.new(name)
+    m.use_nodes=True
+    bs=m.node_tree.nodes.get("Principled BSDF")
+    bs.inputs["Base Color"].default_value=(*color,1)
+    bs.inputs["Roughness"].default_value=rough
+    bs.inputs["Metallic"].default_value=metallic
     return m
 
-grass = mat("Jungle grass", (0.055, 0.22, 0.075))
-bark = mat("Tree bark", (0.19, 0.075, 0.035))
-leaf = mat("Emerald leaves", (0.035, 0.28, 0.09))
-lime = mat("Lime leaves", (0.18, 0.42, 0.06))
-gold = mat("Golden mango", (1.0, 0.48, 0.025), 0.28)
-red = mat("Mango blush", (0.9, 0.12, 0.025), 0.3)
-white = mat("Caption white", (1, 1, 1), 0.4)
+grass=mat("Rich jungle grass",(0.025,0.18,0.045),0.9)
+bark=mat("Warm bark",(0.16,0.045,0.015),0.95)
+leaf=mat("Glossy emerald leaf",(0.015,0.32,0.07),0.45)
+lime=mat("Fresh lime leaf",(0.16,0.5,0.035),0.42)
+fur=mat("Monty premium chestnut fur",(0.26,0.065,0.018),0.72)
+tan=mat("Monty warm face",(0.78,0.44,0.20),0.72)
+pink=mat("Ear pink",(0.55,0.12,0.08),0.7)
+white=mat("Eye white",(1,0.98,0.88),0.3)
+black=mat("Pupil",(0.008,0.004,0.002),0.18)
+green=mat("Explorer vest",(0.01,0.22,0.055),0.5)
+gold=mat("Mango gold",(1.0,0.36,0.008),0.28)
+red=mat("Mango red",(0.9,0.04,0.01),0.35)
 
-def sphere(name, loc, scale, material):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, location=loc)
-    o = bpy.context.object
-    o.name = name
-    o.scale = scale
-    o.data.materials.append(material)
-    bpy.ops.object.shade_smooth()
+def smooth(o):
+    if o.type=="MESH":
+        for p in o.data.polygons: p.use_smooth=True
     return o
 
-def cylinder(name, loc, radius, depth, material):
-    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=radius, depth=depth, location=loc)
-    o = bpy.context.object
-    o.name = name
-    o.data.materials.append(material)
-    bevel = o.modifiers.new("Soft edges", "BEVEL")
-    bevel.width = 0.1
-    bevel.segments = 3
-    # Avoid Weighted Normal modifier: it is unnecessary for these smooth primitives and creates headless Blender warnings.
+def sphere(name,loc,scale,material,parent=None):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, location=loc)
+    o=bpy.context.object; o.name=name; o.scale=scale; o.data.materials.append(material); smooth(o)
+    if parent: o.parent=parent
     return o
 
-bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -0.08))
+def cube(name,loc,scale,material,parent=None,bevel=0.12):
+    bpy.ops.mesh.primitive_cube_add(location=loc)
+    o=bpy.context.object; o.name=name; o.scale=scale; bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
+    o.data.materials.append(material)
+    b=o.modifiers.new("Rounded soft edges","BEVEL"); b.width=bevel; b.segments=4
+    smooth(o)
+    if parent:o.parent=parent
+    return o
+
+def cyl(name,loc,radius,depth,material,parent=None):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=32,radius=radius,depth=depth,location=loc)
+    o=bpy.context.object;o.name=name;o.data.materials.append(material)
+    b=o.modifiers.new("Soft bevel","BEVEL");b.width=0.08;b.segments=3
+    if parent:o.parent=parent
+    return o
+
+# ---------- World and jungle ----------
+world=bpy.data.worlds.new("Cinematic Jungle World")
+scene.world=world; world.use_nodes=True
+world.node_tree.nodes["Background"].inputs[0].default_value=(0.008,0.025,0.012,1)
+world.node_tree.nodes["Background"].inputs[1].default_value=0.28
+
+bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-0.1))
 bpy.context.object.data.materials.append(grass)
 
-for x, y, h in [(-5, 2, 5), (-3.8, 4, 4.3), (4.8, 3.5, 5.5), (6, 1.5, 4.5), (0, 7, 6)]:
-    cylinder("Jungle tree trunk", (x, y, h/2), 0.32, h, bark)
-    sphere("Tree canopy", (x, y, h + 0.6), (1.45, 1.15, 1.25), leaf)
-    sphere("Bright leaves", (x - 0.55, y - 0.12, h + 1.1), (0.9, 0.8, 0.8), lime)
+for i,(x,y,h,s) in enumerate([(-7,3,6,1.3),(-4,5,5.5,1.1),(5,4,7,1.5),(7,1,5.5,1.2),(0,8,8,1.7),(-8,-1,5,1.1)]):
+    cyl("Jungle trunk", (x,y,h/2),0.30*s,h,bark)
+    for dx,dy,dz,sc in [(0,0,0.7,1.3),(-0.6,0.2,1.1,0.9),(0.65,-0.2,1.0,0.95)]:
+        sphere("Layered jungle canopy",(x+dx,y+dy,h+dz),(sc*s,sc*s,sc*s),leaf if (i+int(dx*10))%2 else lime)
 
-cylinder("Mango pedestal", (2.8, 0.25, 0.28), 0.48, 0.55, bark)
-mango = sphere("Legendary mango", (2.8, 0.25, 1.05), (0.42, 0.32, 0.58), gold)
-mango.rotation_euler[1] = math.radians(-18)
-sphere("Mango blush", (3.04, -0.02, 1.12), (0.12, 0.07, 0.3), red)
-cylinder("Mango stem", (2.82, 0.25, 1.65), 0.045, 0.2, bark)
+# Mango pedestal
+cyl("Mango pedestal",(2.9,0.35,0.35),0.52,0.7,bark)
+mango=sphere("Hero mango",(2.9,0.35,1.18),(0.5,0.38,0.68),gold)
+mango.rotation_euler[1]=math.radians(-18)
+sphere("Mango rosy cheek",(3.18,0.06,1.22),(0.14,0.08,0.34),red)
 
-# Build an original procedural cartoon monkey directly in Blender.
-# This fallback uses no Tripo API and requires no external model assets.
-controller = bpy.data.objects.new("Monty motion controller", None)
-scene.collection.objects.link(controller)
+# ---------- Monty with separate animated body parts ----------
+root=bpy.data.objects.new("MONTY_ROOT",None);scene.collection.objects.link(root)
+root.location=(-3.8,0,0)
 
-fur = mat("Monty chestnut fur", (0.34, 0.12, 0.045), 0.72)
-fur_light = mat("Monty tan muzzle", (0.72, 0.48, 0.27), 0.78)
-inner_ear = mat("Warm inner ears", (0.48, 0.16, 0.11), 0.8)
-eye_white = mat("Eye whites", (0.96, 0.91, 0.78), 0.35)
-eye_dark = mat("Dark pupils", (0.018, 0.012, 0.008), 0.2)
-vest = mat("Explorer vest green", (0.025, 0.32, 0.12), 0.65)
-vest_trim = mat("Vest trim gold", (0.95, 0.58, 0.08), 0.55)
-smile_mat = mat("Smile dark", (0.07, 0.018, 0.012), 0.8)
+body=sphere("Monty body",(0,0,1.55),(0.65,0.52,0.82),fur,root)
+sphere("Monty belly",(0,-0.49,1.5),(0.46,0.10,0.57),tan,root)
+sphere("Monty vest",(0,-0.55,1.63),(0.52,0.08,0.55),green,root)
 
-def parent_to_monty(obj):
-    world_matrix = obj.matrix_world.copy()
-    obj.parent = controller
-    obj.matrix_world = world_matrix
-    return obj
+head=sphere("Monty head",(0,-0.02,2.72),(0.73,0.60,0.70),fur,root)
+sphere("Monty muzzle",(0,-0.56,2.48),(0.42,0.15,0.28),tan,head)
+sphere("Monty nose",(0,-0.71,2.59),(0.11,0.055,0.075),black,head)
 
-def monkey_sphere(name, loc, scale, material):
-    obj = sphere(name, loc, scale, material)
-    return parent_to_monty(obj)
+eyes=[]; pupils=[]; lids=[]
+for side in (-1,1):
+    sphere("Monty ear",(side*0.67,-0.02,2.78),(0.23,0.17,0.28),fur,head)
+    sphere("Monty inner ear",(side*0.69,-0.17,2.78),(0.13,0.04,0.17),pink,head)
+    eye=sphere("Monty expressive eye",(side*0.27,-0.57,2.78),(0.16,0.07,0.21),white,head)
+    pupil=sphere("Monty moving pupil",(side*0.27,-0.64,2.77),(0.075,0.035,0.105),black,head)
+    lid=sphere("Monty blink lid",(side*0.27,-0.655,2.87),(0.17,0.025,0.04),fur,head)
+    eyes.append(eye);pupils.append(pupil);lids.append(lid)
 
-def monkey_cylinder(name, loc, radius, depth, material, rotation=None):
-    obj = cylinder(name, loc, radius, depth, material)
-    if rotation is not None:
-        obj.rotation_euler = rotation
-    return parent_to_monty(obj)
+# mouth smile as dark flattened sphere
+mouth=sphere("Monty smile",(0,-0.695,2.37),(0.23,0.025,0.055),black,head)
 
-# Body, head, belly and explorer vest
-monkey_sphere("Monty body", (-1.7, -0.05, 1.45), (0.62, 0.48, 0.82), fur)
-monkey_sphere("Monty belly", (-1.7, -0.475, 1.43), (0.43, 0.105, 0.57), fur_light)
-monkey_sphere("Green explorer vest", (-1.7, -0.48, 1.55), (0.49, 0.12, 0.53), vest)
-monkey_sphere("Vest badge", (-1.43, -0.59, 1.72), (0.09, 0.035, 0.11), vest_trim)
-monkey_sphere("Monty head", (-1.7, -0.02, 2.55), (0.69, 0.56, 0.66), fur)
-monkey_sphere("Monty muzzle", (-1.7, -0.53, 2.36), (0.39, 0.16, 0.25), fur_light)
-monkey_sphere("Monty nose", (-1.7, -0.685, 2.48), (0.105, 0.065, 0.075), smile_mat)
+arms=[]; hands=[]
+for side in (-1,1):
+    pivot=bpy.data.objects.new("Monty arm pivot",None);scene.collection.objects.link(pivot);pivot.parent=root;pivot.location=(side*0.55,-0.02,1.93)
+    arm=sphere("Monty animated arm",(0,0,-0.38),(0.20,0.22,0.55),fur,pivot)
+    arm.rotation_euler[1]=side*math.radians(-20)
+    hand=sphere("Monty animated hand",(side*0.12,-0.05,-0.92),(0.20,0.17,0.18),tan,pivot)
+    arms.append(pivot);hands.append(hand)
 
-# Ears, expressive eyes and pupils
-for side in (-1, 1):
-    x = -1.7 + side * 0.62
-    monkey_sphere("Round ear", (x, -0.02, 2.66), (0.22, 0.16, 0.25), fur)
-    monkey_sphere("Ear inner", (x, -0.165, 2.66), (0.12, 0.045, 0.15), inner_ear)
-    ex = -1.7 + side * 0.255
-    monkey_sphere("Eye white", (ex, -0.515, 2.63), (0.145, 0.075, 0.19), eye_white)
-    monkey_sphere("Eye pupil", (ex + 0.025, -0.582, 2.62), (0.073, 0.04, 0.105), eye_dark)
-    monkey_sphere("Eye sparkle", (ex + 0.045, -0.62, 2.68), (0.025, 0.018, 0.03), white)
+legs=[]
+for side in (-1,1):
+    pivot=bpy.data.objects.new("Monty leg pivot",None);scene.collection.objects.link(pivot);pivot.parent=root;pivot.location=(side*0.28,0,0.98)
+    sphere("Monty animated leg",(0,0,-0.32),(0.24,0.25,0.48),fur,pivot)
+    sphere("Monty foot",(0,-0.16,-0.82),(0.30,0.40,0.17),tan,pivot)
+    legs.append(pivot)
 
-# Arms with little hands
-for side in (-1, 1):
-    shoulder_x = -1.7 + side * 0.52
-    arm = monkey_sphere("Monty arm", (shoulder_x + side*0.12, -0.02, 1.72), (0.19, 0.2, 0.53), fur)
-    arm.rotation_euler[1] = side * math.radians(-22)
-    monkey_sphere("Monty hand", (shoulder_x + side*0.24, -0.07, 1.25), (0.19, 0.16, 0.16), fur_light)
+# Tail curve
+curve=bpy.data.curves.new("Monty animated tail","CURVE");curve.dimensions="3D";curve.bevel_depth=0.09;curve.bevel_resolution=5
+sp=curve.splines.new("BEZIER");sp.bezier_points.add(3)
+for p,co in zip(sp.bezier_points,[(-0.45,0.32,1.35),(-1.05,0.38,1.05),(-1.45,0.30,1.52),(-1.25,0.3,1.95)]):
+    p.co=co;p.handle_left_type="AUTO";p.handle_right_type="AUTO"
+tail=bpy.data.objects.new("Monty tail",curve);scene.collection.objects.link(tail);curve.materials.append(fur);tail.parent=root
 
-# Legs and feet
-for side in (-1, 1):
-    lx = -1.7 + side * 0.28
-    monkey_sphere("Monty leg", (lx, 0.0, 0.78), (0.22, 0.24, 0.48), fur)
-    monkey_sphere("Monty foot", (lx, -0.16, 0.36), (0.28, 0.39, 0.16), fur_light)
+# ---------- Animation helpers ----------
+def keys(obj,attr,values):
+    for f,v in values:
+        setattr(obj,attr,v);obj.keyframe_insert(data_path=attr,frame=f)
 
-# Curved tail behind Monty
-tail_curve = bpy.data.curves.new("Monty curved tail", "CURVE")
-tail_curve.dimensions = "3D"
-tail_curve.bevel_depth = 0.085
-tail_curve.bevel_resolution = 4
-spline = tail_curve.splines.new("BEZIER")
-spline.bezier_points.add(3)
-for point, co in zip(spline.bezier_points, [
-    (-2.18, 0.28, 1.2), (-2.75, 0.34, 1.05),
-    (-3.15, 0.32, 1.48), (-3.0, 0.3, 1.78)
-]):
-    point.co = co
-    point.handle_left_type = "AUTO"
-    point.handle_right_type = "AUTO"
-tail_obj = bpy.data.objects.new("Monty long curved tail", tail_curve)
-scene.collection.objects.link(tail_obj)
-tail_curve.materials.append(fur)
-parent_to_monty(tail_obj)
+# Root sneak/run + body bounce
+keys(root,"location",[(1,(-3.8,0,0)),(120,(-1.2,0,0)),(205,(-1.2,0,0)),(360,(4.9,0,0))])
+for f,z in [(1,0),(18,0.10),(36,0),(54,0.10),(72,0),(90,0.10),(108,0),(126,0.10),(144,0),(162,0.08),(180,0),(198,0.12),(216,0),(234,0.16),(252,0),(270,0.18),(288,0),(306,0.15),(324,0),(342,0.12),(360,0)]:
+    body.location.z=1.55+z;body.keyframe_insert(data_path="location",frame=f,index=2)
 
-# Slight character bounce while the controller travels
-for frame, z in [(1, 0.0), (48, 0.08), (96, 0.0), (144, 0.08), (205, 0.0), (250, 0.12), (300, 0.0), (360, 0.08)]:
-    controller.location.z = z
-    controller.keyframe_insert(data_path="location", frame=frame, index=2)
+# Head look, surprise and panic
+for f,rot in [(1,(0,0,0)),(80,(0,math.radians(8),math.radians(-5))),(150,(0,math.radians(-10),math.radians(6))),(205,(math.radians(-8),0,0)),(230,(math.radians(8),math.radians(12),0)),(360,(0,0,math.radians(-8)))]:
+    head.rotation_euler=rot;head.keyframe_insert(data_path="rotation_euler",frame=f)
 
-# Sneak to mango, freeze, then panic-run away
-for frame, x in [(1, -4.0), (150, -1.2), (205, -1.2), (360, 5.0)]:
-    controller.location.x = x
-    controller.keyframe_insert(data_path="location", frame=frame)
-if controller.animation_data and controller.animation_data.action:
-    for fc in controller.animation_data.action.fcurves:
-        for key in fc.keyframe_points:
-            key.interpolation = "BEZIER"
+# Arm waves + running swings
+for idx,arm in enumerate(arms):
+    side=-1 if idx==0 else 1
+    vals=[]
+    for f in range(1,361,18):
+        phase=math.sin((f/18.0)+(idx*math.pi))
+        amp=0.35 if f<205 else 0.75
+        vals.append((f,(math.radians(phase*amp*45),0,math.radians(side*phase*18))))
+    keys(arm,"rotation_euler",vals)
 
-# Mango squash-pop gag
-for frame, scale in [(1, (0.42, 0.32, 0.58)), (185, (0.52, 0.26, 0.7)), (210, (0.42, 0.32, 0.58))]:
-    mango.scale = scale
-    mango.keyframe_insert(data_path="scale", frame=frame)
+# Legs walk/run
+for idx,leg in enumerate(legs):
+    phase0=idx*math.pi
+    vals=[]
+    for f in range(1,361,12):
+        amp=18 if f<205 else 42
+        a=math.sin(f/12.0+phase0)*amp
+        vals.append((f,(math.radians(a),0,0)))
+    keys(leg,"rotation_euler",vals)
 
-cam_data = bpy.data.cameras.new("Cinematic camera")
-cam = bpy.data.objects.new("Cinematic camera", cam_data)
-scene.collection.objects.link(cam)
-cam.location = (0, -14, 5.2)
-direction = Vector((0, 1, 1.55)) - cam.location
-cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-cam_data.lens = 42
-scene.camera = cam
+# Eyes look around
+for idx,p in enumerate(pupils):
+    base=(-1 if idx==0 else 1)*0.27
+    for f,dx,dz in [(1,0,0),(75,0.03,0.02),(150,-0.02,0.01),(205,0.02,-0.02),(235,-0.03,0.04),(360,0,0)]:
+        p.location=(base+dx,-0.64,2.77+dz);p.keyframe_insert(data_path="location",frame=f)
 
-def area_light(name, loc, energy, size, color):
-    data = bpy.data.lights.new(name, "AREA")
-    data.energy = energy
-    data.shape = "DISK"
-    data.size = size
-    data.color = color
-    obj = bpy.data.objects.new(name, data)
-    scene.collection.objects.link(obj)
-    obj.location = loc
-    obj.rotation_euler = (Vector((0, 0, 1.5)) - obj.location).to_track_quat("-Z", "Y").to_euler()
+# Blink by scaling lids vertically
+for lid in lids:
+    for f,sc in [(1,(1,1,0.2)),(58,(1,1,0.2)),(61,(1,1,4.5)),(64,(1,1,0.2)),(148,(1,1,0.2)),(151,(1,1,4.5)),(154,(1,1,0.2)),(232,(1,1,0.2)),(235,(1,1,4.5)),(238,(1,1,0.2))]:
+        lid.scale=sc;lid.keyframe_insert(data_path="scale",frame=f)
 
-area_light("Warm key", (0, -6, 9), 1700, 7, (1.0, 0.78, 0.52))
-area_light("Jungle fill", (-6, 1, 6), 1200, 6, (0.48, 0.72, 1.0))
-area_light("Golden rim", (5, 5, 7), 1900, 5, (1.0, 0.55, 0.22))
+# Mango funny wiggle
+for f,a,s in [(1,0,1),(170,0,1),(185,math.radians(18),1.12),(200,math.radians(-18),0.92),(215,0,1),(360,0,1)]:
+    mango.rotation_euler[2]=a;mango.scale=(0.5*s,0.38*s,0.68*s)
+    mango.keyframe_insert(data_path="rotation_euler",frame=f);mango.keyframe_insert(data_path="scale",frame=f)
 
-def caption(body, start, end):
-    curve = bpy.data.curves.new("Caption", "FONT")
-    curve.body = body
-    curve.size = 0.48
-    obj = bpy.data.objects.new("Caption " + body, curve)
-    scene.collection.objects.link(obj)
-    obj.location = (-5.7, -5.2, 5.0)
-    obj.rotation_euler = (math.radians(90), 0, 0)
-    curve.materials.append(white)
-    obj.hide_render = True
-    obj.keyframe_insert(data_path="hide_render", frame=1)
-    obj.keyframe_insert(data_path="hide_render", frame=start - 1)
-    obj.hide_render = False
-    obj.keyframe_insert(data_path="hide_render", frame=start)
-    obj.keyframe_insert(data_path="hide_render", frame=end)
-    obj.hide_render = True
-    obj.keyframe_insert(data_path="hide_render", frame=end + 1)
+# Smooth interpolation
+for obj in [root,body,head,*arms,*legs,*pupils,*lids,mango]:
+    if obj.animation_data and obj.animation_data.action:
+        for fc in obj.animation_data.action.fcurves:
+            for kp in fc.keyframe_points:kp.interpolation="BEZIER"
 
-caption("MONTY: Operation Mango begins!", 1, 105)
-caption("MONTY: Nobody saw that... right?", 106, 205)
-caption("MONTY: ABORT! ABORT!", 206, 360)
+# ---------- Cinematic camera ----------
+cam_data=bpy.data.cameras.new("Cinematic camera");cam=bpy.data.objects.new("Cinematic camera",cam_data);scene.collection.objects.link(cam)
+scene.camera=cam;cam_data.lens=52
+for f,loc,target in [(1,(-0.2,-14,5.0),(-1.2,0,1.8)),(150,(0.2,-12.5,4.2),(-0.4,0,1.9)),(205,(0.6,-10.8,4.4),(0.5,0,2.0)),(360,(1.5,-12.5,4.8),(2.0,0,1.9))]:
+    cam.location=loc;cam.rotation_euler=(Vector(target)-cam.location).to_track_quat("-Z","Y").to_euler()
+    cam.keyframe_insert(data_path="location",frame=f);cam.keyframe_insert(data_path="rotation_euler",frame=f)
 
-scene.render.image_settings.color_mode = "RGB"
-scene.render.ffmpeg.audio_codec = "AAC"
-scene.render.use_file_extension = True
-scene.render.filepath = str(OUTPUT)
+# ---------- Premium lighting ----------
+def area(name,loc,energy,size,color):
+    data=bpy.data.lights.new(name,"AREA");data.energy=energy;data.shape="DISK";data.size=size;data.color=color
+    o=bpy.data.objects.new(name,data);scene.collection.objects.link(o);o.location=loc
+    o.rotation_euler=(Vector((0,0,1.8))-o.location).to_track_quat("-Z","Y").to_euler()
+
+area("Warm key",(-3,-6,9),2200,7,(1.0,0.72,0.42))
+area("Cool fill",(5,-1,6),1500,6,(0.35,0.65,1.0))
+area("Golden rim",(5,5,8),2600,5,(1.0,0.35,0.08))
+
+# Volumetric-ish mist cards
+mist=mat("Soft mist",(0.18,0.35,0.22),1.0)
+for y in (2.5,5.0):
+    cube("Jungle atmosphere",(0,y,2.0),(8,0.04,1.8),mist,bevel=0.02)
+
+# ---------- Title ----------
+font_curve=bpy.data.curves.new("Opening title","FONT");font_curve.body="MONTY'S MANGO HEIST!";font_curve.align_x="CENTER";font_curve.size=0.65
+title=bpy.data.objects.new("Opening title",font_curve);scene.collection.objects.link(title);title.location=(0,-5.0,4.7);title.rotation_euler=(math.radians(90),0,0);font_curve.materials.append(gold)
+for f,scale in [(1,(0.1,0.1,0.1)),(18,(1.2,1.2,1.2)),(42,(1,1,1)),(72,(0.01,0.01,0.01))]:
+    title.scale=scale;title.keyframe_insert(data_path="scale",frame=f)
+
 scene.frame_set(1)
-print("Rendering funny cartoon video:", OUTPUT)
+print("Rendering premium animated Jungle Masti cartoon:",OUTPUT)
 bpy.ops.render.render(animation=True)
-if not OUTPUT.exists() or OUTPUT.stat().st_size == 0:
-    raise RuntimeError("Render finished but MP4 output is missing.")
-print("VIDEO_READY:", OUTPUT, OUTPUT.stat().st_size)
+if not OUTPUT.exists() or OUTPUT.stat().st_size==0: raise RuntimeError("MP4 missing")
+print("VIDEO_READY",OUTPUT,OUTPUT.stat().st_size)
