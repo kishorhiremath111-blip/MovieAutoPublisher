@@ -39,7 +39,7 @@ jobs:
       - name: Create output directory
         run: mkdir -p /home/runner/JUNGLE_MASTI
 
-      - name: Render original funny Mango Heist cartoon
+      - name: Render premium animated Mango Heist cartoon
         run: |
           export LIBGL_ALWAYS_SOFTWARE=1
           export EGL_PLATFORM=surfaceless
@@ -47,6 +47,13 @@ jobs:
           blender --background --python jungle_masti_pipeline/render_funny_mango_heist.py
           test -s /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
           ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 /home/runner/JUNGLE_MASTI/Jungle_Masti_Funny_Mango_Heist.mp4
+
+      - name: Add original cute cartoon music
+        run: |
+          cd /home/runner/JUNGLE_MASTI
+          DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 Jungle_Masti_Funny_Mango_Heist.mp4)
+          ffmpeg -y -f lavfi -i "sine=frequency=523.25:sample_rate=44100" -f lavfi -i "sine=frequency=659.25:sample_rate=44100" -f lavfi -i "sine=frequency=783.99:sample_rate=44100" -filter_complex "[0:a]volume=0.025[a0];[1:a]volume=0.018[a1];[2:a]volume=0.012[a2];[a0][a1][a2]amix=inputs=3:duration=longest,aloop=loop=-1:size=44100*15,atrim=duration=$DURATION,afade=t=in:st=0:d=0.4,afade=t=out:st=$DURATION:d=0.8[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -shortest Jungle_Masti_With_Cute_Music.mp4
+          mv Jungle_Masti_With_Cute_Music.mp4 Jungle_Masti_Funny_Mango_Heist.mp4
 
       - name: Upload finished cartoon video
         uses: actions/upload-artifact@v4
