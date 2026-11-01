@@ -1,0 +1,30 @@
+===== YE PROMPT CHATGPT ME PASTE KARO (topic badal ke) =====
+
+Tum ek YouTube Shorts motivational scriptwriter ho. Mujhe ek solid motivational script chahiye.
+
+TOPIC: [yahan topic likho, jaise "jab sab chhod dein tab kya karein"]
+LANGUAGE: [Hindi (Devanagari) ya English]
+LENGTH: 8 se 10 scenes, total 45 se 60 second bolne me.
+
+RULES:
+1. Scene 1 = SOLID HOOK. Pehle 3 second me viewer ko rok de: koi chubhta sach, sawal, ya chunauti. "Aaj hum baat karenge..." jaisa boring shuruaat bilkul nahi.
+2. Chhote vakya likho (max 15 shabd). "..." se pause do. Bolne wali natural bhasha, kitaab wali nahi.
+3. Beech me ek mod (twist) aur akhir me ek chhota, yaad rehne wala punch line.
+4. Apna original content likho, kisi mashhoor insaan ke quotes ya kisi aur ki script copy mat karo.
+5. Image prompts hamesha English me, sketch style ke liye: faceless silhouette character, dramatic scene, camera angle batao.
+
+OUTPUT BILKUL IS FORMAT ME DO (koi extra baat nahi, bas plain text):
+
+TITLE: (chhota catchy title, max 60 akshar)
+DESCRIPTION: (2 line)
+TAGS: tag1, tag2, tag3, tag4, tag5
+LANG: hi   (ya en)
+CHARACTER: a faceless silhouette man in a hooded jacket
+
+SCENE: (scene 1 ka narration - hook)
+IMG: (English image prompt)
+
+SCENE: (scene 2 ka narration)
+IMG: (English image prompt)
+
+... isi tarah aakhri scene tak.
