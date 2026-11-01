@@ -7,7 +7,7 @@ from math import gcd
 # Every scene below has its own geometry and motion system in renderer/scenes.js.
 SCENES = [
     "ripple", "domino", "jar", "tunnel", "bubbles", "helix",
-    "orbit", "crystal", "vortex", "wave", "spiral",
+    "orbit", "crystal", "vortex", "wave", "spiral", "gaprun",
 ]
 SCENE_NAMES = {
     "ripple": "Liquid Ripple", "domino": "Domino Chain Reaction",
@@ -15,7 +15,7 @@ SCENE_NAMES = {
     "bubbles": "Bubble Pop Symphony", "helix": "Helix Orbit",
     "orbit": "Orbital Ring Machine", "crystal": "Crystal Core Assembly",
     "vortex": "Neon Particle Vortex", "wave": "Sculpted Wave Field",
-    "spiral": "Golden Spiral Stack",
+    "spiral": "Golden Spiral Stack", "gaprun": "Multiplier Gap Run",
 }
 TITLE_TEMPLATES = {
     scene: "{pal} {name}"
@@ -129,7 +129,7 @@ def build_topic(counter, target_seconds=28):
         "sat": saturation, "light": lightness, "shape": shape, "material": material,
         "bpm": bpm, "beat": 60.0 / bpm, "camera": CAMERAS[camera_i],
         "density": DENSITIES[density_i], "bg": list(BACKGROUNDS[bg_i]),
-        "seed": seed, "duration": duration, "multiplier": multiplier,
+        "seed": seed, "duration": duration, "multiplier": multiplier, "level": level,
     }
     core = TITLE_TEMPLATES[scene].format(pal=palette, name=SCENE_NAMES[scene])
     suffix = " | %s %s #%08d #Shorts" % (
