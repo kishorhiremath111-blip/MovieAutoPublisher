@@ -16,6 +16,6 @@ A deterministic 3D Shorts pipeline. Each successful public upload consumes one u
 
 In GitHub Actions, choose the workflow named 3D Satisfying Video:
 - public: render and publish directly as a Public YouTube Short.
-- dry: render and quality-check only. It does not upload or consume the topic.
+- dry: render and quality-check only. It does not upload or consume the topic. Repeating dry runs intentionally previews the same next public topic; once that topic is uploaded, the next public run moves forward.
 
-The scheduled run is a public publishing run. Daily Motivator Video is a separate workflow and does not create these 3D topic videos.
+The scheduled run is a public publishing run. You can also run public more than once on the same day; each successful upload takes the next unused topic. Daily Motivator Video is a separate workflow and does not create these 3D topic videos.
