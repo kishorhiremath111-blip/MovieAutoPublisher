@@ -30,8 +30,8 @@ def render_video(params, out_path, width=1080, height=1920, fps=60, workdir=None
     wav = workdir / "audio.wav"
     html = (ROOT / "renderer" / "scene.html").as_uri()
 
-    if width != 1080 or height != 1920:
-        raise ValueError("Shorts render is locked to 1080x1920; received %dx%d" % (width, height))
+    if (width, height) not in ((1080, 1920), (2160, 3840)):
+        raise ValueError("Shorts render supports 1080x1920 or 2160x3840; received %dx%d" % (width, height))
     if fps != 60:
         raise ValueError("Shorts render is locked to 60 fps; received %d" % fps)
 
