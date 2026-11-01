@@ -1,0 +1,47 @@
+name: Daily Kids Video
+
+on:
+  schedule:
+    - cron: "30 5 * * *"      # roz 11:00 AM IST (UTC me 05:30)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "1 = sirf video banao (upload nahi), 0 = YouTube par upload bhi"
+        default: "1"
+
+concurrency: daily-kids-video
+
+jobs:
+  make-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      VIDEO_LANGUAGE: "hi"     # "hi" = Hindi, "en" = English
+      SUBTITLES: "1"           # "0" = subtitles band
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: FFmpeg aur fonts
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-color-emoji
+      - run: pip install -r requirements.txt
+      - name: Video banao
+        run: python generate.py
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video
+          path: |
+            final.mp4
+            meta.json
+          retention-days: 7
