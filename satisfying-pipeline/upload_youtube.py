@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Official YouTube Data API v3 uploader.
-
-MovieAutoPublisher jaise hi GitHub secrets use karta hai:
-  YOUTUBE_CLIENT_SECRET_B64  (client_secret.json ka base64)
-  YOUTUBE_TOKEN_B64          (token.json ka base64, scope youtube.upload)
-"""
+"""Official YouTube Data API v3 uploader for original Shorts."""
 import base64
 import os
 import time
@@ -23,37 +18,37 @@ CREDS = ROOT / "credentials"
 
 def _write_secrets():
     CREDS.mkdir(exist_ok=True)
-    for env, name in (("YOUTUBE_CLIENT_SECRET_B64", "client_secret.json"),
-                      ("YOUTUBE_TOKEN_B64", "token.json")):
-        val = os.getenv(env)
-        if val:
-            (CREDS / name).write_bytes(base64.b64decode(val))
+    for env_name, filename in (
+        ("YOUTUBE_CLIENT_SECRET_B64", "client_secret.json"),
+        ("YOUTUBE_TOKEN_B64", "token.json"),
+    ):
+        encoded = os.getenv(env_name)
+        if encoded:
+            (CREDS / filename).write_bytes(base64.b64decode(encoded))
 
 
 def get_youtube():
     _write_secrets()
     token = CREDS / "token.json"
     if not token.exists():
-        raise FileNotFoundError(
-            "token.json nahi mila. GitHub secret YOUTUBE_TOKEN_B64 set karo.")
-    creds = Credentials.from_authorized_user_file(str(token), SCOPES)
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
+        raise FileNotFoundError("token.json nahi mila. GitHub secret YOUTUBE_TOKEN_B64 set karo.")
+    credentials = Credentials.from_authorized_user_file(str(token), SCOPES)
+    if not credentials.valid:
+        if credentials.expired and credentials.refresh_token:
             try:
-                creds.refresh(Request())
+                credentials.refresh(Request())
             except Exception as exc:
                 raise RuntimeError(
-                    "YouTube token refresh fail (%s). Dobara authorize karke "
-                    "YOUTUBE_TOKEN_B64 update karo. Google OAuth app 'Testing' mode me ho "
-                    "to token 7 din me expire hota hai, usse Production me publish karo." % exc
+                    "YouTube token refresh failed (%s). Re-authorize and update "
+                    "YOUTUBE_TOKEN_B64. OAuth app Testing mode tokens expire after 7 days." % exc
                 ) from exc
         else:
-            raise RuntimeError("Token invalid hai aur refresh nahi ho sakta.")
-    return build("youtube", "v3", credentials=creds)
+            raise RuntimeError("YouTube token invalid hai aur refresh nahi ho sakta.")
+    return build("youtube", "v3", credentials=credentials)
 
 
 def upload_video(path, title, description, tags, privacy="public",
-                 made_for_kids=True, category_id="24"):
+                 made_for_kids=False, category_id="24"):
     youtube = get_youtube()
     body = {
         "snippet": {
@@ -63,13 +58,14 @@ def upload_video(path, title, description, tags, privacy="public",
             "categoryId": str(category_id),
         },
         "status": {
-            "privacyStatus": privacy,
+            "privacyStatus": "public" if privacy == "public" else privacy,
             "selfDeclaredMadeForKids": bool(made_for_kids),
         },
     }
     media = MediaFileUpload(str(path), chunksize=8 * 1024 * 1024, resumable=True)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
-    response, retries = None, 0
+    response = None
+    retries = 0
     while response is None:
         try:
             _, response = request.next_chunk()
