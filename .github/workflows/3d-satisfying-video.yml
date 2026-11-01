@@ -42,8 +42,9 @@ jobs:
         run: python -m playwright install --with-deps chromium
       - name: Preflight checks for topic engine and 3D renderer
         run: |
-          python -m py_compile satisfying-pipeline/topics.py satisfying-pipeline/run_pipeline.py satisfying-pipeline/render_video.py satisfying-pipeline/audio.py satisfying-pipeline/upload_youtube.py
-          python satisfying-pipeline/topics.py --total --preview 11
+          python -m py_compile satisfying-pipeline/topics.py satisfying-pipeline/run_pipeline.py satisfying-pipeline/render_video.py satisfying-pipeline/audio.py satisfying-pipeline/upload_youtube.py satisfying-pipeline/test_renderer.py satisfying-pipeline/test_topics.py
+          python satisfying-pipeline/topics.py --total --preview 12
+          python satisfying-pipeline/test_topics.py
           node --check satisfying-pipeline/renderer/scenes.js
           python satisfying-pipeline/test_renderer.py
       - name: Run pipeline (scheduled runs are always PUBLIC)
