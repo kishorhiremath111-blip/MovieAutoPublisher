@@ -62,6 +62,9 @@ def main():
                     page.evaluate("p => window.initScene(p)", params)
                     for t in (0.0, 0.5, 8.0, 14.0, 25.7, 27.9):
                         page.evaluate("t => window.renderAt(t)", t)
+                    hud = page.locator("#hud").inner_text()
+                    if "LEVEL" not in hud or "MULTIPLIER" not in hud:
+                        raise RuntimeError("Level/multiplier HUD missing: " + hud)
                     if page_errors:
                         raise RuntimeError("; ".join(page_errors))
                     if console_errors:
