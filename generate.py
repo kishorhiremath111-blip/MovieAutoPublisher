@@ -22,20 +22,35 @@ VOICES = {
     "en": ["en-US-AndrewMultilingualNeural", "en-US-BrianMultilingualNeural",
            "en-US-GuyNeural", "en-US-ChristopherNeural"],
 }
-STYLE = ("masterpiece black and white charcoal and graphite pencil sketch on textured paper, "
-         "hand-drawn, highly detailed linework, dramatic high-contrast chiaroscuro lighting, "
-         "cinematic composition, strong depth, faceless silhouette character, moody atmosphere, "
-         "8k, sharp focus, no text, no letters, no watermark, no logo, no deformed hands, no extra fingers, no blur")
+VISUAL_STYLE = os.environ.get("VISUAL_STYLE", "stickman").lower()
+
+STICKMAN_STYLE = (
+    "clean expressive 2D stickman cartoon illustration, ONE full-body stick figure clearly visible, "
+    "round white head, simple black line body, thin black line arms and legs, clear hands and feet, "
+    "large expressive cartoon eyes and eyebrows, simple expressive mouth, readable emotion, "
+    "simple colorful cinematic background, smooth vector-like cartoon art, YouTube Shorts style, "
+    "full body composition, strong storytelling pose, consistent main stickman character, "
+    "no realistic human, no realistic face, no portrait, no charcoal, no graphite, no sketch, "
+    "no photorealism, no text, no letters, no watermark, no logo"
+)
+
 GENERIC = [
-    "lone hooded figure walking on an empty road at dawn, wide shot",
-    "close up of clenched fist, dramatic shadows",
-    "man standing on a mountain peak looking at the sunrise, low angle",
-    "crowd of faceless silhouettes, one man standing alone, high angle",
-    "broken chains falling apart, dramatic light",
-    "man climbing a steep staircase into bright light",
-    "storm clouds clearing above a lonely figure, wide shot",
-    "silhouette man running through rain, motion lines",
+    "stickman walking alone on an empty road at dawn, sad posture, wide shot",
+    "stickman looking at his empty hands, worried expression, close medium shot",
+    "stickman standing alone while a group of stickman friends walk away in the background, emotional scene",
+    "stickman sitting quietly at a desk at night, then opening a notebook with determined expression",
+    "stickman waking up early and working hard at a desk, determined focused expression",
+    "confident stickman walking forward while people who ignored him now look surprised",
+    "stickman honestly talking to another stickman friend, emotional conversational gesture",
+    "stickman walking alone toward a bright sunrise on a long road, hopeful wide shot",
 ]
+
+def build_visual_prompt(scene_prompt, character):
+    if VISUAL_STYLE == "stickman":
+        # User ke realistic CHARACTER field ko ignore karke guaranteed stickman prompt force karo.
+        return f"{STICKMAN_STYLE}. Scene action: {scene_prompt}. The character must remain a stickman in this exact cartoon style."
+    return f"{character}. Scene: {scene_prompt}"
+
 EXPORT = "export"
 os.makedirs(WORK, exist_ok=True)
 os.makedirs(f"{EXPORT}/images", exist_ok=True)
@@ -114,7 +129,7 @@ def fetch_image(full_prompt, seed):
     return None
 
 def get_image(prompt, character, path, seed):
-    full = f"{STYLE}. {character}. Scene: {prompt}"[:900]
+    full = build_visual_prompt(prompt, character)[:1100]
     best = None
     for k in range(max(1, CANDIDATES)):
         data = fetch_image(full, seed + k * 7)
@@ -195,7 +210,7 @@ def make_clip(i, n, img, aud, flash, pad, out):
 
 def build_video(meta, scenes):
     lang = meta["LANG"]; n = len(scenes)
-    character = meta["CHARACTER"] or "a faceless silhouette man in a hooded jacket"
+    character = meta["CHARACTER"] or "a simple expressive stickman cartoon character"
     base_seed = random.randint(1, 90000); clips, timings, t = [], [], 0.0
     for i, s in enumerate(scenes):
         print(f"--- scene {i+1}/{n}")
