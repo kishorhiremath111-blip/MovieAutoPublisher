@@ -12,8 +12,10 @@ DEFAULT_LANG = os.environ.get("VIDEO_LANGUAGE", "hi").lower()
 CANDIDATES = int(os.environ.get("IMG_CANDIDATES", "2"))
 CINEMATIC = os.environ.get("CINEMATIC", "1") == "1"
 CATEGORY = os.environ.get("YT_CATEGORY", "22")
-RATE = os.environ.get("TTS_RATE", "-6%")
-PITCH = os.environ.get("TTS_PITCH", "-4Hz")
+# Natural conversational delivery: normal speed, slightly deeper male tone.
+RATE = os.environ.get("TTS_RATE", "-1%")
+PITCH = os.environ.get("TTS_PITCH", "-2Hz")
+VOICE_STYLE = os.environ.get("VOICE_STYLE", "natural")
 
 VOICES = {
     "hi": ["hi-IN-MadhurNeural"],
@@ -123,18 +125,52 @@ def get_image(prompt, character, path, seed):
     print("[image] FAIL -> fallback dark frame")
     run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x1a1a1a:s={W}x{H}", "-frames:v", "1", path])
 
+def naturalize_speech(text, lang):
+    """Script ko audiobook/reading jaisa nahi, normal insaan ki baat jaisa banata hai."""
+    text = re.sub(r"\\s+", " ", text).strip()
+    # Ellipsis ko Edge TTS ke liye natural thought-pause me convert karo.
+    text = re.sub(r"\\.{2,}", " ... ", text)
+    # Comma ke baad breathing space aur long punctuation normalize.
+    text = re.sub(r"([,;:!?])(?=\\S)", r"\\1 ", text)
+    # Hindi narration me over-punctuation reading ko robotic bana sakti hai.
+    if lang == "hi":
+        text = text.replace("—", ", ")
+    return text
+
 async def _tts(text, voice, rate, pitch, path):
-    await edge_tts.Communicate(text, voice, rate=rate, pitch=pitch).save(path)
+    communicate = edge_tts.Communicate(
+        text,
+        voice,
+        rate=rate,
+        pitch=pitch,
+        volume="+0%"
+    )
+    await communicate.save(path)
 
 def make_voice(text, lang, path):
     voices = VOICES.get(lang, VOICES["hi"])
-    if os.environ.get("TTS_VOICE"): voices = [os.environ["TTS_VOICE"]] + voices
+    text = naturalize_speech(text, lang)
+    if os.environ.get("TTS_VOICE"):
+        voices = [os.environ["TTS_VOICE"]] + [v for v in voices if v != os.environ["TTS_VOICE"]]
     for v in voices:
         for pitch in (PITCH, "+0Hz"):
             try:
                 asyncio.run(_tts(text, v, RATE, pitch, path))
                 if os.path.getsize(path) > 1000:
-                    print(f"voice ok: {v}"); return
+                    # Light mastering: clearer voice, controlled volume, smooth natural presence.
+                    mastered = path + ".master.mp3"
+                    run([
+                        "ffmpeg", "-y", "-i", path,
+                        "-af",
+                        "highpass=f=70,"
+                        "equalizer=f=180:t=h:w=120:g=1.5,"
+                        "equalizer=f=3200:t=q:w=1.2:g=1.2,"
+                        "acompressor=threshold=0.09:ratio=2.2:attack=15:release=140,"
+                        "loudnorm=I=-16:TP=-1.5:LRA=9",
+                        "-codec:a", "libmp3lame", "-b:a", "192k", mastered
+                    ])
+                    os.replace(mastered, path)
+                    print(f"voice ok (natural smooth male): {v} | rate={RATE} pitch={pitch}"); return
             except Exception as e:
                 print(f"[tts {v} pitch {pitch}] {str(e)[:150]}")
                 time.sleep(2)
