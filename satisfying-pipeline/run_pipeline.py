@@ -80,8 +80,8 @@ def main():
         int(config.get("height", 1920)),
         int(config.get("fps", 60)),
     )
-    if (width, height, fps) != (1080, 1920, 60):
-        raise RuntimeError("Shorts format lock requires exactly 1080x1920 at 60 fps.")
+    if (width, height, fps) != (2160, 3840, 60):
+        raise RuntimeError("Shorts format lock requires exactly 2160x3840 at 60 fps (4K vertical).")
 
     dry_run = env_true("DRY_RUN")
     state = load_json(STATE, {"counter": 0, "last_upload_date": None, "uploads": 0})
@@ -123,9 +123,9 @@ def main():
     size_bytes = video.stat().st_size
     if not {"video", "audio"} <= kinds:
         raise RuntimeError("Quality check failed: both video and audio streams are required.")
-    if (rendered_width, rendered_height) != (1080, 1920):
+    if (rendered_width, rendered_height) != (2160, 3840):
         raise RuntimeError(
-            "Quality check failed: expected 1080x1920, got %dx%d" %
+            "Quality check failed: expected 2160x3840 (4K vertical), got %dx%d" %
             (rendered_width, rendered_height)
         )
     if abs(rendered_fps - 60.0) > 0.15:
