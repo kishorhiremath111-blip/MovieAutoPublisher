@@ -101,10 +101,12 @@ def main():
     params.update({
         "topic_label": topic["title"],
         "level": topic["level"],
+        "multiplier": topic["multiplier"],
         "topic_id": topic["topic_id"],
     })
     print("NEW 3D TOPIC #%d  %s" % (topic["counter"], topic["topic_id"]))
     print("Title:", topic["title"])
+    print("Progression: Level %d | %dx" % (topic["level"], topic["multiplier"]))
     print(
         "Scene: %s | palette: %s | shape: %s | material: %s | camera: %s | density: %d" % (
             params["scene"], params["palette"], params["shape"], params["material"],
@@ -167,6 +169,8 @@ def main():
         "height": rendered_height,
         "fps": round(rendered_fps, 3),
         "duration": round(duration, 3),
+        "level": topic["level"],
+        "multiplier": topic["multiplier"],
     }
     with HISTORY.open("a", encoding="utf-8") as history:
         history.write(json.dumps(history_record, ensure_ascii=False) + "\n")
