@@ -40,6 +40,11 @@ jobs:
         run: pip install -r satisfying-pipeline/requirements.txt
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
+      - name: Preflight checks for topic engine and 3D renderer
+        run: |
+          python -m py_compile satisfying-pipeline/topics.py satisfying-pipeline/run_pipeline.py satisfying-pipeline/render_video.py satisfying-pipeline/audio.py satisfying-pipeline/upload_youtube.py
+          python satisfying-pipeline/topics.py --total --preview 11
+          node --check satisfying-pipeline/renderer/scenes.js
       - name: Run pipeline (scheduled runs are always PUBLIC)
         working-directory: satisfying-pipeline
         env:
