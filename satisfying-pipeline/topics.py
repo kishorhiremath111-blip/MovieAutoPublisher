@@ -1,51 +1,78 @@
 #!/usr/bin/env python3
-"""Deterministic topic engine: every counter maps to a unique visual recipe."""
+"""Procedural 3D Shorts topic engine with distinct, high-energy visual recipes."""
 import argparse
 import sys
 from math import gcd
 
-SCENES = ["ripple", "domino", "jar", "tunnel", "bubbles", "helix"]
-TITLE_TEMPLATES = {
-    "ripple": "{pal} {mat} {shape} Ripple Wave",
-    "domino": "{pal} {mat} Domino Spiral",
-    "jar": "{pal} {shape} Jar Fill",
-    "tunnel": "{pal} {shape} Endless Tunnel",
-    "bubbles": "{pal} {shape} Bubble Pop Wall",
-    "helix": "{pal} {mat} {shape} Helix Dance",
+# Every scene below has its own geometry and motion system in renderer/scenes.js.
+SCENES = [
+    "ripple", "domino", "jar", "tunnel", "bubbles", "helix",
+    "orbit", "crystal", "vortex", "wave", "spiral",
+]
+SCENE_NAMES = {
+    "ripple": "Liquid Ripple", "domino": "Domino Chain Reaction",
+    "jar": "Perfect Sphere Cascade", "tunnel": "Infinite Prism Tunnel",
+    "bubbles": "Bubble Pop Symphony", "helix": "Helix Orbit",
+    "orbit": "Orbital Ring Machine", "crystal": "Crystal Core Assembly",
+    "vortex": "Neon Particle Vortex", "wave": "Sculpted Wave Field",
+    "spiral": "Golden Spiral Stack",
 }
+TITLE_TEMPLATES = {
+    scene: "{pal} {name}"
+    for scene, name in SCENE_NAMES.items()
+}
+
+# High-saturation palettes. The renderer cycles the hues through each recipe.
 PALETTES = [
-    ("Rainbow", 0.00, 1.00, 0.80, 0.58), ("Candy Pastel", 0.00, 1.00, 0.75, 0.74),
-    ("Sunset", 0.92, 0.20, 0.85, 0.60), ("Ocean", 0.50, 0.15, 0.80, 0.55),
-    ("Lagoon", 0.42, 0.18, 0.75, 0.58), ("Berry", 0.85, 0.12, 0.75, 0.55),
-    ("Bubblegum", 0.90, 0.10, 0.85, 0.72), ("Mint", 0.38, 0.10, 0.65, 0.68),
-    ("Lemon Lime", 0.15, 0.20, 0.90, 0.58), ("Orange Soda", 0.05, 0.08, 0.95, 0.58),
-    ("Grape", 0.75, 0.10, 0.70, 0.60), ("Aurora", 0.35, 0.40, 0.80, 0.60),
-    ("Galaxy", 0.65, 0.25, 0.75, 0.58), ("Ice", 0.55, 0.08, 0.60, 0.78),
-    ("Fire", 0.00, 0.12, 0.95, 0.55), ("Forest", 0.30, 0.10, 0.55, 0.48),
-    ("Peach", 0.04, 0.06, 0.85, 0.78), ("Cotton Candy", 0.55, 0.35, 0.65, 0.80),
-    ("Tropical", 0.08, 0.45, 0.85, 0.58), ("Neon", 0.00, 1.00, 1.00, 0.55),
-    ("Gold", 0.12, 0.04, 0.90, 0.58), ("Rose", 0.97, 0.05, 0.70, 0.68),
-    ("Sky", 0.58, 0.06, 0.80, 0.72), ("Spring", 0.20, 0.30, 0.70, 0.66),
+    ("Prism Pop", 0.00, 1.00, 1.00, 0.60),
+    ("Laser Magenta", 0.88, 0.16, 1.00, 0.62),
+    ("Electric Cyan", 0.50, 0.12, 1.00, 0.64),
+    ("Toxic Lime", 0.24, 0.13, 1.00, 0.58),
+    ("Solar Flare", 0.08, 0.13, 1.00, 0.61),
+    ("Ultraviolet", 0.72, 0.18, 1.00, 0.62),
+    ("Hot Coral", 0.98, 0.12, 1.00, 0.65),
+    ("Arctic Glow", 0.53, 0.09, 0.95, 0.73),
+    ("Aurora Pulse", 0.35, 0.42, 1.00, 0.62),
+    ("Cyber Rainbow", 0.00, 1.00, 1.00, 0.56),
+    ("Tangerine Pop", 0.06, 0.11, 1.00, 0.62),
+    ("Electric Orchid", 0.79, 0.15, 1.00, 0.67),
+    ("Aqua Flame", 0.46, 0.20, 1.00, 0.63),
+    ("Lava Chrome", 0.01, 0.18, 1.00, 0.57),
+    ("Blue Voltage", 0.59, 0.16, 1.00, 0.60),
+    ("Candy Burst", 0.91, 0.28, 1.00, 0.72),
+    ("Emerald Laser", 0.31, 0.16, 1.00, 0.57),
+    ("Rose Gold Pop", 0.96, 0.10, 0.95, 0.67),
+    ("Amethyst Ice", 0.70, 0.13, 0.92, 0.72),
+    ("Lemon Shock", 0.16, 0.13, 1.00, 0.68),
+    ("Deep Sea Neon", 0.48, 0.24, 1.00, 0.55),
+    ("Firework Mix", 0.02, 0.95, 1.00, 0.64),
+    ("Cotton Candy Glow", 0.84, 0.33, 0.98, 0.75),
+    ("Tropical Laser", 0.39, 0.57, 1.00, 0.61),
+    ("Peacock Prism", 0.43, 0.46, 1.00, 0.58),
+    ("Ruby Radiance", 0.97, 0.08, 1.00, 0.58),
+    ("Icebreaker", 0.55, 0.10, 0.95, 0.78),
+    ("Galaxy Spectrum", 0.63, 0.37, 1.00, 0.59),
+    ("Hyper Neon", 0.00, 1.00, 1.00, 0.65),
+    ("Golden Pulse", 0.12, 0.10, 1.00, 0.64),
+    ("Mint Voltage", 0.40, 0.10, 0.98, 0.70),
+    ("Rainbow Glass", 0.00, 1.00, 0.90, 0.72),
 ]
 SHAPES = ["cube", "sphere", "cylinder", "cone", "torus", "octahedron", "icosahedron", "dodecahedron"]
 SHAPE_PLURAL = {
     "cube": "Cubes", "sphere": "Spheres", "cylinder": "Cylinders", "cone": "Cones",
     "torus": "Rings", "octahedron": "Diamonds", "icosahedron": "Gems", "dodecahedron": "Crystals",
 }
-MATERIALS = ["candy", "clay", "metal", "pearl", "neon", "glass"]
+MATERIALS = ["candy", "chrome", "prism", "pearl", "neon", "glass", "ceramic", "liquid-metal"]
 MATERIAL_ADJ = {
-    "candy": "Glossy", "clay": "Clay", "metal": "Metallic",
-    "pearl": "Pearl", "neon": "Neon", "glass": "Glass",
+    "candy": "Glossy Candy", "chrome": "Mirror Chrome", "prism": "Prismatic",
+    "pearl": "Iridescent Pearl", "neon": "Neon", "glass": "Crystal Glass",
+    "ceramic": "Polished Ceramic", "liquid-metal": "Liquid Metal",
 }
-BPMS = [84, 92, 100, 108, 116]
-CAMERAS = ["orbit", "low", "top", "dolly", "sway"]
+BPMS = [88, 96, 104, 112, 120]
+CAMERAS = ["orbit", "low", "top", "dolly", "sweep"]
 DENSITIES = [0, 1, 2, 3]
-BACKGROUNDS = [
-    ("#1b1035", "#3a1c71"), ("#0f2027", "#2c5364"), ("#2b1055", "#7597de"),
-    ("#141e30", "#243b55"), ("#42275a", "#734b6d"), ("#0b3d5c", "#1d8a99"),
-    ("#3a0f2e", "#c04a7a"), ("#10261e", "#2f7f62"), ("#2a1a05", "#a8601b"),
-    ("#16103a", "#0f6a7a"),
-]
+# All episodes use a true black background; color comes from the 3D objects and lights.
+BACKGROUNDS = [("#000000", "#000000")]
 DIMS = [SCENES, PALETTES, SHAPES, MATERIALS, BPMS, CAMERAS, DENSITIES, BACKGROUNDS]
 SIZES = [len(x) for x in DIMS]
 TOTAL = 1
@@ -95,7 +122,6 @@ def build_topic(counter, target_seconds=28):
     seed = (index * 2654435761 + 12345) & 0xFFFFFFFF
     topic_id = "SAT-%08d" % index
     level = counter + 1
-
     params = {
         "scene": scene, "palette": palette, "hue0": hue0, "span": span,
         "sat": saturation, "light": lightness, "shape": shape, "material": material,
@@ -103,19 +129,19 @@ def build_topic(counter, target_seconds=28):
         "density": DENSITIES[density_i], "bg": list(BACKGROUNDS[bg_i]),
         "seed": seed, "duration": duration,
     }
-    core = TITLE_TEMPLATES[scene].format(
-        pal=palette, mat=MATERIAL_ADJ[material], shape=SHAPE_PLURAL[shape])
-    title = ("%s | %s L%05d #%08d #Shorts" % (
-        core, CAMERAS[camera_i].title(), level, index))[:100]
+    core = TITLE_TEMPLATES[scene].format(pal=palette, name=SCENE_NAMES[scene])
+    title = ("%s | %s %s #%08d #Shorts" % (
+        core, MATERIAL_ADJ[material], SHAPE_PLURAL[shape], index))[:100]
     description = (
-        "%s\n\nAn original, procedurally animated 3D pattern with a soundscape "
-        "generated specifically for this episode. Watch the pattern build to its "
-        "final level-up moment.\n\n"
-        "#satisfying #oddlysatisfying #3danimation #asmr #shorts" % core
+        "%s — an original procedural 3D animation, designed on a true-black stage "
+        "with vivid color, polished materials, rhythmic motion and a visual payoff. "
+        "Original soundscape made for this episode.\n\n"
+        "#satisfying #oddlysatisfying #3danimation #3dshorts #asmr #shorts" % core
     )
     tags = [
-        "satisfying", "oddly satisfying", "3d animation", "original sound design",
-        "asmr", "shorts", palette.lower(), scene, shape, material, CAMERAS[camera_i],
+        "satisfying", "oddly satisfying", "high quality 3d", "3d animation",
+        "procedural 3d", "original sound design", "asmr", "shorts",
+        palette.lower(), scene, shape, material, CAMERAS[camera_i],
     ]
     return {
         "counter": counter, "index": index, "topic_id": topic_id, "level": level,
@@ -130,11 +156,11 @@ def main():
     parser.add_argument("--start", type=int, default=0)
     args = parser.parse_args()
     if args.total or not args.preview:
-        print("Total unique topic recipes:", TOTAL)
+        print("Total unique upgraded 3D topic recipes:", TOTAL)
     for counter in range(args.start, args.start + args.preview):
         topic = build_topic(counter)
         p = topic["params"]
-        print("%7d  %s  %s | %s %s %s %s" % (
+        print("%7d  %s  %s | scene=%s palette=%s shape=%s material=%s" % (
             counter, topic["topic_id"], topic["title"],
             p["scene"], p["palette"], p["shape"], p["material"]))
     return 0
