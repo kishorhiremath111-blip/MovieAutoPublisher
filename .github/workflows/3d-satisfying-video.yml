@@ -1,0 +1,59 @@
+name: 3D Satisfying Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Render and validate only; do not upload"
+        type: boolean
+        default: true
+      force:
+        description: "Ignore daily publish limit"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "30 12 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: 3d-satisfying-video
+  cancel-in-progress: false
+
+jobs:
+  render-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install Python dependencies
+        run: pip install -r satisfying-pipeline/requirements.txt
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run pipeline
+        working-directory: satisfying-pipeline
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || 'false' }}
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+        run: python run_pipeline.py
+      - name: Upload render/log artifacts on dry run or failure
+        if: ${{ inputs.dry_run || failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3d-satisfying-video-output
+          path: |
+            satisfying-pipeline/out/*.mp4
+            satisfying-pipeline/work/*.log
+          retention-days: 3
+          if-no-files-found: ignore
