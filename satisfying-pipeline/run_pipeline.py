@@ -64,10 +64,6 @@ def main():
     state = load_json(STATE, {"counter": 0, "last_upload_date": None, "uploads": 0})
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
-    if not dry_run and state.get("last_upload_date") == today:
-        print("Aaj ka Public Short pehle hi publish hua. Duplicate upload roka.")
-        return 0
-
     used = used_topic_ids()
     counter = int(state.get("counter", 0))
     while True:
@@ -114,7 +110,7 @@ def main():
           (rendered_width, rendered_height, duration, size_bytes / 1e6))
 
     if dry_run:
-        print("DRY RUN: upload nahi hua, topic consume nahi hua. Video:", video)
+        print("DRY RUN: upload nahi hua, topic consume nahi hua. Yehi next PUBLIC run ka preview hai. Video:", video)
         return 0
 
     from upload_youtube import upload_video
