@@ -27,15 +27,19 @@ jobs:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: satisfying-pipeline/requirements.txt
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install Python dependencies
         run: pip install -r satisfying-pipeline/requirements.txt
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Validate Python and JavaScript syntax
         run: |
-          python -m py_compile satisfying-pipeline/topics.py satisfying-pipeline/run_pipeline.py satisfying-pipeline/render_video.py satisfying-pipeline/test_topics.py satisfying-pipeline/test_renderer.py
+          python -m py_compile satisfying-pipeline/topics.py satisfying-pipeline/run_pipeline.py satisfying-pipeline/render_video.py satisfying-pipeline/test_topics.py satisfying-pipeline/test_renderer.py satisfying-pipeline/test_render_output.py
           node --check satisfying-pipeline/renderer/scenes.js
       - name: Exhaustively test the topic recipe index space
         run: python satisfying-pipeline/test_topics.py
       - name: Smoke-test every 3D scene and the 4K drawing buffer
         run: python satisfying-pipeline/test_renderer.py
+      - name: Encode and verify a real 4K60 MP4 sample
+        run: python satisfying-pipeline/test_render_output.py
