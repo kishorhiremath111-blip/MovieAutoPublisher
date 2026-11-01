@@ -24,6 +24,9 @@ def scene_params(scene_name, index):
     params = dict(topic["params"])
     params.update({
         "scene": scene_name,
+        "density": index % 4,
+        "shape": topics.SHAPES[(index * 3) % len(topics.SHAPES)],
+        "material": topics.MATERIALS[(index * 5) % len(topics.MATERIALS)],
         "duration": 28.0,
         "beat": 0.5,
         "level": (index % 4) + 1,
