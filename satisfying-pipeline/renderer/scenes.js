@@ -219,9 +219,9 @@
       var dx = b * Math.cos(theta) - r * Math.sin(theta);
       var dz = b * Math.sin(theta) + r * Math.cos(theta);
       dm.position.set(x, 0, z); dm.rotation.set(0, Math.atan2(dx, dz), 0);
-      dm.updateMatrix(); items.push({ base: dm.matrix.clone(), start: 0.85 + i * gap });
+      dm.updateMatrix(); items.push({ base: dm.matrix.clone(), start: 0.22 + i * gap });
       m.setColorAt(i, pal(i / n, col));
-      S.events.push({ t: 0.9 + i * gap, kind: 'tick', pitch: i });
+      S.events.push({ t: 0.25 + i * gap, kind: 'tick', pitch: i });
       maxR = Math.max(maxR, r);
       theta += spacing / Math.sqrt(r * r + b * b);
     }
@@ -273,7 +273,7 @@
       var ca = Math.cos(layer.angle), sa = Math.sin(layer.angle);
       var fx = p[0] * ca - p[1] * sa, fz = p[0] * sa + p[1] * ca;
       var fy = 0.34 + k * 0.43, fd = Math.sqrt(2 * (y0 - fy) / gravity);
-      var ti = 0.55 + i * gap;
+      var ti = 0.30 + i * gap;
       balls.push({ x: fx, z: fz, y: fy, fall: fd, start: ti });
       m.setColorAt(i, pal(i / n, col));
       S.events.push({ t: ti + fd, kind: 'plink', pitch: i });
@@ -286,7 +286,7 @@
     glass.position.y = H / 2; S.scene.add(glass);
     var rim = addRing(R, 0.055, 0x8cfbff, [Math.PI / 2, 0, 0]); rim.position.y = H;
     var foot = addRing(R * 0.98, 0.07, 0xff5de2, [Math.PI / 2, 0, 0]); foot.position.y = 0.06;
-    var dist = fit(H * 0.57, R * 1.8 + 0.55) * 1.12;
+    var dist = fit(H * 0.54, R + 0.38) * 1.08;
     S.focusY = H * 0.44;
     S.update = function (t) {
       for (var j = 0; j < n; j++) {
@@ -363,7 +363,7 @@
     var popGap = Math.min(P.beat / 3, P.duration * 0.51 / count);
     var rebuild = 1.0 + count * popGap + 0.85;
     order.forEach(function (q, i) {
-      items[q.i].popAt = 0.85 + i * popGap;
+      items[q.i].popAt = 0.24 + i * popGap;
       items[q.i].backAt = rebuild + i * popGap * 0.28;
       S.events.push({ t: items[q.i].popAt, kind: 'pop', pitch: i });
     });
