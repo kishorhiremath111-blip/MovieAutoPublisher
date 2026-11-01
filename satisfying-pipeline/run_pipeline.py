@@ -78,10 +78,10 @@ def main():
     width, height, fps = (
         int(config.get("width", 1080)),
         int(config.get("height", 1920)),
-        int(config.get("fps", 30)),
+        int(config.get("fps", 60)),
     )
-    if (width, height, fps) != (1080, 1920, 30):
-        raise RuntimeError("Shorts format lock requires exactly 1080x1920 at 30 fps.")
+    if (width, height, fps) != (1080, 1920, 60):
+        raise RuntimeError("Shorts format lock requires exactly 1080x1920 at 60 fps.")
 
     dry_run = env_true("DRY_RUN")
     state = load_json(STATE, {"counter": 0, "last_upload_date": None, "uploads": 0})
@@ -128,8 +128,8 @@ def main():
             "Quality check failed: expected 1080x1920, got %dx%d" %
             (rendered_width, rendered_height)
         )
-    if abs(rendered_fps - 30.0) > 0.15:
-        raise RuntimeError("Quality check failed: expected 30 fps, got %.3f" % rendered_fps)
+    if abs(rendered_fps - 60.0) > 0.15:
+        raise RuntimeError("Quality check failed: expected 60 fps, got %.3f" % rendered_fps)
     if duration < 15 or duration > 60:
         raise RuntimeError("Quality check failed: Shorts duration %.2fs is outside 15-60s." % duration)
     if codec != "h264" or size_bytes < 300_000:
