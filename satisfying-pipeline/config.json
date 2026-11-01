@@ -4,6 +4,6 @@
   "fps": 30,
   "target_seconds": 28,
   "privacy": "public",
-  "made_for_kids": true,
+  "made_for_kids": false,
   "category_id": "24"
 }
