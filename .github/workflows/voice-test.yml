@@ -1,0 +1,40 @@
+name: Voice Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Jo text sunna hai"
+        default: "Nobody is coming to save you. And that's the best news you'll hear today."
+      voices:
+        description: "Voices (space se alag)"
+        default: "en-US-AndrewMultilingualNeural en-US-BrianMultilingualNeural en-US-GuyNeural en-US-ChristopherNeural hi-IN-MadhurNeural"
+      rate:
+        default: "-6%"
+      pitch:
+        default: "-4Hz"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install edge-tts
+      - name: Voices banao
+        env:
+          TXT: ${{ github.event.inputs.text }}
+          VOICES: ${{ github.event.inputs.voices }}
+          RATE: ${{ github.event.inputs.rate }}
+          PITCH: ${{ github.event.inputs.pitch }}
+        run: |
+          mkdir out
+          for v in $VOICES; do
+            edge-tts --voice "$v" --rate="$RATE" --pitch="$PITCH" --text "$TXT" --write-media "out/$v.mp3" || echo "FAIL $v"
+          done
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voices
+          path: out/
