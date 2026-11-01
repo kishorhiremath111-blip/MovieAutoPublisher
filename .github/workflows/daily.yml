@@ -24,6 +24,8 @@ jobs:
       VIDEO_LANGUAGE: "hi"
       IMG_CANDIDATES: "2"
       CINEMATIC: "1"
+      SFX_ON: "1"
+      MUSIC_VOL: "0.32"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
