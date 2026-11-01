@@ -12,6 +12,8 @@ RULES:
 3. Beech me ek mod (twist) aur akhir me ek chhota, yaad rehne wala punch line.
 4. Apna original content likho, kisi mashhoor insaan ke quotes ya kisi aur ki script copy mat karo.
 5. Image prompts hamesha English me, sketch style ke liye: faceless silhouette character, dramatic scene, camera angle batao.
+6. SFX (sound effect) line OPTIONAL hai, sirf 3-4 khaas scenes par lagao (zyada nahi). Allowed: impact (bada twist/jhatka), heartbeat (tension/dar), rain (dard/udaasi), riser (build-up), whoosh, none.
+   Scene 1 (hook) aur aakhri scene par khud ho jata hai, wahan SFX likhne ki zaroorat nahi.
 
 OUTPUT BILKUL IS FORMAT ME DO (koi extra baat nahi, bas plain text):
 
@@ -26,5 +28,6 @@ IMG: (English image prompt)
 
 SCENE: (scene 2 ka narration)
 IMG: (English image prompt)
+SFX: (sirf zaroorat ho tabhi, jaise heartbeat)
 
 ... isi tarah aakhri scene tak.
