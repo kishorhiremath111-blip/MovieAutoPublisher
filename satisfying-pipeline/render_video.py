@@ -20,7 +20,7 @@ CHROME_ARGS = [
 ]
 
 
-def render_video(params, out_path, width=1080, height=1920, fps=30, workdir=None):
+def render_video(params, out_path, width=1080, height=1920, fps=60, workdir=None):
     from playwright.sync_api import sync_playwright
 
     out_path = Path(out_path)
@@ -33,7 +33,7 @@ def render_video(params, out_path, width=1080, height=1920, fps=30, workdir=None
     if width != 1080 or height != 1920:
         raise ValueError("Shorts render is locked to 1080x1920; received %dx%d" % (width, height))
     if fps != 30:
-        raise ValueError("Shorts frame rate is locked to 30 fps; received %d" % fps)
+        raise ValueError("Shorts frame rate is locked to 60 fps; received %d" % fps)
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=CHROME_ARGS)
