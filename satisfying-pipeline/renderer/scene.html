@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(function () {
+  var urls = [
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+    'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js'
+  ];
+  function load(i) {
+    if (i >= urls.length) { window.__error = 'three.js load nahi hua (internet?)'; return; }
+    var s = document.createElement('script');
+    s.src = urls[i];
+    s.onload = function () {
+      var t = document.createElement('script');
+      t.src = 'scenes.js';
+      t.onload = function () { window.__ready = true; };
+      t.onerror = function () { window.__error = 'scenes.js load nahi hua'; };
+      document.head.appendChild(t);
+    };
+    s.onerror = function () { load(i + 1); };
+    document.head.appendChild(s);
+  }
+  load(0);
+})();
+</script>
+</body>
+</html>
