@@ -1,0 +1,62 @@
+name: Daily Motivator Video
+
+on:
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "1 = sirf video banao (upload nahi), 0 = YouTube par upload bhi"
+        default: "1"
+      script_file:
+        description: "Khaas script chalani ho to path, jaise scripts/003.txt (khali = queue ki pehli)"
+        default: ""
+
+concurrency: daily-motivator
+
+jobs:
+  make-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      VIDEO_LANGUAGE: "hi"
+      IMG_CANDIDATES: "2"
+      CINEMATIC: "1"
+      SFX_ON: "1"
+      MUSIC_VOL: "0.32"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r requirements.txt
+      - name: Video banao
+        run: python generate.py
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+          SCRIPT_FILE: ${{ github.event.inputs.script_file || '' }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      - name: Use hui script ko done me save karo
+        if: success() && (github.event.inputs.dry_run || '0') == '0'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A scripts
+          git diff --cached --quiet || (git commit -m "script done" && git push)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video
+          path: |
+            final.mp4
+            export/
+            meta.json
+          if-no-files-found: ignore
+          retention-days: 7
