@@ -1,21 +1,35 @@
-# Satisfying 3D Shorts
+# Premium 3D Satisfying Shorts
 
-A deterministic 3D Shorts pipeline. Each successful public upload consumes one unique recipe; dry runs never consume a topic.
+Procedural vertical 3D animations rendered at 1080x1920, 30 fps, with a pure black stage, vivid color systems, physically based materials and original sound design.
 
-## Features
+## Visual system
 
-- 6,912,000 unique combinations of six scenes, palettes, shapes, materials, BPMs, camera moves, densities, and backgrounds.
-- Every title includes a unique level/topic identifier.
-- A progress bar and level badge stay on screen. The final 3.6 seconds show a PERFECT FINISH / NEXT LEVEL card.
-- Audio is synthesized locally for each topic. Scale, motif, root, timbre, event pitches, and ending chimes are seeded from the topic ID.
-- Uploads are Public and submitted with YouTube's self-declared not-made-for-kids flag set to false.
-- After a confirmed upload, the MP4 is deleted, the counter advances, and the topic ID is recorded in the append-only history.
-- The history is checked before rendering. If the counter ever points at a used topic, the pipeline skips forward.
+- 11 purpose-built scene families: liquid ripple, domino chain reaction, sphere cascade, prism tunnel, bubble pop wave, helix orbit, orbital ring machine, crystal assembly, particle vortex, sculpted wave field and golden spiral stack.
+- 32 high-saturation palettes, 8 geometry families, 8 material looks, 5 camera paths and 4 density levels.
+- Every scene renders against true black. The old gradient background, progress meter, level badge, countdown-style UI and end-card overlay have been removed.
+- Each scene has its own procedural motion. A small non-text visual payoff layer appears near the end; it does not display a timer or cover the animation with a message.
+- Three.js physical materials, multiple light sources, antialiasing, 1080x1920 capture and H.264 high-profile encoding (CRF 17, slow preset).
+- Seeded original audio is generated for each recipe, with event sounds and a closing chime sequence.
+
+## Topic variety
+
+Each successful public upload consumes one unique recipe. The topic engine currently has 2,252,800 unique combinations across scene, palette, shape, material, BPM, camera and density. Topic IDs and the append-only history prevent reuse when the saved counter is behind.
+
+## Quality checks
+
+Before upload, the pipeline checks:
+- Both video and audio streams exist.
+- Resolution is exactly 1080x1920 (9:16).
+- Frame rate is 30 fps.
+- Duration is between 15 and 60 seconds.
+- H.264 encoding and a minimum file size are present.
+
+A file that fails these checks is not sent to YouTube.
 
 ## Run modes
 
-In GitHub Actions, choose the workflow named 3D Satisfying Video:
-- public: render and publish directly as a Public YouTube Short.
-- dry: render and quality-check only. It does not upload or consume the topic. Repeating dry runs intentionally previews the same next public topic; once that topic is uploaded, the next public run moves forward.
+In GitHub Actions, choose **3D Satisfying Video**:
+- public: render, validate and publish directly as a Public YouTube Short.
+- dry: render and validate only; it does not upload or consume the topic.
 
-The scheduled run is a public publishing run. You can also run public more than once on the same day; each successful upload takes the next unused topic. Daily Motivator Video is a separate workflow and does not create these 3D topic videos.
+Scheduled runs use Public mode. Current schedule is four daily IST slots (09:00, 13:00, 17:00 and 21:00). A successful YouTube API upload is written to state/used_topics.jsonl and state/state.json.
