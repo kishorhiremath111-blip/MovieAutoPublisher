@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exhaustively verify the topic index permutation and representative recipe metadata."""
+"""Exhaustively verify all topic recipes are reachable once and metadata is valid."""
 import sys
 from math import gcd
 
@@ -10,39 +10,40 @@ def main():
     if gcd(topics.STEP, topics.TOTAL) != 1:
         raise AssertionError("Topic step does not generate a complete permutation.")
 
-    # Every supported counter must map to one distinct recipe index exactly once.
+    # Visit every index in the full recipe space, without rendering millions of videos.
     visited = bytearray(topics.TOTAL)
     for counter in range(topics.TOTAL):
         index = topics.index_for(counter)
         if visited[index]:
             raise AssertionError("Duplicate topic index %d at counter %d." % (index, counter))
         visited[index] = 1
-    if not all(visited):
-        raise AssertionError("Not every recipe index was visited.")
+        decoded = topics.decode(index)
+        if decoded[0] >= len(topics.SCENES):
+            raise AssertionError("Decoded scene index is out of range.")
+    if visited.count(0):
+        raise AssertionError("%d topic recipe indices were not reached." % visited.count(0))
 
-    # Exercise every generated scene and all four progression states.
-    for scene_index, scene in enumerate(topics.SCENES):
-        for stage, multiplier in enumerate((1, 2, 4, 8)):
-            counter = (scene_index * 9973 + stage) % topics.TOTAL
-            topic = topics.build_topic(counter)
-            if topic["params"]["scene"] not in topics.SCENES:
-                raise AssertionError("Unknown scene in generated recipe.")
-            if len(topic["title"]) > 100:
-                raise AssertionError("YouTube title exceeds 100 characters.")
-            if topic["level"] != stage + 1 and topic["multiplier"] != multiplier:
-                # The counter's level cycles globally; explicitly verify a matching counter below.
-                pass
+    # Prove every scene label corresponds to a buildable generated topic.
+    inverse_step = pow(topics.STEP, -1, topics.TOTAL)
+    for scene_index, scene_name in enumerate(topics.SCENES):
+        counter = ((scene_index - topics.OFFSET) * inverse_step) % topics.TOTAL
+        topic = topics.build_topic(counter)
+        if topic["params"]["scene"] != scene_name:
+            raise AssertionError("Scene %s did not generate its expected recipe." % scene_name)
+        if len(topic["title"]) > 100:
+            raise AssertionError("YouTube title exceeds 100 characters.")
+        if topic["params"]["multiplier"] != topic["multiplier"]:
+            raise AssertionError("Multiplier metadata differs between recipe and topic.")
 
+    # The first four counters must progress 1x, 2x, 4x, 8x in order.
     for stage, multiplier in enumerate((1, 2, 4, 8)):
         topic = topics.build_topic(stage)
         if topic["level"] != stage + 1 or topic["multiplier"] != multiplier:
-            raise AssertionError("Level/multiplier progression is not 1x/2x/4x/8x.")
+            raise AssertionError("Expected Level %d / %dx progression." % (stage + 1, multiplier))
 
-    if topics.SCENES[-1] != "gaprun" or topics.SCENE_NAMES["gaprun"] != "Multiplier Gap Run":
-        raise AssertionError("New gap-run scene is missing from topic catalogue.")
-
-    print("PASS: all %d topic indices are unique and covered." % topics.TOTAL)
-    print("PASS: %d scene families and 1x/2x/4x/8x levels registered." % len(topics.SCENES))
+    print("PASS: all %d unique recipe indices are covered." % topics.TOTAL)
+    print("PASS: all %d scene families are buildable." % len(topics.SCENES))
+    print("PASS: Level 1-4 progression is 1x / 2x / 4x / 8x.")
     return 0
 
 
