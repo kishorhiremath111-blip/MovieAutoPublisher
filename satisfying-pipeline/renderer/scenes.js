@@ -597,6 +597,173 @@
     };
   };
 
+  /* 12 — Rotating gap-run game: the glass sphere clears the opening and multiplies. */
+  builders.gaprun = function () {
+    var radius = 2.62, gapCenter = Math.PI * 0.5, gapHalf = 0.29;
+    var gapStart = gapCenter - gapHalf, gapEnd = gapCenter + gapHalf;
+    var angularSpeed = 1.92, startAngle = gapStart - 0.88;
+    var col = new THREE.Color();
+
+    function arcMesh(r, tube, start, end, hex, glow) {
+      var pts = [], segments = Math.max(32, Math.ceil((end - start) * 56));
+      for (var i = 0; i <= segments; i++) {
+        var a = start + (end - start) * i / segments;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0));
+      }
+      var curve = new THREE.CatmullRomCurve3(pts);
+      var material = new THREE.MeshPhysicalMaterial({
+        color: hex, emissive: hex, emissiveIntensity: glow,
+        roughness: 0.14, metalness: 0.72, clearcoat: 1,
+        clearcoatRoughness: 0.04
+      });
+      var mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, segments, tube, 12, false), material);
+      S.scene.add(mesh);
+      return mesh;
+    }
+
+    arcMesh(radius, 0.105, gapEnd, gapStart + TAU, 0x9afaff, 0.56);
+    arcMesh(radius + 0.17, 0.034, gapEnd, gapStart + TAU, 0x27dfff, 0.9);
+    arcMesh(radius - 0.17, 0.028, gapEnd, gapStart + TAU, 0xff4fd8, 0.82);
+    arcMesh(radius - 0.34, 0.012, gapEnd, gapStart + TAU, 0xffffff, 0.5);
+
+    var gateGeometry = new THREE.SphereGeometry(0.115, 24, 18);
+    var gateColors = [0x45f5ff, 0xff4fd8];
+    [gapStart, gapEnd].forEach(function (a, i) {
+      var gate = new THREE.Mesh(gateGeometry, new THREE.MeshPhysicalMaterial({
+        color: gateColors[i], emissive: gateColors[i], emissiveIntensity: 1.1,
+        roughness: 0.1, metalness: 0.35, clearcoat: 1
+      }));
+      gate.position.set(Math.cos(a) * radius, Math.sin(a) * radius, 0.08);
+      S.scene.add(gate);
+    });
+
+    var markerGeo = new THREE.OctahedronGeometry(0.105, 1);
+    for (var k = 0; k < 8; k++) {
+      var a0 = k / 8 * TAU;
+      if (a0 > gapStart && a0 < gapEnd) continue;
+      var marker = new THREE.Mesh(markerGeo, new THREE.MeshPhysicalMaterial({
+        color: pal(k / 8, col), emissive: pal(k / 8, col), emissiveIntensity: 0.48,
+        roughness: 0.17, metalness: 0.52, clearcoat: 1
+      }));
+      marker.position.set(Math.cos(a0) * (radius + 0.31), Math.sin(a0) * (radius + 0.31), 0.03);
+      S.scene.add(marker);
+    }
+
+    arcMesh(radius * 0.43, 0.012, 0, TAU, 0x315b9e, 0.24);
+    var core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.43, 2),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x9b7bff, emissive: 0x5428ff, emissiveIntensity: 0.9,
+        roughness: 0.12, metalness: 0.42, clearcoat: 1
+      }));
+    S.scene.add(core);
+
+    function pointAt(unwrappedAngle) {
+      var local = gapStart + (((unwrappedAngle - gapStart) % TAU) + TAU) % TAU;
+      if (local >= gapStart && local <= gapEnd) {
+        var u = clamp01((local - gapStart) / (gapEnd - gapStart));
+        var one = 1 - u;
+        var x0 = Math.cos(gapStart) * radius, y0 = Math.sin(gapStart) * radius;
+        var x2 = Math.cos(gapEnd) * radius, y2 = Math.sin(gapEnd) * radius;
+        var x1 = Math.cos(gapCenter) * radius * 0.35;
+        var y1 = Math.sin(gapCenter) * radius * 0.35;
+        return new THREE.Vector3(
+          one * one * x0 + 2 * one * u * x1 + u * u * x2,
+          one * one * y0 + 2 * one * u * y1 + u * u * y2,
+          0.24
+        );
+      }
+      return new THREE.Vector3(Math.cos(local) * radius, Math.sin(local) * radius, 0.24);
+    }
+
+    var shortcutPoints = [];
+    for (var q = 0; q <= 30; q++) shortcutPoints.push(pointAt(gapStart + (gapEnd - gapStart) * q / 30));
+    var shortcut = new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(shortcutPoints), 40, 0.022, 8, false),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.86,
+        blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    S.scene.add(shortcut);
+
+    var balls = [], ballGeometry = new THREE.SphereGeometry(0.235, 40, 28);
+    for (var bi = 0; bi < 8; bi++) {
+      var ballMaterial = mat(P.material || 'glass');
+      ballMaterial.color.setHSL(frac(P.hue0 + bi * 0.105), 0.82, 0.66);
+      ballMaterial.emissive.setHSL(frac(P.hue0 + bi * 0.105), 0.9, 0.28);
+      ballMaterial.emissiveIntensity = 0.5;
+      var ball = new THREE.Mesh(ballGeometry, ballMaterial);
+      ball.visible = bi === 0;
+      S.scene.add(ball);
+      balls.push(ball);
+    }
+    var glow = new THREE.PointLight(0x5df5ff, 3.2, 5.5);
+    balls[0].add(glow);
+
+    var trailCount = 54, trailPositions = new Float32Array(trailCount * 3);
+    var trailGeometry = new THREE.BufferGeometry();
+    trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    var trail = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({
+      color: 0x8bfaff, transparent: true, opacity: 0.88,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    S.scene.add(trail);
+
+    var burst = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.026, 10, 72),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false }));
+    S.scene.add(burst);
+
+    var dist = fit(3.55, 3.55) * 1.17;
+    S.focusY = 0;
+    beats('plink');
+
+    S.update = function (t) {
+      var angle = startAngle + t * angularSpeed;
+      var cleared = Math.max(0, Math.floor((angle - gapEnd) / TAU) + 1);
+      var stage = Math.min(3, cleared);
+      var multiplier = [1, 2, 4, 8][stage];
+      for (var b = 0; b < 8; b++) {
+        var active = b < multiplier;
+        balls[b].visible = active;
+        if (!active) continue;
+        var ballAngle = angle - b * (0.055 + stage * 0.012);
+        var position = pointAt(ballAngle);
+        balls[b].position.copy(position);
+        balls[b].rotation.set(t * 3.6 + b, t * 4.2 + b * 0.4, t * 2.8);
+        balls[b].scale.setScalar(1 + 0.075 * Math.sin(t * 8 - b * 0.7));
+      }
+
+      for (var tr = 0; tr < trailCount; tr++) {
+        var sample = pointAt(angle - tr * 0.018);
+        trailPositions[tr * 3] = sample.x;
+        trailPositions[tr * 3 + 1] = sample.y;
+        trailPositions[tr * 3 + 2] = 0.19 - tr * 0.0014;
+      }
+      trailGeometry.attributes.position.needsUpdate = true;
+      trailGeometry.computeBoundingSphere();
+
+      var age = ((((angle - gapEnd) % TAU) + TAU) % TAU) / angularSpeed;
+      var flash = Math.exp(-age * 2.4);
+      burst.position.set(0, 0, 0.22);
+      burst.material.opacity = flash * 0.86;
+      burst.scale.setScalar(0.3 + flash * 2.15);
+      burst.rotation.z = t * 0.42;
+      core.rotation.set(t * 0.34, t * 0.57, t * 0.26);
+      core.scale.setScalar(1 + 0.11 * Math.sin(t * 3.2));
+
+      if (S.hud) {
+        var stepMarkup = [1, 2, 4, 8].map(function (v, i) {
+          return '<span class="' + (i <= stage ? 'active' : '') + '">' + v + '×</span>';
+        }).join('');
+        S.hud.innerHTML = '<div class="hud-kicker">GAP RUN · LEVEL ' + (stage + 1) +
+          '</div><div class="hud-main">' + multiplier + '× MULTIPLIER</div>' +
+          '<div class="hud-steps">' + stepMarkup + '</div>';
+        S.hud.style.display = 'block';
+      }
+      S.cam.position.set(Math.sin(t * 0.20) * 0.72, Math.sin(t * 0.17) * 0.42, dist);
+      S.cam.lookAt(0, 0, 0);
+    };
+  };
+
   window.initScene = function (params) {
     P = params;
     var W = window.innerWidth, H = window.innerHeight;
@@ -627,7 +794,9 @@
     var cyan = new THREE.PointLight(0x36eaff, 38, 24);
     cyan.position.set(4, -3, 4); scene.add(cyan);
     S = { r: renderer, scene: scene, cam: cam, rand: mulberry(P.seed),
-      events: [], update: null, payoff: null, focusY: 0 };
+      events: [], update: null, payoff: null, focusY: 0, hud: document.getElementById("hud") };
+    window.__renderer = renderer;
+    if (S.hud) S.hud.style.display = "none";
     addStars();
     if (!builders[P.scene]) throw new Error('Unknown 3D scene: ' + P.scene);
     builders[P.scene]();
