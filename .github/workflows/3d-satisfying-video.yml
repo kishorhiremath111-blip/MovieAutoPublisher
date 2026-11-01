@@ -4,15 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Choose PUBLIC YouTube Short upload or DRY render only"
+        description: "PUBLIC uploads a YouTube Short; DRY only renders and checks"
         type: choice
         options:
           - public
           - dry
-        default: dry
+        default: public
         required: true
   schedule:
-    - cron: "30 12 * * *"
+    # Four daily runs at 09:00, 13:00, 17:00, 21:00 India Standard Time (UTC+5:30)
+    - cron: "30 3,7,11,15 * * *"
 
 permissions:
   contents: write
@@ -39,35 +40,35 @@ jobs:
         run: pip install -r satisfying-pipeline/requirements.txt
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
-      - name: Run pipeline
+      - name: Run pipeline (scheduled runs are always PUBLIC)
         working-directory: satisfying-pipeline
         env:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'dry' || 'false' }}
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: python run_pipeline.py
-      - name: Save consumed topic state to repository
+      - name: Save consumed topic state and upload history to repository
         if: ${{ success() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'public')) }}
         run: |
           git config user.name "satisfying-bot"
           git config user.email "satisfying-bot@users.noreply.github.com"
           git add satisfying-pipeline/state
           if git diff --cached --quiet; then
-            echo "No state changes to save."
+            echo "No state/history changes to save."
             exit 0
           fi
-          git commit -m "state: consume published topic $(date -u +%F)"
-          for attempt in 1 2 3 4 5; do
+          git commit -m "state: record successful public Short $(date -u +%F-%H%M)"
+          for attempt in 1 2 3 4 5 6 7; do
             git fetch origin main
             git rebase origin/main
             if git push origin HEAD:main; then
-              echo "Topic state pushed."
+              echo "Upload history and consumed-topic state persisted."
               exit 0
             fi
             echo "Push attempt $attempt failed; retrying..."
-            sleep 2
+            sleep 3
           done
-          echo "Could not persist topic state after upload."
+          echo "::error::Short may already be uploaded, but history/state could not be persisted after retries."
           exit 1
       - name: Upload render/log artifacts on dry run or failure
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'dry') || failure() }}
