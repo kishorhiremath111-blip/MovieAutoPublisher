@@ -1,7 +1,7 @@
 {
   "width": 1080,
   "height": 1920,
-  "fps": 30,
+  "fps": 60,
   "target_seconds": 28,
   "privacy": "public",
   "made_for_kids": false,
