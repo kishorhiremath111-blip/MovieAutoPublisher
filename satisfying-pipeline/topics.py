@@ -130,8 +130,10 @@ def build_topic(counter, target_seconds=28):
         "seed": seed, "duration": duration,
     }
     core = TITLE_TEMPLATES[scene].format(pal=palette, name=SCENE_NAMES[scene])
-    title = ("%s | %s %s #%08d #Shorts" % (
-        core, MATERIAL_ADJ[material], SHAPE_PLURAL[shape], index))[:100]
+    suffix = " | %s %s #%08d #Shorts" % (
+        MATERIAL_ADJ[material], SHAPE_PLURAL[shape], index
+    )
+    title = core[:max(0, 100 - len(suffix))] + suffix
     description = (
         "%s — an original procedural 3D animation, designed on a true-black stage "
         "with vivid color, polished materials, rhythmic motion and a visual payoff. "
