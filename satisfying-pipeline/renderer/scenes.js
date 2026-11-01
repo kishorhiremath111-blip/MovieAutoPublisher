@@ -1,6 +1,5 @@
-/* Six satisfying 3D scenes. Har scene deterministic hai: renderAt(t) hamesha
-   same frame deta hai, isliye Python frame-by-frame screenshot le sakta hai.
-   Har scene S.events me (time, kind, pitch) bharta hai, jisse audio banti hai. */
+/* Eleven procedural 3D scenes for vertical Shorts.
+   Deterministic frame renderer: update(t) produces the same scene at any timestamp. */
 (function () {
   'use strict';
   var TAU = Math.PI * 2;
@@ -18,40 +17,59 @@
   function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
   function ease(x) { x = clamp01(x); return x * x * (3 - 2 * x); }
   function frac(x) { return x - Math.floor(x); }
+  function smoothPop(x) { x = clamp01(x); return 1 - Math.pow(1 - x, 3); }
 
-  function pal(i, out) {
+  function pal(i, out, shift) {
     var f = frac(i);
-    var h = P.hue0 + P.span * f;
-    h = h - Math.floor(h);
-    return out.setHSL(h, P.sat, Math.min(0.85, P.light + 0.06 * Math.sin(f * TAU * 2)));
+    var h = frac(P.hue0 + P.span * f + (shift || 0));
+    return out.setHSL(h, Math.min(1, P.sat), Math.max(0.48, Math.min(0.82,
+      P.light + 0.065 * Math.sin(f * TAU * 2))));
   }
 
   function geo(shape, size) {
     switch (shape) {
       case 'cube': return new THREE.BoxGeometry(size, size, size);
-      case 'sphere': return new THREE.SphereGeometry(size * 0.55, 24, 16);
-      case 'cylinder': return new THREE.CylinderGeometry(size * 0.45, size * 0.45, size, 24);
-      case 'cone': return new THREE.ConeGeometry(size * 0.5, size, 24);
-      case 'torus': return new THREE.TorusGeometry(size * 0.4, size * 0.15, 12, 24);
-      case 'octahedron': return new THREE.OctahedronGeometry(size * 0.6);
-      case 'icosahedron': return new THREE.IcosahedronGeometry(size * 0.58);
-      default: return new THREE.DodecahedronGeometry(size * 0.55);
+      case 'sphere': return new THREE.SphereGeometry(size * 0.55, 32, 24);
+      case 'cylinder': return new THREE.CylinderGeometry(size * 0.42, size * 0.42, size, 32, 1);
+      case 'cone': return new THREE.ConeGeometry(size * 0.5, size, 32, 1);
+      case 'torus': return new THREE.TorusGeometry(size * 0.40, size * 0.13, 16, 36);
+      case 'octahedron': return new THREE.OctahedronGeometry(size * 0.62, 1);
+      case 'icosahedron': return new THREE.IcosahedronGeometry(size * 0.58, 1);
+      default: return new THREE.DodecahedronGeometry(size * 0.56, 1);
     }
   }
 
   function mat(kind) {
-    switch (kind) {
-      case 'clay': return new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
-      case 'metal': return new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.65 });
-      case 'pearl': return new THREE.MeshStandardMaterial({ roughness: 0.22, metalness: 0.15, emissive: 0x333333 });
-      case 'neon': return new THREE.MeshBasicMaterial({});
-      case 'glass': return new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.78 });
-      default: return new THREE.MeshStandardMaterial({ roughness: 0.18, metalness: 0 });
+    var opts = {
+      color: 0xffffff, roughness: 0.2, metalness: 0.32,
+      emissive: 0x111111, emissiveIntensity: 0.16
+    };
+    if (kind === 'ceramic') { opts.roughness = 0.3; opts.metalness = 0.08; opts.clearcoat = 0.7; }
+    if (kind === 'chrome' || kind === 'liquid-metal') {
+      opts.roughness = 0.11; opts.metalness = 0.92; opts.clearcoat = 1;
+      opts.clearcoatRoughness = 0.08;
     }
+    if (kind === 'prism' || kind === 'pearl') {
+      opts.roughness = 0.13; opts.metalness = 0.55; opts.clearcoat = 1;
+      opts.clearcoatRoughness = 0.06; opts.emissiveIntensity = 0.24;
+    }
+    if (kind === 'glass') {
+      opts.roughness = 0.08; opts.metalness = 0.18; opts.clearcoat = 1;
+      opts.transparent = true; opts.opacity = 0.88; opts.depthWrite = false;
+    }
+    if (kind === 'neon') {
+      opts.roughness = 0.24; opts.metalness = 0.15; opts.emissive = 0xffffff;
+      opts.emissiveIntensity = 0.42;
+    }
+    if (kind === 'candy') {
+      opts.roughness = 0.12; opts.metalness = 0.16; opts.clearcoat = 1;
+      opts.clearcoatRoughness = 0.1;
+    }
+    return new THREE.MeshPhysicalMaterial(opts);
   }
 
-  function inst(n, shape, size) {
-    var m = new THREE.InstancedMesh(geo(shape, size), mat(P.material), n);
+  function inst(n, shape, size, material) {
+    var m = new THREE.InstancedMesh(geo(shape, size), material || mat(P.material), n);
     m.frustumCulled = false;
     S.scene.add(m);
     return m;
@@ -62,296 +80,565 @@
     return Math.max(halfH / t, halfW / (S.cam.aspect * t));
   }
 
-  function ground(r, y) {
-    var g = new THREE.Mesh(new THREE.CircleGeometry(r, 64),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.14, roughness: 0.6 }));
-    g.rotation.x = -Math.PI / 2;
-    g.position.y = y;
-    S.scene.add(g);
+  function addRing(radius, tube, color, rotation) {
+    var mesh = new THREE.Mesh(
+      new THREE.TorusGeometry(radius, tube, 16, 160),
+      new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.84 })
+    );
+    if (rotation) mesh.rotation.set(rotation[0], rotation[1], rotation[2]);
+    S.scene.add(mesh);
+    return mesh;
   }
 
-  function beats(kind) {
-    var nb = Math.floor(P.duration / P.beat);
-    for (var b = 0; b < nb; b++) S.events.push({ t: b * P.beat, kind: kind || 'beat', pitch: b });
+  function addStars() {
+    var vertices = [], rng = mulberry((P.seed ^ 0x5f3759df) >>> 0);
+    for (var i = 0; i < 360; i++) {
+      vertices.push((rng() - 0.5) * 19, (rng() - 0.5) * 31,
+        -9 + rng() * 23);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    var p = new THREE.Points(g, new THREE.PointsMaterial({
+      color: 0x9ebaff, size: 0.026, transparent: true, opacity: 0.52,
+      depthWrite: false, sizeAttenuation: true
+    }));
+    S.scene.add(p);
   }
 
-  /* front=true: scene ka ek hi saamne wala side hai, isliye camera sirf halka hilta hai */
+  function addPayoff() {
+    var colors = [0xffffff, 0x6ffcff, 0xff62dc];
+    var rings = [];
+    for (var i = 0; i < 3; i++) {
+      var ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.35 + i * 0.25, 0.022, 12, 120),
+        new THREE.MeshBasicMaterial({ color: colors[i], transparent: true,
+          opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
+      );
+      ring.rotation.set(i * 0.88, i * 0.61, i * 0.42);
+      ring.position.y = S.focusY || 0;
+      S.scene.add(ring);
+      rings.push(ring);
+    }
+    var core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true,
+        opacity: 0, blending: THREE.AdditiveBlending }));
+    core.position.y = S.focusY || 0;
+    S.scene.add(core);
+    S.payoff = function (t) {
+      var q = ease((t - (P.duration - 2.35)) / 0.62);
+      var pulse = 1 + 0.10 * Math.sin(t * 15);
+      for (var j = 0; j < rings.length; j++) {
+        rings[j].material.opacity = 0.78 * q;
+        rings[j].rotation.x += 0; // deterministic orientation is set below
+        rings[j].rotation.y = j * 0.61 + t * (0.32 + j * 0.12);
+        rings[j].rotation.z = j * 0.42 - t * (0.24 + j * 0.1);
+        rings[j].scale.setScalar((0.22 + 0.78 * q) * pulse);
+      }
+      core.material.opacity = 0.92 * q;
+      core.rotation.set(t * 1.7, t * 2.1, t * 1.2);
+      core.scale.setScalar((0.35 + 0.65 * q) * pulse);
+    };
+  }
+
   function camera(t, dist, height, look, front) {
     var u = t / P.duration, a, c = S.cam, mode = P.camera;
-    if (front) mode = (mode === 'orbit' || mode === 'low') ? 'sway' : (mode === 'top' ? 'dolly' : mode);
+    if (front && (mode === 'orbit' || mode === 'low' || mode === 'top')) mode = 'sweep';
     switch (mode) {
       case 'low':
-        a = TAU * u;
-        c.position.set(Math.sin(a) * dist * 0.92, height * 0.35 + dist * 0.1, Math.cos(a) * dist * 0.92);
+        a = TAU * u * 0.72;
+        c.position.set(Math.sin(a) * dist * 0.72, height * 0.43 + dist * 0.07, Math.cos(a) * dist);
         break;
       case 'top':
-        a = TAU * u;
-        c.position.set(Math.sin(a) * dist * 0.28, dist * 0.95, Math.cos(a) * dist * 0.45);
+        a = TAU * u * 0.55;
+        c.position.set(Math.sin(a) * dist * 0.16, dist * 0.96, Math.cos(a) * dist * 0.34);
         break;
       case 'dolly':
-        c.position.set(Math.sin(TAU * u) * dist * 0.14, height, dist * (1.04 - 0.16 * Math.sin(Math.PI * u)));
+        c.position.set(Math.sin(TAU * u) * dist * 0.10, height,
+          dist * (1.10 - 0.15 * Math.sin(Math.PI * u)));
         break;
-      case 'sway':
-        a = Math.sin(TAU * u) * 0.8;
-        c.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
+      case 'sweep':
+        a = Math.sin(TAU * u * 0.72) * 0.44;
+        c.position.set(Math.sin(a) * dist, height + Math.sin(TAU * u) * 0.12, Math.cos(a) * dist);
         break;
       default:
-        a = TAU * u;
-        c.position.set(Math.sin(a) * dist, height, Math.cos(a) * dist);
+        a = TAU * u * 0.62;
+        c.position.set(Math.sin(a) * dist * 0.58, height, Math.cos(a) * dist);
     }
     c.lookAt(0, look, 0);
   }
 
-  /* ---------- 1. ripple wave ---------- */
+  function beats(kind) {
+    var nb = Math.floor(P.duration / P.beat);
+    for (var b = 0; b < nb; b++) {
+      S.events.push({ t: b * P.beat, kind: kind || 'beat', pitch: b });
+    }
+  }
+
+  /* 1 — A dense glossy field makes a travelling concentric wave. */
   builders.ripple = function () {
-    var cols = [9, 11, 13, 15][P.density], rows = Math.round(cols * 1.8), cnt = cols * rows;
-    var m = inst(cnt, P.shape, 0.82), dm = new THREE.Object3D(), col = new THREE.Color(), pos = [];
+    var cols = [13, 15, 17, 19][P.density], rows = Math.round(cols * 1.8);
+    var count = cols * rows, m = inst(count, P.shape, 0.72);
+    var dm = new THREE.Object3D(), col = new THREE.Color(), points = [];
     var hc = (cols - 1) / 2, hr = (rows - 1) / 2, maxD = Math.hypot(hc, hr);
-    for (var ix = 0; ix < cols; ix++) for (var iz = 0; iz < rows; iz++) {
-      var x = ix - hc, z = iz - hr;
-      pos.push({ x: x, z: z, d: Math.hypot(x, z) });
+    for (var x = 0; x < cols; x++) for (var z = 0; z < rows; z++) {
+      var px = (x - hc) * 0.88, pz = (z - hr) * 0.88;
+      points.push({ x: px, z: pz, d: Math.hypot(px, pz) });
     }
     beats('beat');
-    var dist = fit(hr * 0.78 + 2, hc + 2.2) * 1.12;
+    var dist = fit(hr * 0.79 + 1.8, hc * 0.88 + 1.9) * 1.08;
+    S.focusY = 0;
     S.update = function (t) {
-      var ph = t / (P.beat * 4) * TAU, bounce = Math.exp(-(t % P.beat) * 7) * 0.2;
-      for (var i = 0; i < cnt; i++) {
-        var q = pos[i], w = Math.sin(q.d * 0.62 - ph), k = w * 0.5 + 0.5;
-        dm.position.set(q.x, w * 1.1, q.z);
-        dm.rotation.set(0, ph * 0.25 + q.d * 0.12, 0);
-        var s = 0.7 + 0.28 * k + bounce;
-        dm.scale.set(s, s * (P.shape === 'cube' ? 1 + k * 0.9 : 1), s);
-        dm.updateMatrix();
-        m.setMatrixAt(i, dm.matrix);
-        m.setColorAt(i, pal(q.d / maxD * 0.9 + t * 0.04, col));
+      var phase = t * 2.1, pulse = 1 + 0.10 * Math.sin(t * 7);
+      for (var i = 0; i < count; i++) {
+        var q = points[i], wave = Math.sin(q.d * 1.10 - phase);
+        var crown = Math.exp(-Math.pow((q.d - (1.0 + frac(t / 7) * maxD * 0.75)), 2) * 0.18);
+        var y = wave * 0.46 + crown * 0.78;
+        dm.position.set(q.x, y, q.z);
+        dm.rotation.set(y * 0.28, phase * 0.10 + q.d * 0.14, y * 0.14);
+        var s = (0.66 + 0.20 * (wave * 0.5 + 0.5) + crown * 0.28) * pulse;
+        dm.scale.set(s, s * (P.shape === 'cube' ? 1.18 : 1), s);
+        dm.updateMatrix(); m.setMatrixAt(i, dm.matrix);
+        m.setColorAt(i, pal(q.d / maxD * 0.88 + t * 0.07, col));
       }
-      m.instanceMatrix.needsUpdate = true;
-      m.instanceColor.needsUpdate = true;
-      camera(t, dist, dist * 0.62, 0, true);
+      m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+      camera(t, dist, dist * 0.56, 0, true);
     };
   };
 
-  /* ---------- 2. domino spiral ---------- */
+  /* 2 — A continuous spiral domino chain reaction, timed to the beat. */
   builders.domino = function () {
-    var n = [60, 90, 120, 160][P.density], w = 0.9, h = 1.5, th = 0.28;
-    var g = new THREE.BoxGeometry(w, h, th);
-    g.translate(0, h / 2, 0);
+    var n = [100, 140, 180, 220][P.density], w = 0.62, h = 1.18, th = 0.22;
+    var g = new THREE.BoxGeometry(w, h, th); g.translate(0, h / 2, 0);
     var m = new THREE.InstancedMesh(g, mat(P.material), n);
-    m.frustumCulled = false;
-    S.scene.add(m);
-    var b = 0.5, theta = 2.0, spacing = 0.75, items = [], col = new THREE.Color(), dm = new THREE.Object3D();
-    var dtF = Math.min(P.beat * 0.6, (P.duration - 0.9 - 2.4) / n), fallDur = 0.38, maxA = 1.25;
-    var maxR = 1;
+    m.frustumCulled = false; S.scene.add(m);
+    var theta = 1.6, b = 0.16, spacing = 0.56, items = [];
+    var col = new THREE.Color(), dm = new THREE.Object3D(), maxR = 0;
+    var gap = Math.min(P.beat * 0.52, (P.duration - 4.4) / n);
     for (var i = 0; i < n; i++) {
       var r = b * theta, x = r * Math.cos(theta), z = r * Math.sin(theta);
-      var dx = b * Math.cos(theta) - r * Math.sin(theta), dz = b * Math.sin(theta) + r * Math.cos(theta);
-      dm.position.set(x, 0, z);
-      dm.rotation.set(0, Math.atan2(dx, dz), 0);
-      dm.scale.set(1, 1, 1);
-      dm.updateMatrix();
-      items.push({ m0: dm.matrix.clone(), ti: 0.9 + i * dtF });
+      var dx = b * Math.cos(theta) - r * Math.sin(theta);
+      var dz = b * Math.sin(theta) + r * Math.cos(theta);
+      dm.position.set(x, 0, z); dm.rotation.set(0, Math.atan2(dx, dz), 0);
+      dm.updateMatrix(); items.push({ base: dm.matrix.clone(), start: 0.85 + i * gap });
       m.setColorAt(i, pal(i / n, col));
-      S.events.push({ t: 0.9 + i * dtF + 0.06, kind: 'tick', pitch: i });
-      maxR = r;
+      S.events.push({ t: 0.9 + i * gap, kind: 'tick', pitch: i });
+      maxR = Math.max(maxR, r);
       theta += spacing / Math.sqrt(r * r + b * b);
     }
     m.instanceColor.needsUpdate = true;
-    ground(maxR + 2, -0.02);
-    var tA = new THREE.Matrix4(), tB = new THREE.Matrix4(), tC = new THREE.Matrix4(),
-        loc = new THREE.Matrix4(), fin = new THREE.Matrix4();
-    var dist = fit(maxR * 0.7 + 1.5, maxR + 1.5) * 1.1;
+    var ringA = addRing(maxR + 0.8, 0.025, 0x48eaff, [Math.PI / 2, 0, 0]);
+    ringA.position.y = 0.02;
+    var a = new THREE.Matrix4(), b0 = new THREE.Matrix4(), c = new THREE.Matrix4();
+    var local = new THREE.Matrix4(), final = new THREE.Matrix4();
+    var dist = fit(maxR * 0.8 + 1.2, maxR + 1.2) * 1.05;
+    S.focusY = 0;
     S.update = function (t) {
-      for (var i = 0; i < n; i++) {
-        var q = clamp01((t - items[i].ti) / fallDur), ang = maxA * q * q;
-        tA.makeTranslation(0, 0, th / 2);
-        tB.makeRotationX(ang);
-        tC.makeTranslation(0, 0, -th / 2);
-        loc.multiplyMatrices(tA, tB).multiply(tC);
-        fin.multiplyMatrices(items[i].m0, loc);
-        m.setMatrixAt(i, fin);
+      for (var j = 0; j < n; j++) {
+        var q = clamp01((t - items[j].start) / 0.38), ang = 1.25 * q * q;
+        a.makeTranslation(0, 0, th / 2); b0.makeRotationX(ang); c.makeTranslation(0, 0, -th / 2);
+        local.multiplyMatrices(a, b0).multiply(c);
+        final.multiplyMatrices(items[j].base, local);
+        m.setMatrixAt(j, final);
       }
       m.instanceMatrix.needsUpdate = true;
-      camera(t, dist, dist * 0.6, 0.3, false);
+      ringA.rotation.z = t * 0.16;
+      camera(t, dist, dist * 0.62, 0.25, false);
     };
   };
 
-  /* ---------- 3. jar fill ---------- */
+  /* 3 — A transparent vessel fills with a perfectly ordered cascade of spheres. */
   builders.jar = function () {
-    var n = [70, 110, 160, 230][P.density], R = 1.9, sp = 0.62, rr = R - 0.36;
+    var n = [84, 124, 176, 232][P.density], R = 1.75, spacing = 0.48, rr = R - 0.34;
     var base = [], i, j, k;
     for (j = -8; j <= 8; j++) for (i = -8; i <= 8; i++) {
-      var x = (i + (j & 1) * 0.5) * sp, z = j * sp * 0.866;
+      var x = (i + (j & 1) * 0.5) * spacing, z = j * spacing * 0.866;
       if (Math.hypot(x, z) <= rr) base.push([x, z]);
     }
-    var per = base.length, layers = Math.ceil(n / per), H = Math.max(6, layers * 0.5 + 1.5);
-    var m = inst(n, P.shape, 0.6), dm = new THREE.Object3D(), col = new THREE.Color(), balls = [];
-    var g = 34, y0 = H + 4, gap = Math.min(P.beat / 2, (P.duration - 3.5) / n);
-    var layerOrder = [];
+    var per = base.length, layers = Math.ceil(n / per), H = Math.max(6.4, layers * 0.43 + 1.1);
+    var m = inst(n, 'sphere', 0.58), dm = new THREE.Object3D(), col = new THREE.Color(), balls = [];
+    var y0 = H + 4.1, gravity = 33, gap = Math.min(P.beat / 2.8, (P.duration - 4.2) / n);
+    var orders = [];
     for (k = 0; k < layers; k++) {
-      var idxs = [], ca = Math.cos(k * 0.6), sa = Math.sin(k * 0.6);
-      for (i = 0; i < per; i++) idxs.push(i);
-      for (i = per - 1; i > 0; i--) { j = Math.floor(S.rand() * (i + 1)); var tmp = idxs[i]; idxs[i] = idxs[j]; idxs[j] = tmp; }
-      layerOrder.push({ idxs: idxs, ca: ca, sa: sa });
+      var ids = [];
+      for (i = 0; i < per; i++) ids.push(i);
+      for (i = per - 1; i > 0; i--) {
+        j = Math.floor(S.rand() * (i + 1));
+        var tmp = ids[i]; ids[i] = ids[j]; ids[j] = tmp;
+      }
+      orders.push({ ids: ids, angle: k * 0.38 });
     }
     for (i = 0; i < n; i++) {
       k = Math.floor(i / per);
-      var lo = layerOrder[k], p = base[lo.idxs[i % per]];
-      var fx = p[0] * lo.ca - p[1] * lo.sa, fz = p[0] * lo.sa + p[1] * lo.ca, fy = 0.38 + k * 0.5;
-      var fd = Math.sqrt(2 * (y0 - fy) / g), ti = 0.6 + i * gap;
-      balls.push({ x: fx, z: fz, y: fy, fd: fd, ti: ti });
+      var layer = orders[k], p = base[layer.ids[i % per]];
+      var ca = Math.cos(layer.angle), sa = Math.sin(layer.angle);
+      var fx = p[0] * ca - p[1] * sa, fz = p[0] * sa + p[1] * ca;
+      var fy = 0.34 + k * 0.43, fd = Math.sqrt(2 * (y0 - fy) / gravity);
+      var ti = 0.55 + i * gap;
+      balls.push({ x: fx, z: fz, y: fy, fall: fd, start: ti });
       m.setColorAt(i, pal(i / n, col));
       S.events.push({ t: ti + fd, kind: 'plink', pitch: i });
     }
     m.instanceColor.needsUpdate = true;
-    var jar = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.12, R + 0.12, H, 48, 1, true),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, roughness: 0.05,
-        side: THREE.DoubleSide, depthWrite: false }));
-    jar.position.y = H / 2;
-    S.scene.add(jar);
-    ground(R * 2.4, -0.02);
-    var dist = fit((H + 1) / 2 * 1.15, R * 1.7 + 0.5);
+    var glass = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 72, 1, true),
+      new THREE.MeshPhysicalMaterial({ color: 0x9edfff, roughness: 0.05, metalness: 0.12,
+        transparent: true, opacity: 0.17, side: THREE.DoubleSide, depthWrite: false,
+        clearcoat: 1, clearcoatRoughness: 0.02 }));
+    glass.position.y = H / 2; S.scene.add(glass);
+    var rim = addRing(R, 0.055, 0x8cfbff, [Math.PI / 2, 0, 0]); rim.position.y = H;
+    var foot = addRing(R * 0.98, 0.07, 0xff5de2, [Math.PI / 2, 0, 0]); foot.position.y = 0.06;
+    var dist = fit(H * 0.57, R * 1.8 + 0.55) * 1.12;
+    S.focusY = H * 0.44;
     S.update = function (t) {
-      for (var i = 0; i < n; i++) {
-        var b = balls[i], tau = t - b.ti, y, sc = 1;
-        if (tau < 0) { sc = 0.0001; y = y0; }
-        else if (tau < b.fd) y = y0 - 0.5 * g * tau * tau;
-        else { var bt = tau - b.fd; y = b.y + 0.25 * Math.exp(-bt * 9) * Math.abs(Math.sin(bt * 14)); }
-        var spin = tau < 0 ? 0 : Math.min(tau, b.fd);
-        dm.position.set(b.x, y, b.z);
-        dm.rotation.set(spin * 2.1, spin * 1.7, 0);
-        dm.scale.set(sc, sc, sc);
-        dm.updateMatrix();
-        m.setMatrixAt(i, dm.matrix);
+      for (var j = 0; j < n; j++) {
+        var q = balls[j], tau = t - q.start, y, scale = 1;
+        if (tau < 0) { y = y0; scale = 0.0001; }
+        else if (tau < q.fall) y = y0 - 0.5 * gravity * tau * tau;
+        else {
+          var settle = tau - q.fall;
+          y = q.y + 0.055 * Math.exp(-settle * 8) * Math.sin(settle * 18);
+        }
+        dm.position.set(q.x, y, q.z);
+        dm.rotation.set(Math.max(0, tau) * 1.7, Math.max(0, tau) * 1.2, 0);
+        dm.scale.setScalar(scale); dm.updateMatrix(); m.setMatrixAt(j, dm.matrix);
       }
       m.instanceMatrix.needsUpdate = true;
-      camera(t, dist, H * 0.55, H * 0.42, false);
+      camera(t, dist, H * 0.62, H * 0.43, false);
     };
   };
 
-  /* ---------- 4. endless tunnel ---------- */
+  /* 4 — Repeating rings and gem fragments rush through a black prism tunnel. */
   builders.tunnel = function () {
-    var rings = [28, 36, 44, 52][P.density], K = [12, 14, 16, 18][P.density], sp = 1.4, L = rings * sp, rad = 3.2;
-    var cnt = rings * K, m = inst(cnt, P.shape, 0.6), dm = new THREE.Object3D(), col = new THREE.Color();
-    var v = sp / P.beat;
+    var rings = [27, 33, 39, 45][P.density], sides = [16, 18, 20, 22][P.density];
+    var count = rings * sides, spacing = 1.42, length = rings * spacing, radius = 3.15;
+    var m = inst(count, P.shape, 0.47), dm = new THREE.Object3D(), col = new THREE.Color();
+    var rails = [];
+    for (var r = 0; r < 4; r++) {
+      var rail = addRing(radius + r * 0.12, 0.018, [0x39eaff, 0xff48d7, 0x9b70ff, 0xffffff][r],
+        [0, 0, 0]);
+      rail.position.z = -r * 5;
+      rails.push(rail);
+    }
     beats('beat');
+    S.focusY = 0;
     S.update = function (t) {
       var idx = 0;
-      for (var r = 0; r < rings; r++) {
-        var z = -(((r * sp - v * t) % L) + L) % L;
-        var near = ease((-z - 0.6) / 2), far = ease((L + z) / 8), f = near * far;
-        var rot = r * 0.25 + t * 0.4 * (r % 2 ? 1 : -1);
-        var rr = rad * (1 + 0.12 * Math.sin(r * 0.5 - t * 3));
-        pal(frac(r / rings + t * 0.08), col);
-        for (var k = 0; k < K; k++) {
-          var a = rot + k / K * TAU, s = (0.8 + 0.25 * Math.sin(r * 0.7 + t * 4)) * f + 0.0001;
-          dm.position.set(Math.cos(a) * rr, Math.sin(a) * rr, z);
-          dm.rotation.set(a, t * 0.8 + r * 0.3, 0);
-          dm.scale.set(s, s, s);
-          dm.updateMatrix();
-          m.setMatrixAt(idx, dm.matrix);
-          m.setColorAt(idx, col);
+      for (var ri = 0; ri < rings; ri++) {
+        var z = -frac((ri * spacing + t * 3.3) / length) * length;
+        var depth = 0.72 + 0.28 * Math.cos(ri / rings * Math.PI);
+        var rot = ri * 0.23 + t * (ri % 2 ? 0.55 : -0.48);
+        for (var k0 = 0; k0 < sides; k0++) {
+          var a = rot + k0 / sides * TAU;
+          var rr0 = radius * (1 + 0.07 * Math.sin(ri * 0.45 - t * 2.3));
+          dm.position.set(Math.cos(a) * rr0, Math.sin(a) * rr0, z);
+          dm.rotation.set(a + t * 0.8, t * 0.7 + ri * 0.12, a * 0.5);
+          var s = (0.56 + 0.16 * Math.sin(ri * 0.6 + t * 3)) * depth;
+          dm.scale.setScalar(s); dm.updateMatrix(); m.setMatrixAt(idx, dm.matrix);
+          m.setColorAt(idx, pal(ri / rings + k0 / sides * 0.16 + t * 0.025, col));
           idx++;
         }
       }
-      m.instanceMatrix.needsUpdate = true;
-      m.instanceColor.needsUpdate = true;
-      var u = t / P.duration, c = S.cam;
-      c.up.set(Math.sin(TAU * u * 2) * 0.22, 1, 0);
-      c.position.set(Math.sin(TAU * u * 2) * 0.4, Math.cos(TAU * u * 2) * 0.3, 2);
-      c.lookAt(0, 0, -12);
+      m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+      rails.forEach(function (rail, j) {
+        rail.position.z = -frac(t * 2.4 + j * 0.24) * 18;
+        rail.rotation.z = t * (0.11 + j * 0.035);
+      });
+      S.cam.position.set(Math.sin(t * 0.45) * 0.20, Math.cos(t * 0.5) * 0.17, 2.6);
+      S.cam.lookAt(0, 0, -13);
     };
   };
 
-  /* ---------- 5. bubble pop wall ---------- */
+  /* 5 — Bubbles burst in a travelling wave, then snap back into a perfect grid. */
   builders.bubbles = function () {
-    var cols = [8, 10, 12, 14][P.density], rows = [14, 18, 22, 25][P.density], cnt = cols * rows, sp = 7.6 / cols;
-    var m = inst(cnt, P.shape, sp * 0.92), dm = new THREE.Object3D(), col = new THREE.Color(), items = [];
-    var cx = (S.rand() - 0.5) * cols * sp * 0.6, cy = (S.rand() - 0.5) * rows * sp * 0.6, i;
+    var cols = [10, 12, 14, 16][P.density], rows = [17, 20, 23, 26][P.density];
+    var count = cols * rows, gap = 0.52, items = [], order, m = inst(count, 'sphere', 0.48);
+    var dm = new THREE.Object3D(), col = new THREE.Color();
     for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
-      var x = (c - (cols - 1) / 2) * sp, y = (r - (rows - 1) / 2) * sp;
-      items.push({ x: x, y: y, z: -x * x * 0.02, key: Math.hypot(x - cx, y - cy) + S.rand() * 0.9, ph: S.rand() * TAU });
+      var x = (c - (cols - 1) / 2) * gap, y = (r - (rows - 1) / 2) * gap;
+      items.push({ x: x, y: y, z: -0.35 * Math.cos(x * 0.7) });
     }
-    var order = items.map(function (_, ix) { return ix; }).sort(function (a, b) { return items[a].key - items[b].key; });
-    var gapP = Math.min(P.beat / 3, P.duration * 0.6 / cnt);
-    var tr = 1 + cnt * gapP + 0.8, gapR = gapP * 0.5;
-    for (i = 0; i < cnt; i++) {
-      var it = items[order[i]];
-      it.tp = 1 + i * gapP;
-      it.tg = tr + i * gapR;
-      S.events.push({ t: it.tp, kind: 'pop', pitch: i });
-    }
-    for (i = 0; i < cnt; i++) m.setColorAt(i, pal(frac(items[i].y / (rows * sp) + 0.5 + items[i].x * 0.02), col));
+    var cx = (S.rand() - 0.5) * 2.2, cy = (S.rand() - 0.5) * 3.2;
+    order = items.map(function (q, i) {
+      return { i: i, d: Math.hypot(q.x - cx, q.y - cy) + S.rand() * 0.35 };
+    }).sort(function (a, b) { return a.d - b.d; });
+    var popGap = Math.min(P.beat / 3, P.duration * 0.51 / count);
+    var rebuild = 1.0 + count * popGap + 0.85;
+    order.forEach(function (q, i) {
+      items[q.i].popAt = 0.85 + i * popGap;
+      items[q.i].backAt = rebuild + i * popGap * 0.28;
+      S.events.push({ t: items[q.i].popAt, kind: 'pop', pitch: i });
+    });
+    for (var i = 0; i < count; i++) m.setColorAt(i,
+      pal(frac(items[i].y / (rows * gap) + 0.5 + items[i].x * 0.035), col));
     m.instanceColor.needsUpdate = true;
-    var dist = fit(rows * sp / 2 + 1.2, 4.8);
+    var dist = fit(rows * gap / 2 + 1, cols * gap / 2 + 1) * 1.08;
+    S.focusY = 0;
     S.update = function (t) {
-      for (var i = 0; i < cnt; i++) {
-        var it = items[i], s, tau = t - it.tp;
-        if (tau < 0) s = 1 + 0.03 * Math.sin(t * 2.5 + it.ph);
-        else if (tau < 0.05) s = 1 + 0.3 * tau / 0.05;
-        else if (tau < 0.12) s = 1.3 * (1 - (tau - 0.05) / 0.07);
-        else s = 0;
-        var tg = t - it.tg;
-        if (tau >= 0.12 && tg > 0) { var q = tg / 0.5; s = 1 - Math.exp(-6 * q) * Math.cos(14 * q); }
-        dm.position.set(it.x, it.y, it.z);
-        dm.rotation.set(t * 0.3 + it.ph, t * 0.4, 0);
-        dm.scale.set(Math.max(s, 0.0001), Math.max(s, 0.0001), Math.max(s, 0.0001));
-        dm.updateMatrix();
-        m.setMatrixAt(i, dm.matrix);
+      for (var j = 0; j < count; j++) {
+        var q = items[j], tau = t - q.popAt, s, z = q.z, dx = 0, dy = 0;
+        if (tau < 0) s = 0.94 + 0.055 * Math.sin(t * 2.8 + j);
+        else if (tau < 0.16) {
+          s = 1 + 0.34 * Math.sin(Math.PI * tau / 0.16);
+          z += Math.sin(tau * 18) * 0.18;
+        } else {
+          var back = ease((t - q.backAt) / 0.42);
+          var pulse = Math.exp(-Math.max(0, tau - 0.16) * 2.5);
+          s = 0.0001 + back * (0.97 + 0.06 * Math.sin(t * 3 + j));
+          dx = (q.x > cx ? 1 : -1) * (1 - back) * 0.36;
+          dy = (q.y > cy ? 1 : -1) * (1 - back) * 0.32;
+          z += pulse * 0.3 * Math.sin(t * 4 + j);
+        }
+        dm.position.set(q.x + dx, q.y + dy, z);
+        dm.rotation.set(t * 0.25 + j * 0.01, t * 0.32, 0);
+        dm.scale.setScalar(s); dm.updateMatrix(); m.setMatrixAt(j, dm.matrix);
       }
       m.instanceMatrix.needsUpdate = true;
-      camera(t, dist, 0.6, 0, true);
+      camera(t, dist, 0.45, 0, true);
     };
   };
 
-  /* ---------- 6. helix dance ---------- */
+  /* 6 — Multiple colorful strands braid around one another. */
   builders.helix = function () {
-    var strands = [2, 3, 3, 4][P.density], per = [34, 44, 58, 72][P.density], cnt = strands * per;
-    var m = inst(cnt, P.shape, 0.5), dm = new THREE.Object3D(), col = new THREE.Color(), dy = 0.24;
-    beats('beat');
-    var dist = fit(per * dy / 2 + 1.5, 4.4) * 1.05;
+    var strands = [3, 3, 4, 5][P.density], per = [46, 58, 70, 82][P.density];
+    var count = strands * per, m = inst(count, P.shape, 0.48);
+    var dm = new THREE.Object3D(), col = new THREE.Color(), dy = 0.205;
+    var dist = fit(per * dy / 2 + 1.0, 4.3) * 1.10;
+    beats('beat'); S.focusY = 0;
     S.update = function (t) {
-      var idx = 0, spin = t * TAU / (P.beat * 16), wph = t * TAU / (P.beat * 4);
+      var idx = 0, spin = t * 0.62, wave = t * 2.4;
       for (var s = 0; s < strands; s++) for (var i = 0; i < per; i++) {
-        var a = i * 0.32 + s / strands * TAU + spin;
-        var w = Math.max(0, Math.sin(i / per * TAU * 2 - wph));
-        var r = 2.4 + w * 0.9, sc = 0.55 + w * 0.5;
-        dm.position.set(Math.cos(a) * r, (i - per / 2) * dy, Math.sin(a) * r);
-        dm.rotation.set(a, i * 0.2 + t, 0);
-        dm.scale.set(sc, sc, sc);
-        dm.updateMatrix();
-        m.setMatrixAt(idx, dm.matrix);
-        m.setColorAt(idx, pal(i / per + s * 0.1 + t * 0.03, col));
+        var a = i * 0.31 + s / strands * TAU + spin;
+        var w = 0.5 + 0.5 * Math.sin(i / per * TAU * 2 - wave + s * 0.6);
+        var r = 2.15 + w * 0.75, scale = 0.43 + w * 0.38;
+        dm.position.set(Math.cos(a) * r, (i - (per - 1) / 2) * dy, Math.sin(a) * r);
+        dm.rotation.set(a, i * 0.18 + t * 0.45, w * 0.55);
+        dm.scale.setScalar(scale); dm.updateMatrix(); m.setMatrixAt(idx, dm.matrix);
+        m.setColorAt(idx, pal(i / per + s * 0.13 + t * 0.035, col));
         idx++;
       }
-      m.instanceMatrix.needsUpdate = true;
-      m.instanceColor.needsUpdate = true;
+      m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
       camera(t, dist, dist * 0.18, 0, false);
     };
   };
 
-  /* ---------- public API ---------- */
+  /* 7 — Concentric orbital machinery with a glowing central core. */
+  builders.orbit = function () {
+    var levels = [3, 4, 5, 6][P.density], per = 72, count = levels * per;
+    var m = inst(count, 'icosahedron', 0.58), dm = new THREE.Object3D();
+    var col = new THREE.Color(), rings = [], center = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.78, 2),
+      new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.08, metalness: 0.48,
+        emissive: 0x5b21ff, emissiveIntensity: 0.55, clearcoat: 1 }));
+    S.scene.add(center);
+    for (var l = 0; l < levels; l++) {
+      var rr = 1.25 + l * 0.55;
+      var ring = addRing(rr, 0.025, [0x35eaff, 0xff42d5, 0x8e72ff, 0x7effa8, 0xffd65c, 0xffffff][l]);
+      ring.rotation.set(0.42 + l * 0.39, l * 0.24, l * 0.51);
+      rings.push(ring);
+    }
+    var dist = fit(4.7, 4.5) * 1.18;
+    S.focusY = 0; beats('plink');
+    S.update = function (t) {
+      var idx = 0;
+      for (var q = 0; q < levels; q++) for (var j = 0; j < per; j++) {
+        var a = j / per * TAU + t * (0.42 + q * 0.12) * (q % 2 ? -1 : 1);
+        var rr0 = 1.25 + q * 0.55;
+        var tilt = 0.45 + q * 0.22;
+        var y = Math.sin(a * 1.8 + q * 0.7) * 0.42;
+        dm.position.set(Math.cos(a) * rr0, y, Math.sin(a) * rr0 * Math.cos(tilt));
+        dm.rotation.set(a, -a * 0.7, t * 0.55 + j * 0.025);
+        var scale = 0.64 + 0.20 * Math.sin(t * 3 + j * 0.22 + q);
+        dm.scale.setScalar(scale); dm.updateMatrix(); m.setMatrixAt(idx, dm.matrix);
+        m.setColorAt(idx, pal(j / per + q / levels * 0.3 + t * 0.018, col)); idx++;
+      }
+      m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+      center.rotation.set(t * 0.42, t * 0.72, t * 0.31);
+      center.scale.setScalar(1 + 0.08 * Math.sin(t * 4));
+      rings.forEach(function (ring, i) {
+        ring.rotation.y = i * 0.24 + t * (0.16 + i * 0.04);
+        ring.rotation.z = i * 0.51 - t * 0.11;
+      });
+      camera(t, dist, 0.4, 0, false);
+    };
+  };
+
+  /* 8 — A rotating crystal cluster locks into a brilliant symmetric formation. */
+  builders.crystal = function () {
+    var count = [64, 88, 112, 144][P.density], m = inst(count, 'icosahedron', 1.0);
+    var dm = new THREE.Object3D(), col = new THREE.Color(), points = [];
+    var golden = Math.PI * (3 - Math.sqrt(5));
+    for (var i = 0; i < count; i++) {
+      var y = 1 - (i / Math.max(1, count - 1)) * 2;
+      var radius = Math.sqrt(1 - y * y), a = golden * i;
+      var shell = 1.55 + 0.62 * (0.5 + 0.5 * Math.sin(i * 2.399));
+      points.push({ x: Math.cos(a) * radius * shell, y: y * 4.9,
+        z: Math.sin(a) * radius * shell, phase: a });
+      m.setColorAt(i, pal(i / count, col));
+    }
+    m.instanceColor.needsUpdate = true;
+    var halo1 = addRing(2.75, 0.035, 0x41eaff, [0.8, 0.1, 0.2]);
+    var halo2 = addRing(3.15, 0.03, 0xff4bdd, [1.1, 0.8, 0.5]);
+    var dist = fit(6.5, 3.9) * 1.14;
+    S.focusY = 0; beats('plink');
+    S.update = function (t) {
+      var turn = t * 0.28;
+      for (var j = 0; j < count; j++) {
+        var q = points[j], c = Math.cos(turn), s = Math.sin(turn);
+        var x = q.x * c - q.z * s, z = q.x * s + q.z * c;
+        var pulse = 1 + 0.10 * Math.sin(t * 3.1 + q.phase);
+        dm.position.set(x, q.y + 0.12 * Math.sin(t * 1.8 + q.phase), z);
+        dm.rotation.set(t * 0.22 + q.phase, t * 0.35 + q.phase, t * 0.17);
+        dm.scale.setScalar((0.52 + 0.13 * Math.sin(t * 2.6 + q.phase)) * pulse);
+        dm.updateMatrix(); m.setMatrixAt(j, dm.matrix);
+      }
+      m.instanceMatrix.needsUpdate = true;
+      halo1.rotation.y = t * 0.22; halo2.rotation.x = 1.1 + t * 0.19;
+      halo2.rotation.z = t * -0.14;
+      camera(t, dist, dist * 0.12, 0, false);
+    };
+  };
+
+  /* 9 — Six arms of particles spiral inward and bloom outward in waves. */
+  builders.vortex = function () {
+    var arms = [4, 5, 6, 7][P.density], per = [62, 72, 82, 92][P.density];
+    var count = arms * per, m = inst(count, P.shape, 0.43), dm = new THREE.Object3D();
+    var col = new THREE.Color(), coords = [];
+    for (var a = 0; a < arms; a++) for (var i = 0; i < per; i++) {
+      coords.push({ arm: a, u: i / per, phase: S.rand() * TAU });
+      m.setColorAt(a * per + i, pal(i / per + a / arms * 0.22, col));
+    }
+    m.instanceColor.needsUpdate = true;
+    var dist = fit(5.1, 4.7) * 1.16;
+    var core = new THREE.Mesh(new THREE.SphereGeometry(0.55, 36, 28),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    S.scene.add(core);
+    var halo = addRing(1.0, 0.045, 0x5ffaff, [Math.PI / 2, 0, 0]);
+    S.focusY = 0; beats('beat');
+    S.update = function (t) {
+      for (var j = 0; j < count; j++) {
+        var q = coords[j], a = q.arm / arms * TAU + q.u * TAU * 2.7 + t * 0.52;
+        var pulse = 0.5 + 0.5 * Math.sin(t * 2.2 - q.u * 8 + q.phase);
+        var rr = 0.42 + q.u * 3.5 + 0.22 * pulse;
+        var y = (q.u - 0.5) * 8 + 0.42 * Math.sin(a * 1.2 + t);
+        dm.position.set(Math.cos(a) * rr, y, Math.sin(a) * rr);
+        dm.rotation.set(a, t + q.phase, a * 0.38);
+        dm.scale.setScalar(0.26 + 0.24 * pulse);
+        dm.updateMatrix(); m.setMatrixAt(j, dm.matrix);
+      }
+      m.instanceMatrix.needsUpdate = true;
+      core.scale.setScalar(0.78 + 0.16 * Math.sin(t * 3.2));
+      core.rotation.set(t * 0.6, t * 0.9, 0);
+      halo.rotation.z = t * 0.42;
+      camera(t, dist, 0.25, 0, false);
+    };
+  };
+
+  /* 10 — A high-density 3D surface wave with synchronized traveling crests. */
+  builders.wave = function () {
+    var cols = [17, 20, 23, 26][P.density], rows = [27, 31, 35, 39][P.density];
+    var count = cols * rows, m = inst(count, P.shape, 0.40), dm = new THREE.Object3D();
+    var col = new THREE.Color(), points = [], cx = (cols - 1) / 2, cy = (rows - 1) / 2;
+    for (var y = 0; y < rows; y++) for (var x = 0; x < cols; x++) {
+      points.push({ x: (x - cx) * 0.39, y: (y - cy) * 0.39,
+        d: Math.hypot(x - cx, y - cy) });
+    }
+    beats('beat');
+    var dist = fit(rows * 0.39 / 2 + 1.5, cols * 0.39 / 2 + 1.2) * 1.12;
+    S.focusY = 0;
+    S.update = function (t) {
+      for (var i = 0; i < count; i++) {
+        var q = points[i], ph = t * 2.2;
+        var h = Math.sin(q.x * 1.05 + ph) * 0.82 +
+          Math.sin(q.y * 1.35 - ph * 1.18) * 0.42 +
+          Math.sin(q.d * 0.72 - ph * 1.4) * 0.22;
+        var scale = 0.55 + 0.32 * (0.5 + 0.5 * Math.sin(h * 2 + t));
+        dm.position.set(q.x, q.y, h);
+        dm.rotation.set(h * 0.12, ph * 0.08, h * 0.16);
+        dm.scale.setScalar(scale); dm.updateMatrix(); m.setMatrixAt(i, dm.matrix);
+        m.setColorAt(i, pal(frac((q.x + q.y) * 0.055 + h * 0.045 + t * 0.025), col));
+      }
+      m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+      camera(t, dist, 0.1, 0, true);
+    };
+  };
+
+  /* 11 — A tall golden-ratio spiral assembles into a smooth rotating sculpture. */
+  builders.spiral = function () {
+    var count = [220, 280, 340, 420][P.density], m = inst(count, P.shape, 0.52);
+    var dm = new THREE.Object3D(), col = new THREE.Color(), pts = [];
+    var golden = Math.PI * (3 - Math.sqrt(5));
+    for (var i = 0; i < count; i++) {
+      var u = i / Math.max(1, count - 1), a = i * golden;
+      pts.push({ u: u, a: a, radius: 0.8 + 2.15 * u,
+        y: (u - 0.5) * 11.8 });
+      m.setColorAt(i, pal(u, col));
+    }
+    m.instanceColor.needsUpdate = true;
+    var dist = fit(6.8, 3.9) * 1.13;
+    var baseRing = addRing(2.8, 0.028, 0x65f8ff, [Math.PI / 2, 0, 0]);
+    baseRing.position.y = -5.6;
+    var topRing = addRing(1.0, 0.025, 0xff4ed8, [Math.PI / 2, 0, 0]);
+    topRing.position.y = 5.5;
+    S.focusY = 0; beats('plink');
+    S.update = function (t) {
+      var turn = t * 0.38;
+      for (var j = 0; j < count; j++) {
+        var q = pts[j], a = q.a + turn;
+        var wave = Math.sin(t * 2.4 - q.u * 13);
+        var r = q.radius + 0.24 * wave;
+        dm.position.set(Math.cos(a) * r, q.y + 0.12 * Math.sin(t * 1.8 + q.a),
+          Math.sin(a) * r);
+        dm.rotation.set(a, t * 0.4 + q.a, t * 0.25);
+        dm.scale.setScalar(0.42 + 0.13 * (0.5 + 0.5 * wave));
+        dm.updateMatrix(); m.setMatrixAt(j, dm.matrix);
+      }
+      m.instanceMatrix.needsUpdate = true;
+      baseRing.rotation.y = t * 0.18; topRing.rotation.y = -t * 0.24;
+      camera(t, dist, dist * 0.08, 0, false);
+    };
+  };
+
   window.initScene = function (params) {
     P = params;
     var W = window.innerWidth, H = window.innerHeight;
-    document.body.style.background = 'linear-gradient(170deg,' + P.bg[0] + ',' + P.bg[1] + ')';
-    var r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, alpha: true,
-      preserveDrawingBuffer: true });
-    r.setPixelRatio(1);
-    r.setSize(W, H, false);
-    r.setClearColor(0x000000, 0);
+    document.body.style.background = '#000000';
+    var renderer = new THREE.WebGLRenderer({
+      canvas: document.getElementById('c'), antialias: true, alpha: false,
+      preserveDrawingBuffer: true, powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(1);
+    renderer.setSize(W, H, false);
+    renderer.setClearColor(0x000000, 1);
+    if (THREE.ACESFilmicToneMapping !== undefined) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.34;
+    }
+    if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
     var scene = new THREE.Scene();
-    var cam = new THREE.PerspectiveCamera(40, W / H, 0.1, 300);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8878c8, 1.0));
-    var d1 = new THREE.DirectionalLight(0xffffff, 0.9); d1.position.set(6, 12, 8); scene.add(d1);
-    var d2 = new THREE.DirectionalLight(0xffd6f0, 0.35); d2.position.set(-8, 4, -6); scene.add(d2);
-    S = { r: r, scene: scene, cam: cam, rand: mulberry(P.seed), events: [], update: null };
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.FogExp2(0x000000, 0.008);
+    var cam = new THREE.PerspectiveCamera(39, W / H, 0.1, 220);
+    scene.add(new THREE.HemisphereLight(0xc9e8ff, 0x26104d, 1.32));
+    var key = new THREE.DirectionalLight(0xffffff, 1.8);
+    key.position.set(7, 11, 9); scene.add(key);
+    var rim = new THREE.DirectionalLight(0x4b7bff, 1.25);
+    rim.position.set(-8, 5, -7); scene.add(rim);
+    var pink = new THREE.PointLight(0xff38cc, 42, 24);
+    pink.position.set(-4, 4, 5); scene.add(pink);
+    var cyan = new THREE.PointLight(0x36eaff, 38, 24);
+    cyan.position.set(4, -3, 4); scene.add(cyan);
+    S = { r: renderer, scene: scene, cam: cam, rand: mulberry(P.seed),
+      events: [], update: null, payoff: null, focusY: 0 };
+    addStars();
+    if (!builders[P.scene]) throw new Error('Unknown 3D scene: ' + P.scene);
     builders[P.scene]();
+    addPayoff();
     S.events.sort(function (a, b) { return a.t - b.t; });
     return { events: S.events };
   };
 
   window.renderAt = function (t) {
     S.update(t);
+    if (S.payoff) S.payoff(t);
     S.r.render(S.scene, S.cam);
     return true;
   };
