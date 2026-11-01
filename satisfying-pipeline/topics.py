@@ -121,13 +121,15 @@ def build_topic(counter, target_seconds=28):
     duration = round(beats * 60.0 / bpm, 3)
     seed = (index * 2654435761 + 12345) & 0xFFFFFFFF
     topic_id = "SAT-%08d" % index
-    level = counter + 1
+    level_multipliers = (1, 2, 4, 8)
+    level = (counter % len(level_multipliers)) + 1
+    multiplier = level_multipliers[counter % len(level_multipliers)]
     params = {
         "scene": scene, "palette": palette, "hue0": hue0, "span": span,
         "sat": saturation, "light": lightness, "shape": shape, "material": material,
         "bpm": bpm, "beat": 60.0 / bpm, "camera": CAMERAS[camera_i],
         "density": DENSITIES[density_i], "bg": list(BACKGROUNDS[bg_i]),
-        "seed": seed, "duration": duration,
+        "seed": seed, "duration": duration, "multiplier": multiplier,
     }
     core = TITLE_TEMPLATES[scene].format(pal=palette, name=SCENE_NAMES[scene])
     suffix = " | %s %s #%08d #Shorts" % (
@@ -147,6 +149,7 @@ def build_topic(counter, target_seconds=28):
     ]
     return {
         "counter": counter, "index": index, "topic_id": topic_id, "level": level,
+        "multiplier": multiplier,
         "title": title, "description": description, "tags": tags, "params": params,
     }
 
