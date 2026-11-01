@@ -1,0 +1,32 @@
+TITLE: Jab Sab Saath Chhod Dein
+DESCRIPTION: Kabhi-kabhi akela reh jana hi tumhe sabse strong bana deta hai.
+TAGS: motivation, hindi motivation, struggle, success, life motivation, mindset, shorts
+LANG: hi
+CHARACTER: a realistic young man, simple clothes, expressive natural body language, cinematic emotional scenes
+
+SCENE: Sach bolu? Jab tumhare paas kuch nahi hota na... tab hi pata chalta hai ki tumhare apne kaun hain.
+IMG: a young man sitting alone outside at night, looking at his phone with no messages, realistic cinematic scene
+
+SCENE: Mere ek dost ke saath bhi aisa hi hua tha. Paise khatam... kaam nahi... aur dheere-dheere log bhi door hone lage.
+IMG: a young man checking an almost empty wallet, sitting alone in a small room, realistic emotional lighting
+
+SCENE: Pehle usne sabko samjhana chaha ki bas thoda bura time chal raha hai.
+IMG: young man talking to friends while they look distracted and uninterested, realistic natural expressions
+
+SCENE: Phir ek din usne socha... yaar, har kisi ko explain karte rehne se better hai kuch karke dikhaya jaye.
+IMG: young man sitting quietly at night, then opening his notebook and starting to work with determination
+
+SCENE: Usne koi bada plan nahi banaya. Bas roz thoda-thoda kaam karta raha.
+IMG: young man waking up early, studying and working consistently across several days, cinematic montage feeling
+
+SCENE: Aur sabse interesting baat pata hai? Jab result aana shuru hua na... log khud wapas aane lage.
+IMG: the same young man gaining confidence while people who ignored him now approach him, realistic scene
+
+SCENE: Tab usne mujhe ek baat boli... bura waqt ye nahi batata ki tum kitne kamzor ho.
+IMG: close-up of the young man speaking honestly to a friend, emotional natural expression
+
+SCENE: Bura waqt bas ye batata hai... ki tum bina kisi ke support ke bhi kitna aage ja sakte ho.
+IMG: young man walking alone toward a bright sunrise on a long road, realistic cinematic wide shot
+
+SCENE: Isliye agar aaj tum akela feel kar rahe ho... rukna mat. Shayad tumhari story ka best part abhi shuru hi hua hai.
+IMG: young man smiling slightly and continuing forward toward the sunrise, powerful hopeful cinematic ending
