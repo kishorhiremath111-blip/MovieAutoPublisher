@@ -13,12 +13,12 @@ CANDIDATES = int(os.environ.get("IMG_CANDIDATES", "2"))
 CINEMATIC = os.environ.get("CINEMATIC", "1") == "1"
 CATEGORY = os.environ.get("YT_CATEGORY", "22")
 # Natural conversational delivery: normal speed, slightly deeper male tone.
-RATE = os.environ.get("TTS_RATE", "-1%")
-PITCH = os.environ.get("TTS_PITCH", "-2Hz")
+RATE = os.environ.get("TTS_RATE", "+0%")
+PITCH = os.environ.get("TTS_PITCH", "-8Hz")
 VOICE_STYLE = os.environ.get("VOICE_STYLE", "natural")
 
 VOICES = {
-    "hi": ["hi-IN-MadhurNeural"],
+    "hi": ["en-IN-PrabhatNeural", "hi-IN-MadhurNeural"],
     "en": ["en-US-AndrewMultilingualNeural", "en-US-BrianMultilingualNeural",
            "en-US-GuyNeural", "en-US-ChristopherNeural"],
 }
