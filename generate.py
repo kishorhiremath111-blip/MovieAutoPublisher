@@ -3,11 +3,10 @@ import os, sys, json, re, time, glob, random, asyncio, textwrap, datetime, subpr
 import requests
 import edge_tts
 
-LANG = os.environ.get("VIDEO_LANGUAGE", "hi").lower()          # hi ya en
+LANG = os.environ.get("VIDEO_LANGUAGE", "hi").lower()
 VOICES = {"hi": "hi-IN-SwaraNeural", "en": "en-US-AnaNeural"}
 VOICE = os.environ.get("TTS_VOICE") or VOICES.get(LANG, VOICES["hi"])
 LANG_NAME = {"hi": "simple Hindi (Devanagari script)", "en": "simple English"}.get(LANG, "simple Hindi (Devanagari script)")
-MODELS = [m for m in [os.environ.get("GEMINI_MODEL"), "gemini-2.5-flash", "gemini-2.0-flash"] if m]
 SUBTITLES = os.environ.get("SUBTITLES", "1") == "1"
 W, H, FPS = 1080, 1920, 30
 WORK, OUT = "work", "final.mp4"
@@ -17,15 +16,12 @@ STYLE = ("3D Pixar-style animated illustration, highly detailed, vibrant colors,
 
 os.makedirs(WORK, exist_ok=True)
 
-
 def run(cmd):
     p = subprocess.run(cmd, capture_output=True, text=True)
     if p.returncode != 0:
         raise RuntimeError(f"{' '.join(cmd[:3])} failed:\n{p.stderr[-1500:]}")
     return p.stdout
 
-
-# ---------------------------------------------------------------- 1. SCRIPT
 def pick_topic():
     if os.environ.get("TOPIC"):
         return os.environ["TOPIC"]
@@ -33,6 +29,41 @@ def pick_topic():
     days = (datetime.date.today() - datetime.date(2024, 1, 1)).days
     return topics[days % len(topics)]
 
+def candidate_models():
+    """Google purane model band karta rehta hai, isliye available models khud list karte hain."""
+    key = os.environ["GEMINI_API_KEY"]
+    names = [os.environ.get("GEMINI_MODEL")] if os.environ.get("GEMINI_MODEL") else []
+    names += ["gemini-flash-latest", "gemini-flash-lite-latest"]
+    try:
+        r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
+                         params={"key": key, "pageSize": 200}, timeout=60)
+        if r.status_code in (400, 401, 403):
+            raise RuntimeError(f"GEMINI_API_KEY galat hai ya API enable nahi ({r.status_code}): {r.text[:200]}")
+        r.raise_for_status()
+        found = []
+        for m in r.json().get("models", []):
+            n = m["name"].replace("models/", "")
+            if "generateContent" not in m.get("supportedGenerationMethods", []):
+                continue
+            if "flash" not in n or any(x in n for x in ("image", "tts", "live", "audio", "embedding", "robotics", "computer", "thinking")):
+                continue
+            found.append(n)
+        def ver(n):
+            v = re.search(r"(\d+(?:\.\d+)?)", n)
+            return float(v.group(1)) if v else 0
+        found.sort(key=lambda n: (("preview" in n or "exp" in n), "lite" in n, -ver(n)))
+        print("Available Gemini models:", found[:10])
+        names += found
+    except RuntimeError:
+        raise
+    except Exception as e:
+        print("[gemini] model list nahi mili:", e)
+    seen, out = set(), []
+    for n in names:
+        if n and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out[:6]
 
 def get_script(topic):
     prompt = f"""You write short moral stories for kids aged 3-8 for a YouTube Shorts channel.
@@ -46,19 +77,29 @@ Return ONLY valid JSON in this shape:
  "characters": "English: detailed visual description of the main characters (species, colors, clothes), reused in every image",
  "scenes": [{{"narration": "...", "image_prompt": "English: what happens, camera angle, setting, mood"}}]}}"""
     last = None
-    for model in MODELS:
+    for model in candidate_models():
+        print("Trying model:", model)
         for attempt in range(3):
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                r = requests.post(
-                    url, params={"key": os.environ["GEMINI_API_KEY"]}, timeout=120,
+                r = requests.post(url, params={"key": os.environ["GEMINI_API_KEY"]}, timeout=120,
                     json={"contents": [{"parts": [{"text": prompt}]}],
                           "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9}})
+                if r.status_code == 404:
+                    last = f"{model}: 404 (model nahi mila)"
+                    print(last)
+                    break
+                if r.status_code == 429:
+                    last = f"{model}: 429 quota/limit"
+                    print(last, "- 25s ruk raha hu")
+                    time.sleep(25)
+                    continue
                 r.raise_for_status()
                 text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
                 text = re.sub(r"^\`\`\`(?:json)?|\`\`\`$", "", text.strip(), flags=re.M).strip()
                 data = json.loads(text)
                 assert len(data["scenes"]) >= 4
+                print("Script bani with", model)
                 return data
             except Exception as e:
                 last = e
@@ -66,8 +107,6 @@ Return ONLY valid JSON in this shape:
                 time.sleep(4)
     raise RuntimeError(f"Gemini script nahi bani: {last}")
 
-
-# ---------------------------------------------------------------- 2. IMAGES
 def get_image(scene_prompt, characters, path, seed):
     full = f"{STYLE}. Characters: {characters}. Scene: {scene_prompt}"[:900]
     q = urllib.parse.quote(full)
@@ -89,11 +128,8 @@ def get_image(scene_prompt, characters, path, seed):
     run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x4aa8ff:s={W}x{H}", "-frames:v", "1", path])
     return False
 
-
-# ---------------------------------------------------------------- 3. VOICE
 async def _tts(text, path):
     await edge_tts.Communicate(text, VOICE, rate="-8%").save(path)
-
 
 def make_voice(text, path):
     for attempt in range(3):
@@ -106,28 +142,24 @@ def make_voice(text, path):
             time.sleep(3)
     raise RuntimeError("Voice nahi bani")
 
-
 def duration(path):
     return float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                       "-of", "default=nw=1:nk=1", path]).strip())
 
-
-# ---------------------------------------------------------------- 4. VIDEO
 def write_srt(text, dur, path):
     def t(x):
         return f"{int(x//3600):02}:{int(x%3600//60):02}:{int(x%60):02},{int(x%1*1000):03}"
     wrapped = "\n".join(textwrap.wrap(text, width=22))
     open(path, "w", encoding="utf-8").write(f"1\n{t(0.1)} --> {t(dur-0.1)}\n{wrapped}\n")
 
-
 def make_clip(i, img, aud, text, out):
     dur = duration(aud) + 0.6
     frames = int(dur * FPS) + 1
     step = 0.15 / frames
     if i % 2 == 0:
-        z = f"min(zoom+{step:.7f},1.15)"                       # zoom in
+        z = f"min(zoom+{step:.7f},1.15)"
     else:
-        z = f"if(eq(on,0),1.15,max(zoom-{step:.7f},1.0))"       # zoom out
+        z = f"if(eq(on,0),1.15,max(zoom-{step:.7f},1.0))"
     vf = (f"scale={W*2}:{H*2}:flags=lanczos,"
           f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={FPS},"
           f"fade=t=in:st=0:d=0.25,fade=t=out:st={dur-0.25:.2f}:d=0.25")
@@ -147,7 +179,6 @@ def make_clip(i, img, aud, text, out):
             print(f"[clip {i}] subtitles fail, bina subtitle: {str(e)[:300]}")
     run(base + ["-vf", vf] + enc)
 
-
 def build_video(data):
     chars = data.get("characters", "cute friendly cartoon animals")
     clips = []
@@ -163,7 +194,6 @@ def build_video(data):
             f.write(f"file '{os.path.basename(c)}'\n")
     joined = f"{WORK}/joined.mp4"
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", f"{WORK}/list.txt", "-c", "copy", joined])
-
     music = glob.glob("music/*.mp3") + glob.glob("music/*.m4a") + glob.glob("music/*.wav")
     if music:
         track = random.choice(music)
@@ -176,8 +206,6 @@ def build_video(data):
         os.replace(joined, OUT)
     print(f"Video ready: {OUT} ({duration(OUT):.1f}s)")
 
-
-# ---------------------------------------------------------------- 5. UPLOAD
 def upload(data):
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
@@ -187,14 +215,10 @@ def upload(data):
                         token_uri="https://oauth2.googleapis.com/token")
     yt = build("youtube", "v3", credentials=creds)
     tags = [str(t)[:30] for t in data.get("tags", [])][:10]
-    body = {
-        "snippet": {
-            "title": data["title"][:85].strip() + " #Shorts",
-            "description": data.get("description", "") + "\n\n#Shorts #KidsStories #MoralStories",
-            "tags": tags, "categoryId": "27",
-        },
-        "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": True},
-    }
+    body = {"snippet": {"title": data["title"][:85].strip() + " #Shorts",
+                        "description": data.get("description", "") + "\n\n#Shorts #KidsStories #MoralStories",
+                        "tags": tags, "categoryId": "27"},
+            "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": True}}
     req = yt.videos().insert(part="snippet,status", body=body,
                              media_body=MediaFileUpload(OUT, mimetype="video/mp4", resumable=True))
     resp = None
@@ -203,7 +227,6 @@ def upload(data):
         if status:
             print(f"upload {int(status.progress()*100)}%")
     print("Uploaded: https://youtube.com/shorts/" + resp["id"])
-
 
 if __name__ == "__main__":
     topic = pick_topic()
