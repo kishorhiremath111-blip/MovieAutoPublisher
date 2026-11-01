@@ -811,6 +811,17 @@
 
   window.renderAt = function (t) {
     S.update(t);
+    if (S.hud && P.scene !== 'gaprun') {
+      var level = Math.max(1, Math.min(4, Number(P.level) || 1));
+      var multiplier = Number(P.multiplier) || [1, 2, 4, 8][level - 1];
+      var stepMarkup = [1, 2, 4, 8].map(function (v, i) {
+        return '<span class="' + (i < level ? 'active' : '') + '">' + v + '×</span>';
+      }).join('');
+      S.hud.innerHTML = '<div class="hud-kicker">LEVEL ' + level +
+        '</div><div class="hud-main">' + multiplier + '× MULTIPLIER</div>' +
+        '<div class="hud-steps">' + stepMarkup + '</div>';
+      S.hud.style.display = 'block';
+    }
     if (S.payoff) S.payoff(t);
     S.r.render(S.scene, S.cam);
     return true;
