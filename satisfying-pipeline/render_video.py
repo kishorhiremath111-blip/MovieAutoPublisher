@@ -68,7 +68,7 @@ def render_video(params, out_path, width=1080, height=1920, fps=60, workdir=None
                 "-i", str(wav),
                 "-map", "0:v:0", "-map", "1:a:0",
                 "-c:v", "libx264", "-preset", "slow", "-crf", "17",
-                "-pix_fmt", "yuv420p", "-profile:v", "high", "-level:v", "4.2",
+                "-pix_fmt", "yuv420p", "-profile:v", "high", "-level:v", "5.2",
                 "-r", str(fps), "-vsync", "cfr",
                 "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
                 "-c:a", "aac", "-b:a", "192k", "-shortest",
