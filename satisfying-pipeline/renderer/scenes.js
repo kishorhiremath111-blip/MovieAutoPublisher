@@ -601,7 +601,7 @@
   builders.gaprun = function () {
     var radius = 2.62, gapCenter = Math.PI * 0.5, gapHalf = 0.29;
     var gapStart = gapCenter - gapHalf, gapEnd = gapCenter + gapHalf;
-    var angularSpeed = 1.92, startAngle = gapStart - 0.88;
+    var angularSpeed = 1.30, startAngle = gapStart - 0.88;
     var col = new THREE.Color();
 
     function arcMesh(r, tube, start, end, hex, glow) {
@@ -715,6 +715,10 @@
     var dist = fit(3.55, 3.55) * 1.17;
     S.focusY = 0;
     beats('plink');
+    var firstGapClear = (gapEnd - startAngle) / angularSpeed;
+    for (var pass = 0; pass < 5; pass++) {
+      S.events.push({ t: firstGapClear + pass * TAU / angularSpeed, kind: 'pop', pitch: pass });
+    }
 
     S.update = function (t) {
       var angle = startAngle + t * angularSpeed;
