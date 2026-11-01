@@ -3,14 +3,14 @@ name: 3D Satisfying Video
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Render and validate only; do not upload"
-        type: boolean
-        default: true
-      force:
-        description: "Ignore daily publish limit"
-        type: boolean
-        default: false
+      mode:
+        description: "Choose PUBLIC YouTube Short upload or DRY render only"
+        type: choice
+        options:
+          - public
+          - dry
+        default: dry
+        required: true
   schedule:
     - cron: "30 12 * * *"
 
@@ -42,13 +42,12 @@ jobs:
       - name: Run pipeline
         working-directory: satisfying-pipeline
         env:
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
-          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || 'false' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'dry' || 'false' }}
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: python run_pipeline.py
-      - name: Save topic state after publishing
-        if: ${{ success() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) }}
+      - name: Save consumed topic state to repository
+        if: ${{ success() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'public')) }}
         run: |
           git config user.name "satisfying-bot"
           git config user.email "satisfying-bot@users.noreply.github.com"
@@ -57,10 +56,21 @@ jobs:
             echo "No state changes to save."
             exit 0
           fi
-          git commit -m "state: save used satisfying topic $(date -u +%F)"
-          git push
+          git commit -m "state: consume published topic $(date -u +%F)"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              echo "Topic state pushed."
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying..."
+            sleep 2
+          done
+          echo "Could not persist topic state after upload."
+          exit 1
       - name: Upload render/log artifacts on dry run or failure
-        if: ${{ inputs.dry_run || failure() }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'dry') || failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: 3d-satisfying-video-output
