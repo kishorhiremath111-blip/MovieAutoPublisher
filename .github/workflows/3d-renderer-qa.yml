@@ -1,0 +1,41 @@
+name: 3D Renderer QA
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 3d-renderer-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  renderer-and-topic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: satisfying-pipeline/requirements.txt
+      - name: Install Python dependencies
+        run: pip install -r satisfying-pipeline/requirements.txt
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Validate Python and JavaScript syntax
+        run: |
+          python -m py_compile satisfying-pipeline/topics.py satisfying-pipeline/run_pipeline.py satisfying-pipeline/render_video.py satisfying-pipeline/test_topics.py satisfying-pipeline/test_renderer.py
+          node --check satisfying-pipeline/renderer/scenes.js
+      - name: Exhaustively test the topic recipe index space
+        run: python satisfying-pipeline/test_topics.py
+      - name: Smoke-test every 3D scene and the 4K drawing buffer
+        run: python satisfying-pipeline/test_renderer.py
