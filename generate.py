@@ -1,20 +1,42 @@
-"""Roz ek kids Short: script (Gemini) -> images (Pollinations) -> voice (edge-tts) -> video (FFmpeg) -> YouTube."""
-import os, sys, json, re, time, glob, random, asyncio, textwrap, datetime, subprocess, urllib.parse
+"""Motivator Shorts: tumhari script (ChatGPT se) -> HD sketch images -> mard ki gehri awaaz -> video (BINA subtitle).
+Subtitle tum khud lagaoge. Export folder me images, voice aur timings milte hain editing ke liye.
+Gemini key ki zaroorat nahi."""
+import os, sys, re, json, time, glob, shutil, random, asyncio, textwrap, subprocess, urllib.parse
 import requests
 import edge_tts
 
-LANG = os.environ.get("VIDEO_LANGUAGE", "hi").lower()
-VOICES = {"hi": "hi-IN-SwaraNeural", "en": "en-US-AnaNeural"}
-VOICE = os.environ.get("TTS_VOICE") or VOICES.get(LANG, VOICES["hi"])
-LANG_NAME = {"hi": "simple Hindi (Devanagari script)", "en": "simple English"}.get(LANG, "simple Hindi (Devanagari script)")
-SUBTITLES = os.environ.get("SUBTITLES", "1") == "1"
 W, H, FPS = 1080, 1920, 30
 WORK, OUT = "work", "final.mp4"
-STYLE = ("3D Pixar-style animated illustration, highly detailed, vibrant colors, soft cinematic lighting, "
-         "cute friendly characters with big expressive eyes, depth of field, 4k, sharp focus, "
-         "child-friendly, no text, no watermark")
+DEFAULT_LANG = os.environ.get("VIDEO_LANGUAGE", "hi").lower()
+CANDIDATES = int(os.environ.get("IMG_CANDIDATES", "2"))
+CINEMATIC = os.environ.get("CINEMATIC", "1") == "1"
+CATEGORY = os.environ.get("YT_CATEGORY", "22")
+RATE = os.environ.get("TTS_RATE", "-6%")
+PITCH = os.environ.get("TTS_PITCH", "-4Hz")
 
+VOICES = {
+    "hi": ["hi-IN-MadhurNeural"],
+    "en": ["en-US-AndrewMultilingualNeural", "en-US-BrianMultilingualNeural",
+           "en-US-GuyNeural", "en-US-ChristopherNeural"],
+}
+STYLE = ("masterpiece black and white charcoal and graphite pencil sketch on textured paper, "
+         "hand-drawn, highly detailed linework, dramatic high-contrast chiaroscuro lighting, "
+         "cinematic composition, strong depth, faceless silhouette character, moody atmosphere, "
+         "8k, sharp focus, "
+         "no text, no letters, no watermark, no logo, no deformed hands, no extra fingers, no blur")
+GENERIC = [
+    "lone hooded figure walking on an empty road at dawn, wide shot",
+    "close up of clenched fist, dramatic shadows",
+    "man standing on a mountain peak looking at the sunrise, low angle",
+    "crowd of faceless silhouettes, one man standing alone, high angle",
+    "broken chains falling apart, dramatic light",
+    "man climbing a steep staircase into bright light",
+    "storm clouds clearing above a lonely figure, wide shot",
+    "silhouette man running through rain, motion lines",
+]
+EXPORT = "export"
 os.makedirs(WORK, exist_ok=True)
+os.makedirs(f"{EXPORT}/images", exist_ok=True)
 
 def run(cmd):
     p = subprocess.run(cmd, capture_output=True, text=True)
@@ -22,191 +44,165 @@ def run(cmd):
         raise RuntimeError(f"{' '.join(cmd[:3])} failed:\n{p.stderr[-1500:]}")
     return p.stdout
 
-def pick_topic():
-    if os.environ.get("TOPIC"):
-        return os.environ["TOPIC"]
-    topics = json.load(open("topics.json", encoding="utf-8"))
-    days = (datetime.date.today() - datetime.date(2024, 1, 1)).days
-    return topics[days % len(topics)]
+def duration(path):
+    return float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                      "-of", "default=nw=1:nk=1", path]).strip())
 
-def candidate_models():
-    """Google purane model band karta rehta hai, isliye available models khud list karte hain."""
-    key = os.environ["GEMINI_API_KEY"]
-    names = [os.environ.get("GEMINI_MODEL")] if os.environ.get("GEMINI_MODEL") else []
-    names += ["gemini-flash-latest", "gemini-flash-lite-latest"]
-    try:
-        r = requests.get("https://generativelanguage.googleapis.com/v1beta/models",
-                         params={"key": key, "pageSize": 200}, timeout=60)
-        if r.status_code in (400, 401, 403):
-            raise RuntimeError(f"GEMINI_API_KEY galat hai ya API enable nahi ({r.status_code}): {r.text[:200]}")
-        r.raise_for_status()
-        found = []
-        for m in r.json().get("models", []):
-            n = m["name"].replace("models/", "")
-            if "generateContent" not in m.get("supportedGenerationMethods", []):
-                continue
-            if "flash" not in n or any(x in n for x in ("image", "tts", "live", "audio", "embedding", "robotics", "computer", "thinking")):
-                continue
-            found.append(n)
-        def ver(n):
-            v = re.search(r"(\d+(?:\.\d+)?)", n)
-            return float(v.group(1)) if v else 0
-        found.sort(key=lambda n: (("preview" in n or "exp" in n), "lite" in n, -ver(n)))
-        print("Available Gemini models:", found[:10])
-        names += found
-    except RuntimeError:
-        raise
-    except Exception as e:
-        print("[gemini] model list nahi mili:", e)
-    seen, out = set(), []
-    for n in names:
-        if n and n not in seen:
-            seen.add(n)
-            out.append(n)
-    return out[:6]
+def pick_script():
+    f = os.environ.get("SCRIPT_FILE", "").strip()
+    if f:
+        return f
+    files = sorted(glob.glob("scripts/*.txt"))
+    return files[0] if files else None
 
-def get_script(topic):
-    prompt = f"""You write short moral stories for kids aged 3-8 for a YouTube Shorts channel.
-Topic: {topic}
-Write in {LANG_NAME}. Exactly 7 scenes. Each narration is 1-2 short, sweet sentences (max 18 words).
-The whole story should take about 50 seconds to read aloud. The last scene states a clear, gentle moral.
-Return ONLY valid JSON in this shape:
-{{"title": "catchy title in {LANG_NAME}, max 60 chars",
- "description": "2-3 lines in {LANG_NAME}",
- "tags": ["8 short tags"],
- "characters": "English: detailed visual description of the main characters (species, colors, clothes), reused in every image",
- "scenes": [{{"narration": "...", "image_prompt": "English: what happens, camera angle, setting, mood"}}]}}"""
-    last = None
-    for model in candidate_models():
-        print("Trying model:", model)
-        for attempt in range(3):
-            try:
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                r = requests.post(url, params={"key": os.environ["GEMINI_API_KEY"]}, timeout=120,
-                    json={"contents": [{"parts": [{"text": prompt}]}],
-                          "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9}})
-                if r.status_code == 404:
-                    last = f"{model}: 404 (model nahi mila)"
-                    print(last)
-                    break
-                if r.status_code == 429:
-                    last = f"{model}: 429 quota/limit"
-                    print(last, "- 25s ruk raha hu")
-                    time.sleep(25)
-                    continue
-                r.raise_for_status()
-                text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                text = re.sub(r"^\`\`\`(?:json)?|\`\`\`$", "", text.strip(), flags=re.M).strip()
-                data = json.loads(text)
-                assert len(data["scenes"]) >= 4
-                print("Script bani with", model)
-                return data
-            except Exception as e:
-                last = e
-                print(f"[gemini:{model}] attempt {attempt+1} failed: {e}")
-                time.sleep(4)
-    raise RuntimeError(f"Gemini script nahi bani: {last}")
+def parse_script(path):
+    text = open(path, encoding="utf-8-sig").read().replace("\r\n", "\n")
+    meta = {"TITLE": "", "DESCRIPTION": "", "TAGS": "", "CHARACTER": "", "LANG": ""}
+    scenes, cur, mode = [], None, None
+    for raw in text.split("\n"):
+        line = raw.strip()
+        if not line:
+            continue
+        m = re.match(r"^(TITLE|DESCRIPTION|TAGS|CHARACTER|LANG|SCENE|IMG)\s*:\s*(.*)$", line, re.I)
+        if m:
+            k, v = m.group(1).upper(), m.group(2).strip()
+            mode = k
+            if k == "SCENE":
+                cur = {"narration": v, "image_prompt": ""}
+                scenes.append(cur)
+            elif k == "IMG":
+                if cur is not None:
+                    cur["image_prompt"] = v
+            else:
+                meta[k] = v
+        elif mode == "SCENE" and cur is not None:
+            cur["narration"] += " " + line
+        elif mode == "IMG" and cur is not None:
+            cur["image_prompt"] += " " + line
+        elif mode in meta:
+            meta[mode] += " " + line
+    if not scenes:
+        paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        scenes = [{"narration": re.sub(r"\s+", " ", p), "image_prompt": ""} for p in paras]
+    scenes = [s for s in scenes if s["narration"].strip()]
+    if not scenes:
+        raise RuntimeError("Script khali hai ya format galat hai")
+    for i, s in enumerate(scenes):
+        if not s["image_prompt"]:
+            s["image_prompt"] = GENERIC[i % len(GENERIC)]
+    meta["LANG"] = (meta["LANG"] or DEFAULT_LANG).lower()[:2]
+    if not meta["TITLE"]:
+        meta["TITLE"] = scenes[0]["narration"][:60]
+    return meta, scenes
 
-def get_image(scene_prompt, characters, path, seed):
-    full = f"{STYLE}. Characters: {characters}. Scene: {scene_prompt}"[:900]
-    q = urllib.parse.quote(full)
+def fetch_image(full_prompt, seed):
+    q = urllib.parse.quote(full_prompt)
     urls = [
         f"https://image.pollinations.ai/prompt/{q}?width={W}&height={H}&model=flux&seed={seed}&nologo=true&enhance=false",
         f"https://image.pollinations.ai/prompt/{q}?width={W}&height={H}&seed={seed+100}&nologo=true",
     ]
     for u in urls:
-        for attempt in range(3):
+        for _ in range(3):
             try:
                 r = requests.get(u, timeout=180)
-                if r.ok and r.headers.get("content-type", "").startswith("image") and len(r.content) > 10000:
-                    open(path, "wb").write(r.content)
-                    return True
+                if r.ok and r.headers.get("content-type", "").startswith("image") and len(r.content) > 15000:
+                    return r.content
             except Exception as e:
                 print(f"[image] retry: {e}")
             time.sleep(5)
-    print("[image] FAIL -> fallback colour frame")
-    run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x4aa8ff:s={W}x{H}", "-frames:v", "1", path])
-    return False
+    return None
 
-async def _tts(text, path):
-    await edge_tts.Communicate(text, VOICE, rate="-8%").save(path)
+def get_image(prompt, character, path, seed):
+    """Har scene ki CANDIDATES images banata hai, sabse zyada detail wali (badi file) chunta hai."""
+    full = f"{STYLE}. {character}. Scene: {prompt}"[:900]
+    best = None
+    for k in range(max(1, CANDIDATES)):
+        data = fetch_image(full, seed + k * 7)
+        if data and (best is None or len(data) > len(best)):
+            best = data
+        time.sleep(2)
+    if best:
+        open(path, "wb").write(best)
+        return
+    print("[image] FAIL -> fallback dark frame")
+    run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x1a1a1a:s={W}x{H}", "-frames:v", "1", path])
 
-def make_voice(text, path):
-    for attempt in range(3):
-        try:
-            asyncio.run(_tts(text, path))
-            if os.path.getsize(path) > 1000:
-                return
-        except Exception as e:
-            print(f"[tts] retry: {e}")
-            time.sleep(3)
-    raise RuntimeError("Voice nahi bani")
+async def _tts(text, voice, rate, pitch, path):
+    await edge_tts.Communicate(text, voice, rate=rate, pitch=pitch).save(path)
 
-def duration(path):
-    return float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                      "-of", "default=nw=1:nk=1", path]).strip())
+def make_voice(text, lang, path):
+    voices = VOICES.get(lang, VOICES["hi"])
+    if os.environ.get("TTS_VOICE"):
+        voices = [os.environ["TTS_VOICE"]] + voices
+    for v in voices:
+        for pitch in (PITCH, "+0Hz"):
+            try:
+                asyncio.run(_tts(text, v, RATE, pitch, path))
+                if os.path.getsize(path) > 1000:
+                    print(f"voice ok: {v}")
+                    return
+            except Exception as e:
+                print(f"[tts {v} pitch {pitch}] {str(e)[:150]}")
+                time.sleep(2)
+    raise RuntimeError("Koi bhi voice nahi bani")
 
-def write_srt(text, dur, path):
-    def t(x):
-        return f"{int(x//3600):02}:{int(x%3600//60):02}:{int(x%60):02},{int(x%1*1000):03}"
-    wrapped = "\n".join(textwrap.wrap(text, width=22))
-    open(path, "w", encoding="utf-8").write(f"1\n{t(0.1)} --> {t(dur-0.1)}\n{wrapped}\n")
-
-def make_clip(i, img, aud, text, out):
-    dur = duration(aud) + 0.6
+def make_clip(i, img, aud, out):
+    speech = duration(aud)
+    dur = speech + 0.5
     frames = int(dur * FPS) + 1
-    step = 0.15 / frames
-    if i % 2 == 0:
-        z = f"min(zoom+{step:.7f},1.15)"
-    else:
-        z = f"if(eq(on,0),1.15,max(zoom-{step:.7f},1.0))"
+    hook = (i == 0)
+    amount = 0.22 if hook else 0.14
+    step = amount / frames
+    z = (f"min(zoom+{step:.7f},{1+amount})" if i % 2 == 0
+         else f"if(eq(on,0),{1+amount},max(zoom-{step:.7f},1.0))")
     vf = (f"scale={W*2}:{H*2}:flags=lanczos,"
-          f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={FPS},"
-          f"fade=t=in:st=0:d=0.25,fade=t=out:st={dur-0.25:.2f}:d=0.25")
-    base = ["ffmpeg", "-y", "-i", img, "-i", aud]
-    enc = ["-af", "apad=pad_dur=0.6", "-t", f"{dur:.2f}", "-c:v", "libx264", "-preset", "medium",
-           "-crf", "18", "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k",
-           "-ar", "44100", "-ac", "2", "-movflags", "+faststart", out]
-    if SUBTITLES:
-        srt = f"{WORK}/{i}.srt"
-        write_srt(text, dur, srt)
-        style = ("FontName=Noto Sans Devanagari,FontSize=16,Bold=1,PrimaryColour=&H00FFFFFF,"
-                 "OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=110")
-        try:
-            run(base + ["-vf", f"{vf},subtitles={srt}:force_style='{style}'"] + enc)
-            return
-        except Exception as e:
-            print(f"[clip {i}] subtitles fail, bina subtitle: {str(e)[:300]}")
-    run(base + ["-vf", vf] + enc)
+          f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={frames}:s={W}x{H}:fps={FPS}")
+    if CINEMATIC:
+        vf += ",noise=alls=7:allf=t,vignette=PI/6"
+    vf += f",fade=t=in:st=0:d={0.12 if hook else 0.25},fade=t=out:st={dur-0.2:.2f}:d=0.2"
+    run(["ffmpeg", "-y", "-i", img, "-i", aud, "-vf", vf,
+         "-af", "apad=pad_dur=0.5", "-t", f"{dur:.2f}", "-c:v", "libx264", "-preset", "medium",
+         "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(FPS), "-c:a", "aac", "-b:a", "192k",
+         "-ar", "44100", "-ac", "2", "-movflags", "+faststart", out])
+    return dur
 
-def build_video(data):
-    chars = data.get("characters", "cute friendly cartoon animals")
-    clips = []
-    for i, s in enumerate(data["scenes"]):
+def build_video(meta, scenes):
+    lang = meta["LANG"]
+    character = meta["CHARACTER"] or "a faceless silhouette man in a hooded jacket"
+    base_seed = random.randint(1, 90000)
+    clips, timings, t = [], [], 0.0
+    for i, s in enumerate(scenes):
+        print(f"--- scene {i+1}/{len(scenes)}")
         img, aud, clip = f"{WORK}/{i}.jpg", f"{WORK}/{i}.mp3", f"{WORK}/{i}.mp4"
-        print(f"--- scene {i+1}/{len(data['scenes'])}")
-        get_image(s["image_prompt"], chars, img, seed=random.randint(1, 99999))
-        make_voice(s["narration"], aud)
-        make_clip(i, img, aud, s["narration"], clip)
+        get_image(s["image_prompt"], character, img, seed=base_seed + i * 13)
+        shutil.copy(img, f"{EXPORT}/images/{i+1:02}.jpg")
+        make_voice(s["narration"], lang, aud)
+        d = make_clip(i, img, aud, clip)
+        timings.append({"scene": i + 1, "start": round(t, 2), "end": round(t + d, 2),
+                        "text": s["narration"]})
+        t += d
         clips.append(clip)
+    json.dump(timings, open(f"{EXPORT}/timings.json", "w", encoding="utf-8"),
+              ensure_ascii=False, indent=2)
     with open(f"{WORK}/list.txt", "w") as f:
         for c in clips:
             f.write(f"file '{os.path.basename(c)}'\n")
     joined = f"{WORK}/joined.mp4"
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", f"{WORK}/list.txt", "-c", "copy", joined])
+    run(["ffmpeg", "-y", "-i", joined, "-vn", "-c:a", "libmp3lame", "-b:a", "192k", f"{EXPORT}/voice_full.mp3"])
     music = glob.glob("music/*.mp3") + glob.glob("music/*.m4a") + glob.glob("music/*.wav")
     if music:
         track = random.choice(music)
         print("background music:", track)
         run(["ffmpeg", "-y", "-i", joined, "-stream_loop", "-1", "-i", track, "-filter_complex",
-             "[1:a]volume=0.10[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]",
+             "[1:a]volume=0.13[m];[0:a][m]amix=inputs=2:duration=first:dropout_transition=0[a]",
              "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
              "-shortest", OUT])
     else:
         os.replace(joined, OUT)
     print(f"Video ready: {OUT} ({duration(OUT):.1f}s)")
 
-def upload(data):
+def upload(meta, scenes):
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
@@ -214,11 +210,11 @@ def upload(data):
                         client_id=os.environ["YT_CLIENT_ID"], client_secret=os.environ["YT_CLIENT_SECRET"],
                         token_uri="https://oauth2.googleapis.com/token")
     yt = build("youtube", "v3", credentials=creds)
-    tags = [str(t)[:30] for t in data.get("tags", [])][:10]
-    body = {"snippet": {"title": data["title"][:85].strip() + " #Shorts",
-                        "description": data.get("description", "") + "\n\n#Shorts #KidsStories #MoralStories",
-                        "tags": tags, "categoryId": "27"},
-            "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": True}}
+    tags = [t.strip()[:30] for t in re.split(r"[,#]", meta["TAGS"]) if t.strip()][:12]
+    desc = (meta["DESCRIPTION"] or scenes[0]["narration"]) + "\n\n#Shorts #Motivation #Mindset"
+    body = {"snippet": {"title": meta["TITLE"][:85].strip() + " #Shorts", "description": desc,
+                    "tags": tags, "categoryId": CATEGORY},
+        "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False}}
     req = yt.videos().insert(part="snippet,status", body=body,
                              media_body=MediaFileUpload(OUT, mimetype="video/mp4", resumable=True))
     resp = None
@@ -229,12 +225,24 @@ def upload(data):
     print("Uploaded: https://youtube.com/shorts/" + resp["id"])
 
 if __name__ == "__main__":
-    topic = pick_topic()
-    print("Topic:", topic)
-    data = get_script(topic)
-    json.dump(data, open("meta.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-    build_video(data)
+    path = pick_script()
+    if not path or not os.path.exists(path):
+        print("scripts/ folder me koi .txt script nahi mili. Nayi script daalo (queue khali hai).")
+        sys.exit(0)
+    left = len(glob.glob("scripts/*.txt"))
+    print(f"Script: {path}  (queue me total {left})")
+    meta, scenes = parse_script(path)
+    print(f"Title: {meta['TITLE']} | lang={meta['LANG']} | scenes={len(scenes)}")
+    json.dump({"meta": meta, "scenes": scenes}, open("meta.json", "w", encoding="utf-8"),
+              ensure_ascii=False, indent=2)
+    build_video(meta, scenes)
     if os.environ.get("DRY_RUN") == "1":
-        print("DRY RUN: upload skip. Artifacts me final.mp4 download karo.")
+        print("DRY RUN: upload skip. Artifacts se final.mp4 download karo.")
     else:
-        upload(data)
+        upload(meta, scenes)
+        if os.path.dirname(path) == "scripts":
+            os.makedirs("scripts/done", exist_ok=True)
+            shutil.move(path, os.path.join("scripts/done", os.path.basename(path)))
+            print("Script done folder me chali gayi.")
+        if left <= 3:
+            print(f"WARNING: sirf {left-1} script bachi hai, nayi scripts daalo!")
