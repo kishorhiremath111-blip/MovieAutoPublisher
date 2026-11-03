@@ -48,26 +48,6 @@ def used_topic_ids():
     return used
 
 
-def daily_successful_upload_count(today):
-    """Count successful YouTube uploads already recorded for the current IST date."""
-    count = 0
-    if not HISTORY.exists():
-        return count
-    with HISTORY.open("r", encoding="utf-8") as history:
-        for line in history:
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                print("Warning: ignored one malformed upload-history row.", file=sys.stderr)
-                continue
-            if record.get("date") == today and record.get("video_id"):
-                # Older successful rows may not have a status field; video_id is
-                # written only after the YouTube API confirms an upload.
-                if record.get("status", "uploaded") == "uploaded":
-                    count += 1
-    return count
-
-
 def probe(path):
     result = subprocess.run(
         [
@@ -106,17 +86,6 @@ def main():
     dry_run = env_true("DRY_RUN")
     state = load_json(STATE, {"counter": 0, "last_upload_date": None, "uploads": 0})
     today = datetime.datetime.now(IST).date().isoformat()
-
-    # Hard daily cap: all scheduled and manual PUBLIC runs share the same
-    # four-upload quota. DRY runs never consume the quota.
-    daily_target = max(1, int(os.getenv("DAILY_UPLOAD_TARGET", "4")))
-    if not dry_run:
-        uploaded_today = daily_successful_upload_count(today)
-        print("Daily Shorts quota: %d/%d successful PUBLIC uploads (IST)." %
-              (uploaded_today, daily_target))
-        if uploaded_today >= daily_target:
-            print("Daily target already reached. Skipping render and YouTube upload.")
-            return 0
 
     used = used_topic_ids()
     counter = int(state.get("counter", 0))
