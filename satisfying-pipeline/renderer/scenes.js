@@ -754,15 +754,6 @@
       core.rotation.set(t * 0.34, t * 0.57, t * 0.26);
       core.scale.setScalar(1 + 0.11 * Math.sin(t * 3.2));
 
-      if (S.hud) {
-        var stepMarkup = [1, 2, 4, 8].map(function (v, i) {
-          return '<span class="' + (i <= stage ? 'active' : '') + '">' + v + '×</span>';
-        }).join('');
-        S.hud.innerHTML = '<div class="hud-kicker">GAP RUN · LEVEL ' + (stage + 1) +
-          '</div><div class="hud-main">' + multiplier + '× MULTIPLIER</div>' +
-          '<div class="hud-steps">' + stepMarkup + '</div>';
-        S.hud.style.display = 'block';
-      }
       S.cam.position.set(Math.sin(t * 0.20) * 0.72, Math.sin(t * 0.17) * 0.42, dist);
       S.cam.lookAt(0, 0, 0);
     };
@@ -798,9 +789,8 @@
     var cyan = new THREE.PointLight(0x36eaff, 38, 24);
     cyan.position.set(4, -3, 4); scene.add(cyan);
     S = { r: renderer, scene: scene, cam: cam, rand: mulberry(P.seed),
-      events: [], update: null, payoff: null, focusY: 0, hud: document.getElementById("hud") };
+      events: [], update: null, payoff: null, focusY: 0 };
     window.__renderer = renderer;
-    if (S.hud) S.hud.style.display = "none";
     addStars();
     if (!builders[P.scene]) throw new Error('Unknown 3D scene: ' + P.scene);
     builders[P.scene]();
@@ -811,17 +801,6 @@
 
   window.renderAt = function (t) {
     S.update(t);
-    if (S.hud && P.scene !== 'gaprun') {
-      var level = Math.max(1, Math.min(4, Number(P.level) || 1));
-      var multiplier = Number(P.multiplier) || [1, 2, 4, 8][level - 1];
-      var stepMarkup = [1, 2, 4, 8].map(function (v, i) {
-        return '<span class="' + (i < level ? 'active' : '') + '">' + v + '×</span>';
-      }).join('');
-      S.hud.innerHTML = '<div class="hud-kicker">LEVEL ' + level +
-        '</div><div class="hud-main">' + multiplier + '× MULTIPLIER</div>' +
-        '<div class="hud-steps">' + stepMarkup + '</div>';
-      S.hud.style.display = 'block';
-    }
     if (S.payoff) S.payoff(t);
     S.r.render(S.scene, S.cam);
     return true;
