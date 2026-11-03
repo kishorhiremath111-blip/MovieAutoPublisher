@@ -18,58 +18,10 @@
     height: 100vh;
     background: #000000;
   }
-  #hud {
-    display: none;
-    position: absolute;
-    z-index: 2;
-    top: 5.8%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 88%;
-    text-align: center;
-    pointer-events: none;
-    font-family: Arial, Helvetica, sans-serif;
-    color: #f7fdff;
-    text-shadow: 0 0 18px rgba(71, 229, 255, .72), 0 2px 12px #000;
-  }
-  .hud-kicker {
-    font-size: clamp(13px, 2.1vw, 48px);
-    letter-spacing: .22em;
-    font-weight: 700;
-    color: #b7f8ff;
-  }
-  .hud-main {
-    margin-top: .22em;
-    font-size: clamp(24px, 4.7vw, 112px);
-    letter-spacing: .045em;
-    font-weight: 900;
-  }
-  .hud-steps {
-    display: flex;
-    justify-content: center;
-    gap: clamp(8px, 2.1vw, 30px);
-    margin-top: .55em;
-    font-size: clamp(15px, 2.5vw, 62px);
-    font-weight: 800;
-  }
-  .hud-steps span {
-    padding: .12em .42em;
-    color: rgba(210, 226, 255, .38);
-    border: 1px solid rgba(126, 185, 255, .18);
-    border-radius: 999px;
-    background: rgba(8, 13, 30, .42);
-  }
-  .hud-steps span.active {
-    color: #fff;
-    border-color: rgba(96, 244, 255, .8);
-    background: rgba(39, 190, 255, .22);
-    box-shadow: 0 0 22px rgba(45, 226, 255, .42);
-  }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud" aria-hidden="true"></div>
 <script>
 (function () {
   var urls = [
