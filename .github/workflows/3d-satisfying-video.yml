@@ -12,8 +12,10 @@ on:
         default: public
         required: true
   schedule:
-    # Four daily runs at 09:00, 13:00, 17:00, 21:00 India Standard Time (UTC+5:30)
-    - cron: "30 3,7,11,15 * * *"
+    # Eight daily attempts (IST): 09:00, 10:00, 13:00, 14:00,
+    # 17:00, 18:00, 21:00 and 22:00. The pipeline hard-caps PUBLIC uploads at 4/day.
+    # Extra attempts provide retries when a render/upload fails at a primary slot.
+    - cron: "30 3,4,7,8,11,12,15,16 * * *"
 
 permissions:
   contents: write
@@ -51,6 +53,7 @@ jobs:
         working-directory: satisfying-pipeline
         env:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'dry' || 'false' }}
+          DAILY_UPLOAD_TARGET: "4"
           YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: python run_pipeline.py
