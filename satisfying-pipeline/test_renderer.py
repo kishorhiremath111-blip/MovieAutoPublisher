@@ -62,21 +62,18 @@ def main():
                     page.evaluate("p => window.initScene(p)", params)
                     for t in (0.0, 0.5, 8.0, 14.0, 25.7, 27.9):
                         page.evaluate("t => window.renderAt(t)", t)
-                    hud = page.locator("#hud").inner_text()
-                    if "LEVEL" not in hud or "MULTIPLIER" not in hud:
-                        raise RuntimeError("Level/multiplier HUD missing: " + hud)
+                    if page.locator("#hud").count() != 0:
+                        raise RuntimeError("Clean Shorts must not contain a HUD overlay container.")
                     if page_errors:
                         raise RuntimeError("; ".join(page_errors))
                     if console_errors:
                         raise RuntimeError("; ".join(console_errors))
                     if scene_name == "gaprun":
-                        hud = page.locator("#hud").inner_text()
-                        if "MULTIPLIER" not in hud:
-                            raise RuntimeError("Gap-run HUD was not rendered.")
+                        # The visual multiplier mechanic may remain in the 3D scene,
+                        # but no level/multiplier text is allowed on the exported Short.
                         page.evaluate("t => window.renderAt(t)", 19.0)
-                        hud = page.locator("#hud").inner_text()
-                        if "8× MULTIPLIER" not in hud:
-                            raise RuntimeError("Gap-run did not reach the 8x stage: " + hud)
+                        if page.locator("#hud").count() != 0:
+                            raise RuntimeError("Gap-run scene unexpectedly displayed a HUD overlay.")
                     print("PASS:", scene_name, flush=True)
                 except Exception as exc:
                     failures.append((scene_name, str(exc)))
@@ -112,7 +109,7 @@ def main():
     if failures:
         print("%d renderer test(s) failed." % len(failures), file=sys.stderr)
         return 1
-    print("All %d scene families rendered; 4K drawing buffer passed." % len(topics.SCENES))
+    print("All %d scene families rendered without HUD overlays; 4K drawing buffer passed." % len(topics.SCENES))
     return 0
 
 
