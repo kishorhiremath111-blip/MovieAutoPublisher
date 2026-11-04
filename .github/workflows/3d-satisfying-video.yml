@@ -14,12 +14,6 @@ on:
   schedule:
     # Original four daily uploads at 09:00, 13:00, 17:00 and 21:00 IST.
     - cron: "30 3,7,11,15 * * *"
-  # One-time push trigger to launch the verified renderer fix immediately.
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/3d-satisfying-video.yml"
 
 permissions:
   contents: write
@@ -61,7 +55,7 @@ jobs:
           YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
         run: python run_pipeline.py
       - name: Save consumed topic state and upload history to repository
-        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'public')) }}
+        if: ${{ success() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'public')) }}
         run: |
           git config user.name "satisfying-bot"
           git config user.email "satisfying-bot@users.noreply.github.com"
