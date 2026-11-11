@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python make_video.py scripts/aasman_neela.json \
+          python make_video.py scripts/generated_topic.json \
             --output "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4" \
             --tts chatterbox \
             --voice-reference voice/voice_reference.wav \
