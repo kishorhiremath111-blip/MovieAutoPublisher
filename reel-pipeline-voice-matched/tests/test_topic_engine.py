@@ -37,7 +37,7 @@ class TopicEngineTests(unittest.TestCase):
         facts = topic_engine.read_json(topic_engine.FACTS_PATH)["facts"]
         angles = topic_engine.read_json(topic_engine.TEMPLATES_PATH)["angles"]
         fact, angle = facts[0], angles[0]
-        key = topic_engine.sha(f"{fact['id']}|{angle['id']}")
+        key = topic_engine.sha(fact["id"])
         with tempfile.TemporaryDirectory() as td:
             history = Path(td) / "used_topics.jsonl"
             history.write_text(json.dumps({"semantic_key": key, "topic_id": "already-used"}) + "\n")

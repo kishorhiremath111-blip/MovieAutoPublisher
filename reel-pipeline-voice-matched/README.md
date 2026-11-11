@@ -21,7 +21,7 @@ The taxonomy and curated starter facts live in `topics/`:
 - `topic_engine.py`: emits the pipeline's native JSON scene format using a fact card and selected wording templates.
 - `state/used_topics.jsonl`: persistent no-repeat history.
 
-The structured prompt-composition count is **252,800,000 candidates** (158 x 40 x 25 x 40 x 40). This is a count of combinations, not 252.8 million individually researched facts. There are currently 3,950 semantic fact-angle pairs. The semantic key is fact ID + editorial angle, so changing the hook, analogy or joke cannot make an already-used fact-angle eligible again.
+The structured prompt-composition count is **252,800,000 candidates** (158 x 40 x 25 x 40 x 40). This is a count of combinations, not 252.8 million individually researched facts. There are currently 158 distinct curated fact cards available for one-time use. The semantic key is the fact ID, so changing the hook, editorial angle, analogy or joke cannot make an already-used fact eligible again.
 
 A topic is marked used **after the MP4 is successfully rendered and validated**, before any public upload. That means a YouTube upload failure does not cause the same topic to be generated again. DOWNLOAD mode marks the topic used after successful render as well. History is committed to `main` so the next workflow run sees it. Used records remain in the audit history; they are excluded rather than physically deleted.
 

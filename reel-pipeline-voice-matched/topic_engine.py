@@ -87,16 +87,16 @@ ANGLE_LINES = {
     "cause-vs-trigger": "Underlying reason aur immediate trigger alag ho sakte hain.",
     "material": "Yahan material ki property important role play karti hai.",
     "environment": "Surroundings bhi result ko affect kar sakte hain.",
-    "human-angle": "Iska human-body ya everyday experience se connection hai.",
-    "animal-angle": "Nature mein isi idea ka ek interesting version milta hai.",
-    "space-angle": "Space ke perspective se ye aur interesting ho jaata hai.",
-    "sound-angle": "Isko sound ke angle se samajhna easy hoga.",
-    "light-angle": "Light ka behaviour yahan key role play karta hai.",
-    "energy-angle": "Energy kahan transfer hoti hai, wahi main clue hai.",
+    "human-angle": "Isko ek familiar daily example se connect karte hain.",
+    "animal-angle": "Ab ek simple comparison se picture clear karte hain.",
+    "space-angle": "Ab is sawal ko doosre perspective se dekhte hain.",
+    "sound-angle": "Ek aur simple observation se concept samajhte hain.",
+    "light-angle": "Chalo, isi fact ko ek nayi nazar se dekhte hain.",
+    "energy-angle": "Ab explanation ko step-by-step break karte hain.",
     "time-angle": "Is process mein timing bhi important hai.",
     "structure-angle": "Shape aur structure iska result badal dete hain.",
-    "signal-angle": "Body ya system ke signals yahan kaam karte hain.",
-    "system-angle": "Ek part nahi, poora system milkar effect banata hai.",
+    "signal-angle": "Yahan cause aur response ka relation samajhna useful hai.",
+    "system-angle": "Ek part ke bajay complete process ko dekhte hain.",
     "misconception-angle": "Hamari intuition yahan thodi incomplete ho sakti hai.",
     "bonus-angle": "Is fact se ek unexpected connection bhi nikalta hai.",
 }
@@ -186,7 +186,7 @@ def build_script(fact: dict, angle: dict, hook: dict, analogy_frame: dict,
         ),
     ]
 
-    topic_key = f"{fact['id']}|{angle['id']}"
+    topic_key = fact["id"]
     combo = "|".join([fact["id"], angle["id"], hook["id"],
                       analogy_frame["id"], humour_frame["id"]])
     topic_id = sha(combo)[:24]
@@ -259,8 +259,8 @@ def generate(pipeline_dir: Path, state_dir: Path):
     state_dir.mkdir(parents=True, exist_ok=True)
     used_semantic, used_ids = read_history(history)
 
-    candidates = [(fact, angle) for fact in facts for angle in angles
-                  if sha(f"{fact['id']}|{angle['id']}") not in used_semantic]
+    candidates = [(fact, rng.choice(angles)) for fact in facts
+                  if sha(fact["id"]) not in used_semantic]
     if not candidates:
         raise RuntimeError(
             "All curated fact-angle topics are consumed. Add new sourced fact cards to "
