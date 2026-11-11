@@ -258,16 +258,16 @@ def generate(pipeline_dir: Path, state_dir: Path):
     history = state_dir / "used_topics.jsonl"
     state_dir.mkdir(parents=True, exist_ok=True)
     used_semantic, used_ids = read_history(history)
+    rng = random.SystemRandom()
 
     candidates = [(fact, rng.choice(angles)) for fact in facts
                   if sha(fact["id"]) not in used_semantic]
     if not candidates:
         raise RuntimeError(
-            "All curated fact-angle topics are consumed. Add new sourced fact cards to "
-            "topics/fact_seeds.json; the generator will not repeat used topics."
+            "All curated fact cards are consumed. Add new source-checked fact cards to "
+            "topics/fact_seeds.json; the generator will not repeat a used fact."
         )
 
-    rng = random.SystemRandom()
     rng.shuffle(candidates)
     selected = None
     for fact, angle in candidates:
