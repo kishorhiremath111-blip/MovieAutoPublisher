@@ -1,6 +1,11 @@
 name: Reel Pipeline - Voice Matched
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'reel-pipeline-voice-matched/Reel-Pipeline-Voice-Matched.zip'
   workflow_dispatch:
     inputs:
       mode:
