@@ -53,7 +53,7 @@ jobs:
           project="$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched"
           test -f "$project/make_video.py"
           test -f "$project/voice/voice_reference.wav"
-          test -f "$project/scripts/generated_topic.json"
+          test -f "$project/scripts/aasman_neela.json"
           echo "Bundled pipeline and voice reference verified."
 
       - name: Set up Python

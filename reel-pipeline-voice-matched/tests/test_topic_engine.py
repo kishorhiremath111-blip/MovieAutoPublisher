@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Fast unit tests for topic catalogue uniqueness and script compatibility."""
+"""Fast tests for topic pool size, source anchors, semantic de-duplication and renderer JSON."""
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import topic_engine
 
 
@@ -42,9 +44,28 @@ class TopicEngineTests(unittest.TestCase):
             used_semantic, _ = topic_engine.read_history(history)
             self.assertIn(key, used_semantic)
 
-    def test_script_schema_has_seven_scenes(self):
-        self.assertEqual(len(topic_engine.ANGLE_LINES), 25)
-        self.assertEqual(len(topic_engine.hookTemplates) if hasattr(topic_engine, "hookTemplates") else 40, 40)
+    def test_script_schema_is_compatible_with_reel_pipeline(self):
+        facts = topic_engine.read_json(topic_engine.FACTS_PATH)["facts"]
+        templates = topic_engine.read_json(topic_engine.TEMPLATES_PATH)
+        with tempfile.TemporaryDirectory() as td:
+            script, pending = topic_engine.build_script(
+                facts[0], templates["angles"][0], templates["hooks"][0],
+                templates["analogy_frames"][0], templates["humour_frames"][0],
+                Path(td),
+            )
+        self.assertEqual(len(script["scenes"]), 7)
+        self.assertIn("meta", script)
+        self.assertIn("topic_id", script["meta"])
+        for scene in script["scenes"]:
+            self.assertTrue(scene.get("say"))
+            self.assertTrue(scene.get("tts_hi"))
+            self.assertIn(scene.get("bg"), {"dark", "gold", "red", "blue", "green"})
+            for element in scene.get("elements", []):
+                self.assertIn(element["type"], {
+                    "title", "ocean_card", "stamp", "sun", "prism", "atmo",
+                    "bars", "card", "sunset", "phone_cta", "badge", "stat",
+                })
+        self.assertTrue(pending["semantic_key"])
 
 
 if __name__ == "__main__":
