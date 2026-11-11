@@ -1,0 +1,156 @@
+name: Reel Pipeline - Voice Matched
+
+on:
+  workflow_dispatch:
+    inputs:
+      render_mode:
+        description: "Preview (first N seconds) or full demo render"
+        type: choice
+        options: [preview, full]
+        default: preview
+        required: true
+      preview_seconds:
+        description: "Preview duration when render_mode=preview"
+        type: string
+        default: "12"
+        required: true
+      quality:
+        description: "standard = 720x1280, high = 1080x1920"
+        type: choice
+        options: [standard, high]
+        default: standard
+        required: true
+      music_level:
+        description: "Background music gain from 0.00 to 1.00"
+        type: string
+        default: "0.20"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reel-pipeline-voice-matched
+  cancel-in-progress: false
+
+jobs:
+  render-voice-matched-reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      RENDER_MODE: ${{ inputs.render_mode }}
+      PREVIEW_SECONDS: ${{ inputs.preview_seconds }}
+      QUALITY: ${{ inputs.quality }}
+      MUSIC_LEVEL: ${{ inputs.music_level }}
+      ZIP_PATH: reel-pipeline-voice-matched/Reel-Pipeline-Voice-Matched.zip
+      EXPECTED_ZIP_SHA256: f2c1026d31b6f7b6c9bd9188794b7103154d8ee6c46f2010fbfc499bd55fd618
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify the exact uploaded pipeline ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$ZIP_PATH" ]]; then
+            echo "::error::Missing $ZIP_PATH. Upload the exact Reel Pipeline - Voice Matched ZIP there first."
+            exit 1
+          fi
+          actual="$(sha256sum "$ZIP_PATH" | awk '{print $1}')"
+          echo "ZIP SHA-256: $actual"
+          if [[ "$actual" != "$EXPECTED_ZIP_SHA256" ]]; then
+            echo "::error::ZIP integrity check failed. The uploaded archive is not byte-for-byte identical to the supplied updated ZIP."
+            exit 1
+          fi
+          unzip -t "$ZIP_PATH"
+          mkdir -p "$RUNNER_TEMP/reel-pipeline-unpack"
+          unzip -q "$ZIP_PATH" -d "$RUNNER_TEMP/reel-pipeline-unpack"
+          project="$RUNNER_TEMP/reel-pipeline-unpack/reel_pipeline_voice_matched"
+          test -f "$project/make_video.py"
+          test -f "$project/voice/voice_reference.wav"
+          test -f "$project/scripts/aasman_neela.json"
+          echo "PROJECT_DIR=$project" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install CPU PyTorch and pipeline dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r requirements.txt
+          python -m pip install -r requirements-chatterbox.txt
+
+      - name: Preflight - compile code and validate reference audio
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python -m py_compile make_video.py prepare_voice_reference.py reelkit/*.py
+          python make_video.py --help
+          python - <<'PY'
+          from pathlib import Path
+          from scipy.io import wavfile
+          import numpy as np
+          p = Path('voice/voice_reference.wav')
+          sr, audio = wavfile.read(p)
+          assert sr == 24000, f'Expected 24000 Hz, got {sr}'
+          assert audio.ndim == 1, f'Expected mono audio, got shape {audio.shape}'
+          duration = len(audio) / sr
+          assert 6 <= duration <= 20, f'Unexpected reference duration: {duration:.2f}s'
+          assert np.isfinite(audio).all(), 'Reference audio contains non-finite samples'
+          print(f'Voice reference OK: {duration:.2f}s, {sr} Hz, mono')
+          PY
+
+      - name: Render with the bundled demo voice reference
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            scripts/aasman_neela.json
+            --output "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4"
+            --tts chatterbox
+            --voice-reference voice/voice_reference.wav
+            --language hi
+            --device cpu
+            --workers 2
+            --fps 24
+            --music "$MUSIC_LEVEL"
+          )
+          if [[ "$QUALITY" == "high" ]]; then args+=(--hq); fi
+          if [[ "$RENDER_MODE" == "preview" ]]; then
+            if ! [[ "$PREVIEW_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+              echo "::error::preview_seconds must be a positive number."
+              exit 1
+            fi
+            args+=(--preview "$PREVIEW_SECONDS")
+          fi
+          if ! [[ "$MUSIC_LEVEL" =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
+            echo "::error::music_level must be between 0.00 and 1.00."
+            exit 1
+          fi
+          python make_video.py "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/reel-pipeline-render.log"
+
+      - name: Verify rendered MP4
+        run: |
+          set -euo pipefail
+          test -s "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4"
+          ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4"
+
+      - name: Upload render and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-pipeline-voice-matched-${{ github.run_number }}
+          path: |
+            reel-pipeline-voice-matched.mp4
+            reel-pipeline-render.log
+          if-no-files-found: ignore
+          retention-days: 7
