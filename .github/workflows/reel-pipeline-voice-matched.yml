@@ -13,7 +13,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: reel-pipeline-voice-matched
@@ -53,7 +53,7 @@ jobs:
           project="$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched"
           test -f "$project/make_video.py"
           test -f "$project/voice/voice_reference.wav"
-          test -f "$project/scripts/aasman_neela.json"
+          test -f "$project/scripts/generated_topic.json"
           echo "Bundled pipeline and voice reference verified."
 
       - name: Set up Python
@@ -73,6 +73,17 @@ jobs:
           python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-chatterbox.txt
+
+      - name: Install Hinglish transliteration helper
+        run: python -m pip install indic-transliteration
+
+      - name: Validate taxonomy, prompt pool and no-repeat engine
+        run: |
+          set -euo pipefail
+          python -m py_compile reel-pipeline-voice-matched/topic_engine.py reel-pipeline-voice-matched/tests/test_topic_engine.py
+          cd reel-pipeline-voice-matched
+          python -m unittest discover -s tests -v
+          cd "$GITHUB_WORKSPACE"
 
       - name: Preflight - validate reference voice and pipeline
         working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
@@ -94,7 +105,14 @@ jobs:
           print(f"Voice reference OK: {duration:.2f}s / {sr} Hz / mono")
           PY
 
-      - name: Render the full demo with the same reference voice
+      - name: Select the next unused fact-angle and generate script
+        run: |
+          set -euo pipefail
+          python reel-pipeline-voice-matched/topic_engine.py generate \
+            --pipeline-dir "$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched" \
+            --state-dir "$GITHUB_WORKSPACE/reel-pipeline-voice-matched/state"
+
+      - name: Render the new topic with the same reference voice
         working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         shell: bash
         run: |
@@ -136,6 +154,36 @@ jobs:
           print(f"SHORT FORMAT OK: 1080x1920 | {fps} fps | {duration:.2f}s | H.264 + audio")
           PY
 
+      - name: Mark generated topic as used and persist no-repeat history
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python reel-pipeline-voice-matched/topic_engine.py finalize \
+            --state-dir "$GITHUB_WORKSPACE/reel-pipeline-voice-matched/state" \
+            --video "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4" \
+            --mode "$DELIVERY_MODE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reel-pipeline-voice-matched/state/used_topics.jsonl
+          if git diff --cached --quiet; then
+            echo "::error::Topic history did not change; refusing to continue."
+            exit 1
+          fi
+          git commit -m "topics: consume successfully rendered fact-angle"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git rebase origin/main
+            if git push origin HEAD:main; then
+              echo "No-repeat history committed."
+              exit 0
+            fi
+            echo "History push attempt $attempt failed; retrying..."
+            sleep 3
+          done
+          echo "::error::Could not persist used-topic history; stopping before any public upload."
+          exit 1
+
       - name: Install YouTube uploader dependencies
         if: ${{ env.DELIVERY_MODE == 'public' }}
         run: |
@@ -150,7 +198,7 @@ jobs:
           set -euo pipefail
           python reel-pipeline-voice-matched/upload_youtube.py \
             "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4" \
-            "$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched/scripts/aasman_neela.json" \
+            "$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched/scripts/generated_topic.json" \
             "$GITHUB_WORKSPACE/youtube-upload-result.txt"
 
       - name: Confirm download-only mode
@@ -166,5 +214,6 @@ jobs:
             reel-pipeline-voice-matched.mp4
             reel-pipeline-render.log
             youtube-upload-result.txt
+            .reel-pipeline-runtime/reel_pipeline_voice_matched/generated_topic_metadata.json
           if-no-files-found: ignore
           retention-days: 14

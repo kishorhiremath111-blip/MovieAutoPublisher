@@ -1,0 +1,616 @@
+{
+  "hooks": [
+    {
+      "id": "H01",
+      "text": "Ek chhota sa sawaal: {q}"
+    },
+    {
+      "id": "H02",
+      "text": "Tumne kabhi socha hai, {q}"
+    },
+    {
+      "id": "H03",
+      "text": "Ruko, iska answer tum expect nahi karoge: {q}"
+    },
+    {
+      "id": "H04",
+      "text": "Roz dekhte ho, par {q}"
+    },
+    {
+      "id": "H05",
+      "text": "Aaj ka mini science mystery: {q}"
+    },
+    {
+      "id": "H06",
+      "text": "Ek second, {q}"
+    },
+    {
+      "id": "H07",
+      "text": "Ye basic lagta hai, lekin {q}"
+    },
+    {
+      "id": "H08",
+      "text": "School mein padha hoga, par {q}"
+    },
+    {
+      "id": "H09",
+      "text": "Chalo ek common confusion clear karein: {q}"
+    },
+    {
+      "id": "H10",
+      "text": "Bhai, kabhi notice kiya: {q}"
+    },
+    {
+      "id": "H11",
+      "text": "Iska asli reason pata hai? {q}"
+    },
+    {
+      "id": "H12",
+      "text": "Internet par iska jawab aksar adhoora hota hai: {q}"
+    },
+    {
+      "id": "H13",
+      "text": "Ek simple cheez ka surprising science: {q}"
+    },
+    {
+      "id": "H14",
+      "text": "Guess karne se pehle socho: {q}"
+    },
+    {
+      "id": "H15",
+      "text": "Ye magic nahi, science hai: {q}"
+    },
+    {
+      "id": "H16",
+      "text": "Aaj ek everyday mystery solve karte hain: {q}"
+    },
+    {
+      "id": "H17",
+      "text": "Sabne dekha hai, par kam log jaante hain: {q}"
+    },
+    {
+      "id": "H18",
+      "text": "Ek chhota fact tumhara dimaag hila sakta hai: {q}"
+    },
+    {
+      "id": "H19",
+      "text": "Question easy hai, answer interesting: {q}"
+    },
+    {
+      "id": "H20",
+      "text": "Chalo 30 seconds mein samajhte hain: {q}"
+    },
+    {
+      "id": "H21",
+      "text": "Is cheez ka hidden mechanism suno: {q}"
+    },
+    {
+      "id": "H22",
+      "text": "Ye kyun hota hai, kabhi notice kiya? {q}"
+    },
+    {
+      "id": "H23",
+      "text": "Ek myth ko side mein rakho aur suno: {q}"
+    },
+    {
+      "id": "H24",
+      "text": "Seedha sawaal, science wala jawab: {q}"
+    },
+    {
+      "id": "H25",
+      "text": "Daily life ka ek secret unlock karte hain: {q}"
+    },
+    {
+      "id": "H26",
+      "text": "Wait, iska reason kuch aur hai: {q}"
+    },
+    {
+      "id": "H27",
+      "text": "Ye fact tumhare next conversation mein kaam aayega: {q}"
+    },
+    {
+      "id": "H28",
+      "text": "Ek normal cheez, par explanation extraordinary: {q}"
+    },
+    {
+      "id": "H29",
+      "text": "Chalo brain ko ek quick puzzle dete hain: {q}"
+    },
+    {
+      "id": "H30",
+      "text": "Sabko lagta hai pata hai, par exact answer? {q}"
+    },
+    {
+      "id": "H31",
+      "text": "Iska jawab 10 second mein nahi, par simple hai: {q}"
+    },
+    {
+      "id": "H32",
+      "text": "Ek aisi baat jo tumne shayad kabhi poochhi nahi: {q}"
+    },
+    {
+      "id": "H33",
+      "text": "Science ko boring samajhne walon, ye suno: {q}"
+    },
+    {
+      "id": "H34",
+      "text": "Ek chhoti observation se bada answer milta hai: {q}"
+    },
+    {
+      "id": "H35",
+      "text": "Is mystery ka villain ya hero kaun hai? {q}"
+    },
+    {
+      "id": "H36",
+      "text": "Chalo guess-versus-reality khelte hain: {q}"
+    },
+    {
+      "id": "H37",
+      "text": "Ye question ghar se space tak jaata hai: {q}"
+    },
+    {
+      "id": "H38",
+      "text": "Ek fact jo school book se zyada daily life mein dikhe: {q}"
+    },
+    {
+      "id": "H39",
+      "text": "Ready? Aaj ka why-question: {q}"
+    },
+    {
+      "id": "H40",
+      "text": "Simple cheez ka asli twist: {q}"
+    }
+  ],
+  "angles": [
+    {
+      "id": "why",
+      "name": "Cause and effect",
+      "text": "Asli cause aur effect ko step-by-step samjho."
+    },
+    {
+      "id": "myth",
+      "name": "Myth check",
+      "text": "Common guess aur verified explanation ko compare karo."
+    },
+    {
+      "id": "daily",
+      "name": "Daily-life connection",
+      "text": "Is fact ko roz ke experience se connect karo."
+    },
+    {
+      "id": "mechanism",
+      "name": "Hidden mechanism",
+      "text": "Andar ka mechanism simple language mein kholo."
+    },
+    {
+      "id": "contrast",
+      "name": "Unexpected comparison",
+      "text": "Isko ek contrasting everyday example se samjhao."
+    },
+    {
+      "id": "what-changes",
+      "name": "What changes it",
+      "text": "Kaunse conditions is effect ko strong ya weak karti hain, sirf supported details ke saath."
+    },
+    {
+      "id": "observation",
+      "name": "Notice it yourself",
+      "text": "Viewer ko safe everyday observation se concept notice karwao."
+    },
+    {
+      "id": "history",
+      "name": "How we learned it",
+      "text": "Sirf source-backed history mention karo; warna mechanism par raho."
+    },
+    {
+      "id": "scale",
+      "name": "Scale and size",
+      "text": "Numbers tabhi do jab source exact figure support kare."
+    },
+    {
+      "id": "sequence",
+      "name": "Step-by-step sequence",
+      "text": "Process ko correct sequence mein break karo."
+    },
+    {
+      "id": "cause-vs-trigger",
+      "name": "Cause versus trigger",
+      "text": "Underlying cause aur immediate trigger alag samjhao."
+    },
+    {
+      "id": "material",
+      "name": "Material matters",
+      "text": "Material ke properties ka role explain karo."
+    },
+    {
+      "id": "environment",
+      "name": "Environment matters",
+      "text": "Temperature, pressure, light ya surroundings ka documented role samjhao."
+    },
+    {
+      "id": "human-angle",
+      "name": "Human connection",
+      "text": "Human experience se connect karo without medical advice."
+    },
+    {
+      "id": "animal-angle",
+      "name": "Animal adaptation",
+      "text": "Adaptation ko survival context ke saath explain karo."
+    },
+    {
+      "id": "space-angle",
+      "name": "Space perspective",
+      "text": "Earth vs space contrast only when source supports it."
+    },
+    {
+      "id": "sound-angle",
+      "name": "Sound perspective",
+      "text": "Sound wave ya hearing mechanism ko simple banao."
+    },
+    {
+      "id": "light-angle",
+      "name": "Light perspective",
+      "text": "Wavelength, reflection, scattering ya refraction mein jo relevant ho wahi use karo."
+    },
+    {
+      "id": "energy-angle",
+      "name": "Energy perspective",
+      "text": "Energy transfer/conversion ka accurate path explain karo."
+    },
+    {
+      "id": "time-angle",
+      "name": "Time perspective",
+      "text": "Time sequence ya long-term process ko explain karo."
+    },
+    {
+      "id": "structure-angle",
+      "name": "Structure perspective",
+      "text": "Shape/structure ka effect explain karo."
+    },
+    {
+      "id": "signal-angle",
+      "name": "Signal perspective",
+      "text": "Chemical, electrical, optical ya sensory signal ka role samjhao."
+    },
+    {
+      "id": "system-angle",
+      "name": "Whole-system perspective",
+      "text": "Individual part ke bajay whole system ka role dikhao."
+    },
+    {
+      "id": "misconception-angle",
+      "name": "Why intuition fails",
+      "text": "Intuition kahan incomplete hai aur evidence kya kehta hai."
+    },
+    {
+      "id": "bonus-angle",
+      "name": "Unexpected connection",
+      "text": "Ek source-backed bonus link add karo, unrelated fact mat jodo."
+    }
+  ],
+  "analogy_frames": [
+    {
+      "id": "A01",
+      "text": "Simple example: {analogy}"
+    },
+    {
+      "id": "A02",
+      "text": "Imagine karo: {analogy}"
+    },
+    {
+      "id": "A03",
+      "text": "Isko aise samjho: {analogy}"
+    },
+    {
+      "id": "A04",
+      "text": "Daily life wali analogy: {analogy}"
+    },
+    {
+      "id": "A05",
+      "text": "Ek funny comparison: {analogy}"
+    },
+    {
+      "id": "A06",
+      "text": "Science ko ghar ki language mein: {analogy}"
+    },
+    {
+      "id": "A07",
+      "text": "Picture this: {analogy}"
+    },
+    {
+      "id": "A08",
+      "text": "Ab ek mini example: {analogy}"
+    },
+    {
+      "id": "A09",
+      "text": "Seedhi baat: {analogy}"
+    },
+    {
+      "id": "A10",
+      "text": "Iska easy visual socho: {analogy}"
+    },
+    {
+      "id": "A11",
+      "text": "Jaise real life mein: {analogy}"
+    },
+    {
+      "id": "A12",
+      "text": "Ek chhota mental experiment: {analogy}"
+    },
+    {
+      "id": "A13",
+      "text": "Is process ko imagine karo: {analogy}"
+    },
+    {
+      "id": "A14",
+      "text": "Analogy se yaad rakho: {analogy}"
+    },
+    {
+      "id": "A15",
+      "text": "Ek relatable scene: {analogy}"
+    },
+    {
+      "id": "A16",
+      "text": "Bilkul aise hi: {analogy}"
+    },
+    {
+      "id": "A17",
+      "text": "Iska simple model hai: {analogy}"
+    },
+    {
+      "id": "A18",
+      "text": "Thoda imagination use karo: {analogy}"
+    },
+    {
+      "id": "A19",
+      "text": "Ek easy comparison pakdo: {analogy}"
+    },
+    {
+      "id": "A20",
+      "text": "Yahan trick ye hai: {analogy}"
+    },
+    {
+      "id": "A21",
+      "text": "Ek line ka example: {analogy}"
+    },
+    {
+      "id": "A22",
+      "text": "Isko mini story samjho: {analogy}"
+    },
+    {
+      "id": "A23",
+      "text": "Visual bana ke dekho: {analogy}"
+    },
+    {
+      "id": "A24",
+      "text": "Classroom example se: {analogy}"
+    },
+    {
+      "id": "A25",
+      "text": "Kitchen example se: {analogy}"
+    },
+    {
+      "id": "A26",
+      "text": "Road wala example lo: {analogy}"
+    },
+    {
+      "id": "A27",
+      "text": "Sports wali example: {analogy}"
+    },
+    {
+      "id": "A28",
+      "text": "Phone wali example: {analogy}"
+    },
+    {
+      "id": "A29",
+      "text": "Imagine ek tiny machine: {analogy}"
+    },
+    {
+      "id": "A30",
+      "text": "Nature ka example: {analogy}"
+    },
+    {
+      "id": "A31",
+      "text": "Ek simple analogy yaad rakho: {analogy}"
+    },
+    {
+      "id": "A32",
+      "text": "Isko shortcut mein samjho: {analogy}"
+    },
+    {
+      "id": "A33",
+      "text": "Ab concept clear karne ke liye: {analogy}"
+    },
+    {
+      "id": "A34",
+      "text": "Ek chhota comparison aur: {analogy}"
+    },
+    {
+      "id": "A35",
+      "text": "Seedha dimag mein picture banao: {analogy}"
+    },
+    {
+      "id": "A36",
+      "text": "Yahi hota hai, jaise: {analogy}"
+    },
+    {
+      "id": "A37",
+      "text": "Science ka relatable version: {analogy}"
+    },
+    {
+      "id": "A38",
+      "text": "Ek no-jargon example: {analogy}"
+    },
+    {
+      "id": "A39",
+      "text": "Ek funny visual: {analogy}"
+    },
+    {
+      "id": "A40",
+      "text": "Ab ye example kabhi nahi bhoologe: {analogy}"
+    }
+  ],
+  "humour_frames": [
+    {
+      "id": "J01",
+      "text": "{joke}"
+    },
+    {
+      "id": "J02",
+      "text": "Aur haan, {joke}"
+    },
+    {
+      "id": "J03",
+      "text": "Thoda mazaak, par fact pakka: {joke}"
+    },
+    {
+      "id": "J04",
+      "text": "Science ka punchline: {joke}"
+    },
+    {
+      "id": "J05",
+      "text": "Is point par {joke}"
+    },
+    {
+      "id": "J06",
+      "text": "Ab hasi rokna mushkil: {joke}"
+    },
+    {
+      "id": "J07",
+      "text": "Nature ka humour dekho: {joke}"
+    },
+    {
+      "id": "J08",
+      "text": "Bas itna samajh lo: {joke}"
+    },
+    {
+      "id": "J09",
+      "text": "Ek friendly roast: {joke}"
+    },
+    {
+      "id": "J10",
+      "text": "Aur ye part mast hai: {joke}"
+    },
+    {
+      "id": "J11",
+      "text": "Chhota sa funny twist: {joke}"
+    },
+    {
+      "id": "J12",
+      "text": "Bina overacting ke: {joke}"
+    },
+    {
+      "id": "J13",
+      "text": "Isko yaad rakhne ka funny tareeka: {joke}"
+    },
+    {
+      "id": "J14",
+      "text": "Thoda filmy bana dein: {joke}"
+    },
+    {
+      "id": "J15",
+      "text": "Science ne yahan comedy kar di: {joke}"
+    },
+    {
+      "id": "J16",
+      "text": "Ek dum relatable scene: {joke}"
+    },
+    {
+      "id": "J17",
+      "text": "Aur tum soch rahe the: {joke}"
+    },
+    {
+      "id": "J18",
+      "text": "Plot twist: {joke}"
+    },
+    {
+      "id": "J19",
+      "text": "Body/nature ka reply: {joke}"
+    },
+    {
+      "id": "J20",
+      "text": "Yahan dimaag bolega: {joke}"
+    },
+    {
+      "id": "J21",
+      "text": "Bas yahi toh twist hai: {joke}"
+    },
+    {
+      "id": "J22",
+      "text": "Ek halka sa joke: {joke}"
+    },
+    {
+      "id": "J23",
+      "text": "Baat serious, delivery funny: {joke}"
+    },
+    {
+      "id": "J24",
+      "text": "Ab is fact ka meme version: {joke}"
+    },
+    {
+      "id": "J25",
+      "text": "Ek chhota punch: {joke}"
+    },
+    {
+      "id": "J26",
+      "text": "Funny hai, lekin sach: {joke}"
+    },
+    {
+      "id": "J27",
+      "text": "Aur isliye: {joke}"
+    },
+    {
+      "id": "J28",
+      "text": "Science class, comedy break: {joke}"
+    },
+    {
+      "id": "J29",
+      "text": "Thoda desi example: {joke}"
+    },
+    {
+      "id": "J30",
+      "text": "Ye sunke {joke}"
+    },
+    {
+      "id": "J31",
+      "text": "Ek smile toh banti hai: {joke}"
+    },
+    {
+      "id": "J32",
+      "text": "Nature ka stand-up: {joke}"
+    },
+    {
+      "id": "J33",
+      "text": "Technology ka attitude: {joke}"
+    },
+    {
+      "id": "J34",
+      "text": "Body ka drama: {joke}"
+    },
+    {
+      "id": "J35",
+      "text": "Earth ka daily soap: {joke}"
+    },
+    {
+      "id": "J36",
+      "text": "Space ka plot twist: {joke}"
+    },
+    {
+      "id": "J37",
+      "text": "Food ka secret joke: {joke}"
+    },
+    {
+      "id": "J38",
+      "text": "Simple aur funny: {joke}"
+    },
+    {
+      "id": "J39",
+      "text": "Bas punchline yaad rakhna: {joke}"
+    },
+    {
+      "id": "J40",
+      "text": "Final funny note: {joke}"
+    }
+  ],
+  "formula": "64 fact seeds x 40 hooks x 25 editorial angles x 40 analogy frames x 40 humour frames = 102,400,000 candidate prompt compositions. Semantic de-duplication blocks a used fact-angle pair even if the wording frames differ."
+}

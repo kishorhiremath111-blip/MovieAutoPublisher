@@ -1,0 +1,1 @@
+Used topic history is appended here only after successful video generation (download mode) or successful public YouTube upload (public mode).\n

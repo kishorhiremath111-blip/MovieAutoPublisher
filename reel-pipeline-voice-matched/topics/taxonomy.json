@@ -1,0 +1,201 @@
+{
+  "title": "Evergreen Everyday Mystery Taxonomy",
+  "version": "1.0",
+  "categories": [
+    {
+      "id": "science",
+      "name": "Science",
+      "subcategories": [
+        "Physics",
+        "Chemistry",
+        "Biology",
+        "Optics",
+        "Heat",
+        "Sound",
+        "Electricity",
+        "Materials"
+      ]
+    },
+    {
+      "id": "human-body",
+      "name": "Human Body",
+      "subcategories": [
+        "Physiology",
+        "Senses",
+        "Blood",
+        "Sleep",
+        "Nutrition",
+        "Movement"
+      ]
+    },
+    {
+      "id": "psychology",
+      "name": "Psychology",
+      "subcategories": [
+        "Perception",
+        "Memory",
+        "Attention",
+        "Learning",
+        "Decision Making",
+        "Emotion",
+        "Social Behaviour"
+      ]
+    },
+    {
+      "id": "space",
+      "name": "Space & Astronomy",
+      "subcategories": [
+        "Solar System",
+        "Stars",
+        "Moon",
+        "Black Holes",
+        "Spaceflight",
+        "Cosmology"
+      ]
+    },
+    {
+      "id": "animals",
+      "name": "Animals & Zoology",
+      "subcategories": [
+        "Mammals",
+        "Birds",
+        "Invertebrates",
+        "Marine Life",
+        "Adaptations",
+        "Animal Communication"
+      ]
+    },
+    {
+      "id": "nature",
+      "name": "Nature & Ecology",
+      "subcategories": [
+        "Botany",
+        "Microbiology",
+        "Weather",
+        "Ecology",
+        "Geology",
+        "Climate"
+      ]
+    },
+    {
+      "id": "technology",
+      "name": "Technology",
+      "subcategories": [
+        "Computing",
+        "Networking",
+        "Digital Security",
+        "Navigation",
+        "Engineering",
+        "Materials"
+      ]
+    },
+    {
+      "id": "food",
+      "name": "Food & Nutrition",
+      "subcategories": [
+        "Food Science",
+        "Fermentation",
+        "Cooking Chemistry",
+        "Taste",
+        "Storage",
+        "Nutrition"
+      ]
+    },
+    {
+      "id": "language",
+      "name": "Language & Linguistics",
+      "subcategories": [
+        "Phonetics",
+        "Grammar",
+        "Etymology",
+        "Language Change",
+        "Writing Systems",
+        "Communication"
+      ]
+    },
+    {
+      "id": "history",
+      "name": "History & Culture",
+      "subcategories": [
+        "Ancient Knowledge",
+        "Technology History",
+        "Everyday History",
+        "Calendars",
+        "Symbols",
+        "Inventions"
+      ]
+    },
+    {
+      "id": "money",
+      "name": "Money & Economics",
+      "subcategories": [
+        "Personal Finance",
+        "Payments",
+        "Inflation",
+        "Banking",
+        "Markets",
+        "Economic Basics"
+      ]
+    },
+    {
+      "id": "earth",
+      "name": "Earth & Oceans",
+      "subcategories": [
+        "Oceanography",
+        "Geophysics",
+        "Tides",
+        "Earthquakes",
+        "Atmosphere",
+        "Water Cycle"
+      ]
+    },
+    {
+      "id": "geography",
+      "name": "Geography",
+      "subcategories": [
+        "Mountains",
+        "Deserts",
+        "Climate",
+        "Volcanoes",
+        "Landforms",
+        "Maps"
+      ]
+    },
+    {
+      "id": "everyday",
+      "name": "Everyday Mysteries",
+      "subcategories": [
+        "Household Objects",
+        "Materials",
+        "Sound",
+        "Light",
+        "Transport",
+        "Daily Habits"
+      ]
+    },
+    {
+      "id": "culture",
+      "name": "Surprising Facts",
+      "subcategories": [
+        "Common Misconceptions",
+        "Hidden Mechanisms",
+        "Unexpected Comparisons",
+        "Human Inventions",
+        "Science in Daily Life"
+      ]
+    },
+    {
+      "id": "engineering",
+      "name": "Engineering",
+      "subcategories": [
+        "Transport",
+        "Structures",
+        "Safety Systems",
+        "Machines",
+        "Energy",
+        "Design"
+      ]
+    }
+  ],
+  "source_policy": "Each claim must have a source_ref. Prefer government, university, museum, scientific society, standards body, or primary scientific sources. Do not publish uncertain numbers as facts."
+}
