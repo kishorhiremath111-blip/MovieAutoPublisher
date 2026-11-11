@@ -32,26 +32,25 @@ jobs:
       # Manual runs default to public. Any future scheduled trigger also defaults to public.
       DELIVERY_MODE: ${{ github.event_name == 'schedule' && 'public' || inputs.mode || 'public' }}
       EXPECTED_ZIP_SHA256: 9a3a55cf54338e91de2fef7a9c7e70a8d117130e1645f5de673f35b70e6687e0
+      EXPECTED_VOICE_SHA256: 81379377895ef6e9439d21f22878122b7aa557bdaed2ab93abca7ae74dc558cc
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verify the exact voice-matched ZIP
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_PATH="$(find "$GITHUB_WORKSPACE" -type f \\( -iname 'Reel-Pipeline-Voice-Matched.zip' -o -iname 'reel_pipeline_voice_matched.zip' \\) -not -path '*/.git/*' -print -quit)"
-          if [[ -z "$ZIP_PATH" ]]; then
-            echo "::error::Voice-matched ZIP is not present anywhere in this repository checkout."
-            echo "::error::Upload Reel-Pipeline-Voice-Matched.zip to the repository, then run this workflow again."
+          ZIP_PATH="$GITHUB_WORKSPACE/reel-pipeline-voice-matched/Reel-Pipeline-Voice-Matched.zip"
+          if [[ ! -f "$ZIP_PATH" ]]; then
+            echo "::error::Missing $ZIP_PATH. Upload the exact verified ZIP before running this workflow."
             exit 1
           fi
-          echo "Found runtime archive: $ZIP_PATH"
           actual="$(sha256sum "$ZIP_PATH" | awk '{print $1}')"
           echo "ZIP SHA-256: $actual"
           if [[ "$actual" != "$EXPECTED_ZIP_SHA256" ]]; then
-            echo "::error::ZIP checksum mismatch. Expected the exact supplied archive; do not extract or recompress it."
+            echo "::error::ZIP checksum mismatch. The archive must remain byte-for-byte identical."
             exit 1
           fi
           unzip -t "$ZIP_PATH"
@@ -61,12 +60,41 @@ jobs:
           test -f "$project/make_video.py"
           test -f "$project/voice/voice_reference.wav"
           test -f "$project/scripts/aasman_neela.json"
+          test -f "$project/PIPELINE_MANIFEST.json"
           echo "Bundled pipeline and voice reference verified."
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+
+      - name: Preflight YouTube OAuth secrets
+        if: ${{ env.DELIVERY_MODE == 'public' }}
+        env:
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+
+          for name in ("YOUTUBE_CLIENT_SECRET_B64", "YOUTUBE_TOKEN_B64"):
+              value = os.environ.get(name, "").strip()
+              if not value:
+                  raise SystemExit(f"Required GitHub Actions secret is missing: {name}")
+              try:
+                  payload = json.loads(base64.b64decode(value, validate=True).decode("utf-8"))
+              except Exception as exc:
+                  raise SystemExit(f"{name} must be base64-encoded JSON: {exc}")
+              if name == "YOUTUBE_TOKEN_B64" and not payload.get("refresh_token"):
+                  raise SystemExit("YOUTUBE_TOKEN_B64 JSON must contain a refresh_token")
+              if name == "YOUTUBE_CLIENT_SECRET_B64":
+                  client = payload.get("installed") or payload.get("web") or payload
+                  if not client.get("client_id") or not client.get("client_secret"):
+                      raise SystemExit("YOUTUBE_CLIENT_SECRET_B64 JSON needs client_id and client_secret")
+          print("YouTube OAuth secret structure preflight passed.")
+          PY
 
       - name: Install FFmpeg
         run: |
@@ -101,15 +129,27 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           from scipy.io import wavfile
+          import hashlib
+          import json
+          import os
           import numpy as np
+
           ref = Path("voice/voice_reference.wav")
+          manifest = json.loads(Path("PIPELINE_MANIFEST.json").read_text(encoding="utf-8"))
+          voice_meta = manifest.get("voice_reference", {})
+          actual_sha = hashlib.sha256(ref.read_bytes()).hexdigest()
+          expected_sha = os.environ["EXPECTED_VOICE_SHA256"]
+          assert actual_sha == expected_sha, f"Unexpected voice reference checksum: {actual_sha}"
+          assert voice_meta.get("sha256") == expected_sha, "Manifest voice checksum does not match workflow lock"
+          assert voice_meta.get("source_video") == "1192812.mp4", "Unexpected reference source video"
           sr, audio = wavfile.read(ref)
           duration = len(audio) / sr
           assert sr == 24000, f"Expected 24000 Hz reference, got {sr}"
           assert audio.ndim == 1, f"Expected mono reference, got {audio.shape}"
           assert 6 <= duration <= 20, f"Unexpected reference duration: {duration:.2f}s"
           assert np.isfinite(audio).all(), "Reference audio has invalid samples"
-          print(f"Voice reference OK: {duration:.2f}s / {sr} Hz / mono")
+          print(f"Voice reference OK: {duration:.2f}s / {sr} Hz / mono / SHA-256 {actual_sha}")
+          print(f"Voice source video: {voice_meta['source_video']}")
           PY
 
       - name: Select the next unused fact-angle and generate script
@@ -214,7 +254,7 @@ jobs:
 
       - name: Upload MP4 artifact and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reel-pipeline-voice-matched-${{ github.run_number }}
           path: |
