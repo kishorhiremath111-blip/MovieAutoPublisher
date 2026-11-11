@@ -39,9 +39,13 @@ Upload the supplied archive without extracting, renaming or recompressing it to:
 
 The workflow checks SHA-256 before extraction:
 
-`f2c1026d31b6f7b6c9bd9188794b7103154d8ee6c46f2010fbfc499bd55fd618`
+`9a3a55cf54338e91de2fef7a9c7e70a8d117130e1645f5de673f35b70e6687e0`
 
 If missing or changed, the run stops before topic generation or video rendering.
+
+## Voice reference
+
+The bundled reference voice was refreshed from the user-provided `1192812.mp4` clip. The runtime preflight locks the WAV SHA-256 to `81379377895ef6e9439d21f22878122b7aa557bdaed2ab93abca7ae74dc558cc` and refuses to render if the expected reference is missing or changed. The reference is a filtered/denoised 12-second mono sample at 24 kHz; generated speech uses Chatterbox voice conditioning and can resemble the sample, but is not a bit-for-bit copy of the original recording.
 
 ## YouTube connection
 
