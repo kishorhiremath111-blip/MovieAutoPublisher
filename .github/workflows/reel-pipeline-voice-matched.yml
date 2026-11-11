@@ -31,7 +31,7 @@ jobs:
     env:
       # Manual runs default to public. Any future scheduled trigger also defaults to public.
       DELIVERY_MODE: ${{ github.event_name == 'schedule' && 'public' || inputs.mode || 'public' }}
-      EXPECTED_ZIP_SHA256: 01dddebe890e7f4df64666310fad97f37ff2afcda73f277a34cc31b446238c38
+      EXPECTED_ZIP_SHA256: 9a3a55cf54338e91de2fef7a9c7e70a8d117130e1645f5de673f35b70e6687e0
 
     steps:
       - name: Checkout repository
