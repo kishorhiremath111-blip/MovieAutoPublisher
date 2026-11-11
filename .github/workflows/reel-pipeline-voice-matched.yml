@@ -63,13 +63,12 @@ jobs:
             exit 1
           fi
           unzip -t "$ZIP_PATH"
-          mkdir -p "$RUNNER_TEMP/reel-pipeline-unpack"
-          unzip -q "$ZIP_PATH" -d "$RUNNER_TEMP/reel-pipeline-unpack"
-          project="$RUNNER_TEMP/reel-pipeline-unpack/reel_pipeline_voice_matched"
+          mkdir -p "$GITHUB_WORKSPACE/.reel-pipeline-runtime"
+          unzip -q "$ZIP_PATH" -d "$GITHUB_WORKSPACE/.reel-pipeline-runtime"
+          project="$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched"
           test -f "$project/make_video.py"
           test -f "$project/voice/voice_reference.wav"
           test -f "$project/scripts/aasman_neela.json"
-          echo "PROJECT_DIR=$project" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -82,7 +81,7 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: Install CPU PyTorch and pipeline dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         run: |
           python -m pip install --upgrade pip
           python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
@@ -90,7 +89,7 @@ jobs:
           python -m pip install -r requirements-chatterbox.txt
 
       - name: Preflight - compile code and validate reference audio
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         run: |
           python -m py_compile make_video.py prepare_voice_reference.py reelkit/*.py
           python make_video.py --help
@@ -108,8 +107,19 @@ jobs:
           print(f'Voice reference OK: {duration:.2f}s, {sr} Hz, mono')
           PY
 
+      - name: Validate workflow inputs
+        run: |
+          python - <<'PY'
+          import os
+          music = float(os.environ["MUSIC_LEVEL"])
+          assert 0.0 <= music <= 1.0, "music_level must be between 0.00 and 1.00"
+          if os.environ["RENDER_MODE"] == "preview":
+              seconds = float(os.environ["PREVIEW_SECONDS"])
+              assert 0.0 < seconds <= 300.0, "preview_seconds must be greater than 0 and at most 300"
+          PY
+
       - name: Render with the bundled demo voice reference
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         shell: bash
         run: |
           set -euo pipefail
@@ -126,15 +136,7 @@ jobs:
           )
           if [[ "$QUALITY" == "high" ]]; then args+=(--hq); fi
           if [[ "$RENDER_MODE" == "preview" ]]; then
-            if ! [[ "$PREVIEW_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-              echo "::error::preview_seconds must be a positive number."
-              exit 1
-            fi
             args+=(--preview "$PREVIEW_SECONDS")
-          fi
-          if ! [[ "$MUSIC_LEVEL" =~ ^(0([.][0-9]+)?|1([.]0+)?)$ ]]; then
-            echo "::error::music_level must be between 0.00 and 1.00."
-            exit 1
           fi
           python make_video.py "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/reel-pipeline-render.log"
 
