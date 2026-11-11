@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'reel-pipeline-voice-matched/Reel-Pipeline-Voice-Matched.zip'
+      - 'reel-pipeline-voice-matched/topics/fact_seeds.json'
   workflow_dispatch:
     inputs:
       mode:
