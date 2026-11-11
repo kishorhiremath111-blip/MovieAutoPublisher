@@ -3,27 +3,13 @@ name: Reel Pipeline - Voice Matched
 on:
   workflow_dispatch:
     inputs:
-      render_mode:
-        description: "Preview (first N seconds) or full demo render"
+      mode:
+        description: "PUBLIC = upload directly to YouTube; DOWNLOAD = render MP4 only"
         type: choice
-        options: [preview, full]
-        default: preview
-        required: true
-      preview_seconds:
-        description: "Preview duration when render_mode=preview"
-        type: string
-        default: "12"
-        required: true
-      quality:
-        description: "standard = 720x1280, high = 1080x1920"
-        type: choice
-        options: [standard, high]
-        default: standard
-        required: true
-      music_level:
-        description: "Background music gain from 0.00 to 1.00"
-        type: string
-        default: "0.20"
+        options:
+          - public
+          - download
+        default: public
         required: true
 
 permissions:
@@ -34,32 +20,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  render-voice-matched-reel:
+  render-and-deliver:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      RENDER_MODE: ${{ inputs.render_mode }}
-      PREVIEW_SECONDS: ${{ inputs.preview_seconds }}
-      QUALITY: ${{ inputs.quality }}
-      MUSIC_LEVEL: ${{ inputs.music_level }}
+      # Manual runs default to public. Any future scheduled trigger also defaults to public.
+      DELIVERY_MODE: ${{ github.event_name == 'schedule' && 'public' || inputs.mode || 'public' }}
       ZIP_PATH: reel-pipeline-voice-matched/Reel-Pipeline-Voice-Matched.zip
       EXPECTED_ZIP_SHA256: f2c1026d31b6f7b6c9bd9188794b7103154d8ee6c46f2010fbfc499bd55fd618
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify the exact uploaded pipeline ZIP
+      - name: Verify the exact voice-matched ZIP
         shell: bash
         run: |
           set -euo pipefail
           if [[ ! -f "$ZIP_PATH" ]]; then
-            echo "::error::Missing $ZIP_PATH. Upload the exact Reel Pipeline - Voice Matched ZIP there first."
+            echo "::error::Missing $ZIP_PATH. Upload the exact supplied ZIP before running this workflow."
             exit 1
           fi
           actual="$(sha256sum "$ZIP_PATH" | awk '{print $1}')"
           echo "ZIP SHA-256: $actual"
           if [[ "$actual" != "$EXPECTED_ZIP_SHA256" ]]; then
-            echo "::error::ZIP integrity check failed. The uploaded archive is not byte-for-byte identical to the supplied updated ZIP."
+            echo "::error::ZIP checksum mismatch. The archive must remain byte-for-byte identical."
             exit 1
           fi
           unzip -t "$ZIP_PATH"
@@ -69,6 +54,7 @@ jobs:
           test -f "$project/make_video.py"
           test -f "$project/voice/voice_reference.wav"
           test -f "$project/scripts/aasman_neela.json"
+          echo "Bundled pipeline and voice reference verified."
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -80,7 +66,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Install CPU PyTorch and pipeline dependencies
+      - name: Install Chatterbox voice-matching dependencies
         working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         run: |
           python -m pip install --upgrade pip
@@ -88,65 +74,90 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-chatterbox.txt
 
-      - name: Preflight - compile code and validate reference audio
+      - name: Preflight - validate reference voice and pipeline
         working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         run: |
+          set -euo pipefail
           python -m py_compile make_video.py prepare_voice_reference.py reelkit/*.py
           python make_video.py --help
           python - <<'PY'
           from pathlib import Path
           from scipy.io import wavfile
           import numpy as np
-          p = Path('voice/voice_reference.wav')
-          sr, audio = wavfile.read(p)
-          assert sr == 24000, f'Expected 24000 Hz, got {sr}'
-          assert audio.ndim == 1, f'Expected mono audio, got shape {audio.shape}'
+          ref = Path("voice/voice_reference.wav")
+          sr, audio = wavfile.read(ref)
           duration = len(audio) / sr
-          assert 6 <= duration <= 20, f'Unexpected reference duration: {duration:.2f}s'
-          assert np.isfinite(audio).all(), 'Reference audio contains non-finite samples'
-          print(f'Voice reference OK: {duration:.2f}s, {sr} Hz, mono')
+          assert sr == 24000, f"Expected 24000 Hz reference, got {sr}"
+          assert audio.ndim == 1, f"Expected mono reference, got {audio.shape}"
+          assert 6 <= duration <= 20, f"Unexpected reference duration: {duration:.2f}s"
+          assert np.isfinite(audio).all(), "Reference audio has invalid samples"
+          print(f"Voice reference OK: {duration:.2f}s / {sr} Hz / mono")
           PY
 
-      - name: Validate workflow inputs
-        run: |
-          python - <<'PY'
-          import os
-          music = float(os.environ["MUSIC_LEVEL"])
-          assert 0.0 <= music <= 1.0, "music_level must be between 0.00 and 1.00"
-          if os.environ["RENDER_MODE"] == "preview":
-              seconds = float(os.environ["PREVIEW_SECONDS"])
-              assert 0.0 < seconds <= 300.0, "preview_seconds must be greater than 0 and at most 300"
-          PY
-
-      - name: Render with the bundled demo voice reference
+      - name: Render the full demo with the same reference voice
         working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         shell: bash
         run: |
           set -euo pipefail
-          args=(
-            scripts/aasman_neela.json
-            --output "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4"
-            --tts chatterbox
-            --voice-reference voice/voice_reference.wav
-            --language hi
-            --device cpu
-            --workers 2
-            --fps 24
-            --music "$MUSIC_LEVEL"
-          )
-          if [[ "$QUALITY" == "high" ]]; then args+=(--hq); fi
-          if [[ "$RENDER_MODE" == "preview" ]]; then
-            args+=(--preview "$PREVIEW_SECONDS")
-          fi
-          python make_video.py "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/reel-pipeline-render.log"
+          python make_video.py scripts/aasman_neela.json \
+            --output "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4" \
+            --tts chatterbox \
+            --voice-reference voice/voice_reference.wav \
+            --language hi \
+            --device cpu \
+            --hq \
+            --fps 30 \
+            --workers 2 \
+            --music 0.20 2>&1 | tee "$GITHUB_WORKSPACE/reel-pipeline-render.log"
 
-      - name: Verify rendered MP4
+      - name: Validate YouTube Shorts video format
         run: |
           set -euo pipefail
           test -s "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4"
-          ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4"
+          python - <<'PY'
+          import json, subprocess
+          path = "reel-pipeline-voice-matched.mp4"
+          raw = subprocess.check_output([
+              "ffprobe", "-v", "error", "-show_streams", "-show_format",
+              "-of", "json", path
+          ], text=True)
+          data = json.loads(raw)
+          streams = data.get("streams", [])
+          video = next((s for s in streams if s.get("codec_type") == "video"), None)
+          audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+          assert video is not None and audio is not None, "Both video and audio streams are required"
+          assert video.get("codec_name") == "h264", f"Expected H.264, got {video.get('codec_name')}"
+          assert (video.get("width"), video.get("height")) == (1080, 1920), "Expected 1080x1920 vertical video"
+          fps = video.get("avg_frame_rate", "0/1")
+          n, d = map(int, fps.split("/"))
+          assert d and abs(n / d - 30) < 0.2, f"Expected 30 fps, got {fps}"
+          duration = float(data.get("format", {}).get("duration", 0))
+          assert 3 < duration <= 180, f"Short duration must be 3-180 seconds, got {duration:.2f}s"
+          print(f"SHORT FORMAT OK: 1080x1920 | {fps} fps | {duration:.2f}s | H.264 + audio")
+          PY
 
-      - name: Upload render and logs
+      - name: Install YouTube uploader dependencies
+        if: ${{ env.DELIVERY_MODE == 'public' }}
+        run: |
+          python -m pip install google-api-python-client google-auth google-auth-httplib2
+
+      - name: Upload directly as a PUBLIC YouTube Short
+        if: ${{ env.DELIVERY_MODE == 'public' }}
+        env:
+          YOUTUBE_CLIENT_SECRET_B64: ${{ secrets.YOUTUBE_CLIENT_SECRET_B64 }}
+          YOUTUBE_TOKEN_B64: ${{ secrets.YOUTUBE_TOKEN_B64 }}
+        run: |
+          set -euo pipefail
+          python reel-pipeline-voice-matched/upload_youtube.py \
+            "$GITHUB_WORKSPACE/reel-pipeline-voice-matched.mp4" \
+            "$GITHUB_WORKSPACE/.reel-pipeline-runtime/reel_pipeline_voice_matched/scripts/aasman_neela.json" \
+            "$GITHUB_WORKSPACE/youtube-upload-result.txt"
+
+      - name: Confirm download-only mode
+        if: ${{ env.DELIVERY_MODE == 'download' }}
+        run: echo "DOWNLOAD ONLY selected. Video rendered successfully; YouTube upload was intentionally skipped."
+
+      - name: Upload MP4 artifact and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -154,5 +165,6 @@ jobs:
           path: |
             reel-pipeline-voice-matched.mp4
             reel-pipeline-render.log
+            youtube-upload-result.txt
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14
