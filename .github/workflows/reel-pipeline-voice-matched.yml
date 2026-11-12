@@ -178,6 +178,7 @@ jobs:
             --state-dir "$GITHUB_WORKSPACE/reel-pipeline-voice-matched/state"
 
       - name: Render the new topic with the same reference voice
+        timeout-minutes: 60
         working-directory: .reel-pipeline-runtime/reel_pipeline_voice_matched
         shell: bash
         run: |
@@ -191,6 +192,8 @@ jobs:
             --hq \
             --fps 30 \
             --workers 2 \
+            --preset veryfast \
+            --crf 17 \
             --music 0.20 2>&1 | tee "$GITHUB_WORKSPACE/reel-pipeline-render.log"
 
       - name: Validate YouTube Shorts video format
