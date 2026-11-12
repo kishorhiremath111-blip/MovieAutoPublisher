@@ -79,22 +79,23 @@ jobs:
 
           path = Path(".reel-pipeline-runtime/reel_pipeline_voice_matched/reelkit/pipeline.py")
           source = path.read_text(encoding="utf-8")
-          old = """    p.stdin.close()
-              p.wait()
-              if workers > 1:
-                  pool.close()
-          """
-          new = """    # Pool workers are forked after FFmpeg starts and inherit its stdin pipe.
-              # Stop and join them BEFORE closing the parent pipe, otherwise FFmpeg
-              # never receives EOF and hangs while finalizing the MP4 container.
-              if workers > 1:
-                  pool.close()
-                  pool.join()
-              p.stdin.close()
-              return_code = p.wait()
-              if return_code:
-                  raise RuntimeError(f"FFmpeg encode failed with exit code {return_code}: {out}")
-          """
+          old = "\n".join([
+              "    p.stdin.close()",
+              "    p.wait()",
+              "    if workers > 1:",
+              "        pool.close()",
+          ]) + "\n"
+          new = "\n".join([
+              "    # Pool workers are forked after FFmpeg starts and inherit its stdin pipe.",
+              "    # Join them before closing the parent's pipe so FFmpeg receives EOF.",
+              "    if workers > 1:",
+              "        pool.close()",
+              "        pool.join()",
+              "    p.stdin.close()",
+              "    return_code = p.wait()",
+              "    if return_code:",
+              "        raise RuntimeError(f\"FFmpeg encode failed with exit code {return_code}: {out}\")",
+          ]) + "\n"
           if source.count(old) != 1:
               raise SystemExit(
                   "Expected original FFmpeg shutdown block exactly once; "
@@ -102,6 +103,8 @@ jobs:
               )
           patched = source.replace(old, new, 1)
           compile(patched, str(path), "exec")
+          if patched.index("pool.join()") > patched.index("p.stdin.close()") or patched.index("p.stdin.close()") > patched.index("p.wait()", patched.index("p.stdin.close()")):
+              raise SystemExit("FFmpeg shutdown ordering assertion failed.")
           path.write_text(patched, encoding="utf-8")
           print("FFmpeg EOF ordering patched and Python syntax verified.")
           PY
