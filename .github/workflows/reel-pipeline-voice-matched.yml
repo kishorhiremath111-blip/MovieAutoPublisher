@@ -7,6 +7,7 @@ on:
     paths:
       - 'reel-pipeline-voice-matched/Reel-Pipeline-Voice-Matched.zip'
       - 'reel-pipeline-voice-matched/topics/fact_seeds.json'
+      - '.github/workflows/reel-pipeline-voice-matched.yml'
   workflow_dispatch:
     inputs:
       mode:
@@ -109,6 +110,22 @@ jobs:
           python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-chatterbox.txt
+          # PyPI chatterbox-tts 0.1.7 does not expose the V3 t3_model selector.
+          # Replace only the package code with the verified upstream revision; keep installed CPU dependencies.
+          python -m pip install --no-deps --force-reinstall \
+            "git+https://github.com/resemble-ai/chatterbox.git@ab55923c27757c90cfcc407baa57dc25a7d25217"
+          python - <<'PY'
+          import inspect
+          from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+
+          signature = inspect.signature(ChatterboxMultilingualTTS.from_pretrained)
+          if "t3_model" not in signature.parameters:
+              raise SystemExit(
+                  "Installed Chatterbox package lacks the t3_model selector required for V3: "
+                  f"{signature}"
+              )
+          print(f"Chatterbox V3 API verified: {signature}")
+          PY
 
       - name: Install Hinglish transliteration helper
         run: python -m pip install indic-transliteration
