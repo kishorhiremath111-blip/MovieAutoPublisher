@@ -69,6 +69,42 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+ 
+      - name: Patch FFmpeg pipe shutdown ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".reel-pipeline-runtime/reel_pipeline_voice_matched/reelkit/pipeline.py")
+          source = path.read_text(encoding="utf-8")
+          old = """    p.stdin.close()
+              p.wait()
+              if workers > 1:
+                  pool.close()
+          """
+          new = """    # Pool workers are forked after FFmpeg starts and inherit its stdin pipe.
+              # Stop and join them BEFORE closing the parent pipe, otherwise FFmpeg
+              # never receives EOF and hangs while finalizing the MP4 container.
+              if workers > 1:
+                  pool.close()
+                  pool.join()
+              p.stdin.close()
+              return_code = p.wait()
+              if return_code:
+                  raise RuntimeError(f"FFmpeg encode failed with exit code {return_code}: {out}")
+          """
+          if source.count(old) != 1:
+              raise SystemExit(
+                  "Expected original FFmpeg shutdown block exactly once; "
+                  f"found {source.count(old)}. Refusing an unsafe patch."
+              )
+          patched = source.replace(old, new, 1)
+          compile(patched, str(path), "exec")
+          path.write_text(patched, encoding="utf-8")
+          print("FFmpeg EOF ordering patched and Python syntax verified.")
+          PY
 
       - name: Preflight YouTube OAuth secrets
         if: ${{ env.DELIVERY_MODE == 'public' }}
